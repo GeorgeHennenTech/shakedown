@@ -3,3 +3,6 @@
 
 .DS_Store
 *.blend1
+
+# Session notes, local only
+.claude/HANDOFF.md
