@@ -106,14 +106,13 @@ Seth asked for the prices to be checked against real play. `game/dev/bot.js` is 
 
 The prices already agreed hold up against this rule, so they stay. The income column is a target for the stands, not a measurement: nothing above walking exists yet. When a stand is built, run the bot on it and adjust the stand, not the price.
 
-## Open question: what happens after Monday
+## After Monday: the festival never ends (Seth, 18 Nov 2026)
 
-The festival ends Monday at noon, and one festival is about 45 minutes of play. Nothing costing more than about $1,000 can be earned inside one. Today Monday simply runs on for ever. Before the booth is built, that needs a real answer. The recommendation: after pack-out a new week begins on the same grounds, with your camp, garden, stand and friends carried over. That fits Seth's rule that this festival stays the home base, and it gives the booth, the truck and the RV the weeks they need.
+One festival weekend is about 45 minutes of play, and nothing costing more than about $1,000 can be earned inside one. Seth's answer: the days just keep flowing. This festival goes on for ever, which is also what lets it be the home base you come back to from the Tour. In the prototype the week now comes round again (Thursday to Wednesday, then Thursday), the line-up plays every day, and the Monday-noon report is a recap of your first weekend, not an ending.
 
 ## Build order
 
 1. Orders and the camp kitchen with Moonbeam on a wage (step 2).
 2. The table and pitch on the Street, with queues and the star rating (step 3).
-3. The week turning over after Monday.
-4. The booth, the rival stall and the health inspector (step 4).
-5. The car ladder up to the van, then the kitchen build and the pitches (step 5).
+3. The booth, the rival stall and the health inspector (step 4).
+4. The car ladder up to the van, then the kitchen build and the pitches (step 5).

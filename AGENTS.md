@@ -55,7 +55,7 @@ Needs bars, inventory with hotbar, camp stash, save and continue, crafting bench
 
 ## What is next
 
-Seth's agreed order is the build order at the end of `design/food-truck-path.md`, starting with orders and the camp kitchen with Moonbeam hired on a wage. One open question there needs Seth's answer first: what happens after Monday. Still unbuilt from the map: the car ladder (Find Your Car, van $2,000, RV $12,000 which starts the Tour), storage, comfort, security extras, power and light, hygiene gear, workbench levels, more kitchen gear.
+Seth's agreed order is the build order at the end of `design/food-truck-path.md`, starting with orders and the camp kitchen with Moonbeam hired on a wage. Still unbuilt from the map: the car ladder (Find Your Car, van $2,000, RV $12,000 which starts the Tour), storage, comfort, security extras, power and light, hygiene gear, workbench levels, more kitchen gear.
 
 Good jobs to hand to a second model, because they are already specified: any ladder in `camp-upgrade-map.md` marked "Next", more content in the three data files, balance tuning, interface polish.
 
@@ -67,7 +67,7 @@ Good jobs to hand to a second model, because they are already specified: any lad
 - Duct tape is not sold.
 - Hired helpers are paid a daily wage, never a share of the takings.
 - Whip and his goons dress like festival-goers, not in designer clothes.
-- This festival stays the home base; the RV is what starts the Tour.
+- This festival never ends: the days keep flowing and the week comes round again. It stays the home base; the RV is what starts the Tour.
 - Mouth animation on talking heads is deferred.
 - Paid art generation: hold 3D spending until the engine is chosen; 2D art that carries over is fine. Ask before spending.
 

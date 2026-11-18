@@ -5,8 +5,8 @@
 import { ICONS } from './icons.js?v=9';
 
 const HOUR = 50; // real seconds per game hour, so a full day is 20 minutes
-const DAYS = ['Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday'];
-const dayName = (d) => DAYS[Math.min(d, DAYS.length - 1)];
+const DAYS = ['Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday']; // the festival never ends: the week just comes round again
+const dayName = (d) => DAYS[d % DAYS.length];
 const BARS = [
   ['hydration', 'Hydration', '#3aa0ff'], ['energy', 'Energy', '#ffb020'], ['nourishment', 'Nourishment', '#8ac926'],
   ['hygiene', 'Hygiene', '#2ec4b6'], ['vibes', 'Vibes', '#ff5d8f'], ['buzzkill', 'Buzzkill', '#d7263d'],
@@ -427,13 +427,13 @@ export function createLife(ctx) {
     const score = worth / 10 + levels * 3 + quests * 8 + state.heal.count * 2 + state.picked + made * 3 + state.pal.friend * 2 + state.danced;
     const title = score >= 150 ? 'Certified Head' : score >= 95 ? 'Lot Legend' : score >= 55 ? 'Weekend Warrior' : score >= 25 ? 'Getting the hang of it' : 'Tourist';
     const row = (a, b) => `<div class="item"><span>${a}</span><b>${b}</b></div>`;
-    $('bagpanel').innerHTML = `<h3 class="comix">The festival is over <small>Monday, pack-out</small></h3>
-      <p style="margin:4px 0 8px">The stages are coming down and the lot is emptying. Here is how ${look.name}'s festival went.</p>`
+    $('bagpanel').innerHTML = `<h3 class="comix">Your first weekend <small>Monday, noon</small></h3>
+      <p style="margin:4px 0 8px">Nobody is packing up. This festival does not end. Here is how ${look.name}'s first weekend went.</p>`
       + row('Money in hand and at camp', `$${worth}`) + row('Grilled cheese sold', state.sold) + row('People you helped', state.heal.count) + row('Litter binned', state.picked)
       + row('Things made at the workbench', made) + row('Quests finished', `${quests} of ${CHAIN.length + 1}`) + row('Skill levels, all together', levels)
       + row('Songs danced', state.danced) + row('Sets played', state.crate.sets) + row('Friendship with Moonbeam', state.pal.friend)
       + `<h3 class="comix" style="margin-top:12px;text-align:center;font-size:30px">${title}</h3>
-      <p class="hint" style="margin-bottom:16px">You can keep playing: Monday goes on for as long as you like.</p><div class="next">Esc to close</div>`;
+      <p class="hint" style="margin-bottom:16px">The music is back on at 2 PM, same as every day.</p><div class="next">Esc to close</div>`;
   }
   // ---- the field guide: the short version of how to get by
   function drawGuide() {
@@ -448,7 +448,7 @@ export function createLife(ctx) {
       + li('Grow and forage', 'Your garden takes seeds from the General Store; what you harvest goes into your sandwiches by itself and makes them worth more. Build a mushroom shelf at your workbench: the store has oyster spawn, and the Village Elder keeps the stranger cultures. Wild mushrooms come up under the big trees, on the river bank and in the open grass, most of them the morning after rain. Look before you pick: two of them have poisonous twins. J opens your field journal.')
       + li('The nitrous game', 'Optional and risky. Vinny sells balloons at the far end of Shakedown Street. Sell for him on commission, or get your own tank: from Whip behind the Costume Shop, from town through the lot office, or off Vinny’s stall while he sleeps (3 to 6 AM). Selling against him raises his heat until he comes for you, and the friends you have made decide how that goes. If a buyer speaks first, listen to how. Chaining balloons wrecks your Body.')
       + li('Keys', 'E use · Q choose what to offer · I bag · K skills · J journal · M map · H this guide · F eat · R drink from a towed cooler · X dance at the Main Stage · E at the Open Decks tent to play a set · 1 to 9 use a bag slot · G graphics · N sound')
-      + (state.over ? '<p class="hint"><button data-report="1">Show the festival report</button></p>' : '')
+      + (state.over ? '<p class="hint"><button data-report="1">Show your first-weekend report</button></p>' : '')
       + '<div class="next" style="position:static;text-align:right;margin-top:8px">H or Esc to close</div>';
   }
   function drawPanel() { if (state.panel === 'skills') drawSkills(); else if (state.panel === 'map') drawMap(); else if (state.panel === 'report') drawReport(); else if (state.panel === 'guide') drawGuide(); else if (state.panel === 'journal') drawJournal(); else drawBag(); }
