@@ -45,6 +45,8 @@ It needs `art/logo/`, which is on Seth's Mac but not in the repository (see "Wha
 | `design/camp-upgrade-map.md` | **Plan of record** for everything upgradeable at camp: 14 ladders with prices and benefits, what is built, the build order. |
 | `design/decisions.md` | Numbered decisions Seth has made, plus notes on each system as built. Add to it when you build something. |
 | `design/camp-gear.md`, `camp-and-needs.md`, `map-plan.md`, `wardrobe-plan.md`, `future-ideas.md` | Older plans and history. `camp-upgrade-map.md` wins where they disagree. |
+| `design/food-truck-path.md` | The agreed path from walking vendor to food truck: six steps, wages, the van conversion, prices checked against test runs. |
+| `game/dev/bot.js` | A test player that plays the real rules at high speed and reports income. Use it to check any price or balance change. |
 | `tools/` | Blender and shell scripts for models, and `build_app.sh`. |
 
 ## What is built
@@ -53,7 +55,7 @@ Needs bars, inventory with hotbar, camp stash, save and continue, crafting bench
 
 ## What is next
 
-Seth's agreed order: discuss the path to a food vending truck; then selling from camp with Moonbeam hired (plan in `camp-upgrade-map.md`, now possible because the crowd moves). Still unbuilt from the map: the car ladder (Find Your Car, van $2,000, RV $12,000 which starts the Tour), storage, comfort, security extras, power and light, hygiene gear, workbench levels, more kitchen gear.
+Seth's agreed order is the build order at the end of `design/food-truck-path.md`, starting with orders and the camp kitchen with Moonbeam hired on a wage. One open question there needs Seth's answer first: what happens after Monday. Still unbuilt from the map: the car ladder (Find Your Car, van $2,000, RV $12,000 which starts the Tour), storage, comfort, security extras, power and light, hygiene gear, workbench levels, more kitchen gear.
 
 Good jobs to hand to a second model, because they are already specified: any ladder in `camp-upgrade-map.md` marked "Next", more content in the three data files, balance tuning, interface polish.
 
@@ -63,6 +65,7 @@ Good jobs to hand to a second model, because they are already specified: any lad
 - No skill or perk reduces camp raids.
 - Recipes and fillings come from growing or foraging, never from buying a better ingredient.
 - Duct tape is not sold.
+- Hired helpers are paid a daily wage, never a share of the takings.
 - Whip and his goons dress like festival-goers, not in designer clothes.
 - This festival stays the home base; the RV is what starts the Tour.
 - Mouth animation on talking heads is deferred.

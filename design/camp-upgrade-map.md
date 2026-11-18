@@ -21,7 +21,7 @@ Seth asked whether a good enough kitchen and garden should let you sell from you
 
 - **Opening the camp kitchen.** Needs the griddle (stove level 6), four garden plots and a hand-painted sign. People passing the Campgrounds then walk up and order.
 - **Orders.** Each customer wants a particular sandwich. Filling orders from what you have cooked is quick money; cooking to order pays more and takes your time.
-- **Hiring Moonbeam.** At friendship 4. A share of the day's takings (a fifth, to be tuned), not a wage. One job at a time, which you choose each morning:
+- **Hiring Moonbeam.** At friendship 4. A wage of $35 a game day, paid each morning (Seth, 18 Nov: a wage, not a share; see `food-truck-path.md`). One job at a time, which you choose each morning:
   - *Front of house:* takes orders and sells from your stash while you are out, at a lower rate than you would manage yourself.
   - *Garden:* waters, harvests and replants, so plots never sit empty.
 - **A second hand later.** Somebody you have healed or helped can take the other job, so both run at once.
@@ -53,7 +53,7 @@ Right now you have no vehicle; the cars in the Parking Lot are scenery. The bibl
 | 7 | Van build-out | ♻, three projects | Roof deck (watch the Main Stage from camp), insulation (cold nights do nothing), fold-out counter |
 | 8 | RV | $12,000 | Onboard kitchen, air con, fast recovery. **Buying it starts the Tour:** you can drive to other festivals, and this one stays your home base, with your camp, garden and friends waiting. Priced as the end of Act 1 (Seth, 18 Nov); to be tuned once food-truck income is known |
 
-**Fork at Lv 6.** A van can be built out to live in (Lv 7–8) or cut a serving hatch into. The hatch is the first step of the food truck, which we will plan separately.
+**Fork at Lv 6.** A van can be built out to live in (Lv 7–8) or cut a serving hatch into. The hatch is the first step of the food truck: see `food-truck-path.md`.
 
 ---
 

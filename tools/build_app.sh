@@ -10,7 +10,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 # the game itself (without backups and test pages)
-rsync -a --exclude 'main.blockout.js' --exclude 'zoo.html' --exclude 'refs' --exclude 'play.sh' "$HERE/game/" "$APP/Contents/Resources/game/"
+rsync -a --exclude 'main.blockout.js' --exclude 'zoo.html' --exclude 'refs' --exclude 'play.sh' --exclude 'dev' "$HERE/game/" "$APP/Contents/Resources/game/"
 
 # the icon, in every size macOS asks for
 SET="$(mktemp -d)/AppIcon.iconset"; mkdir -p "$SET"
