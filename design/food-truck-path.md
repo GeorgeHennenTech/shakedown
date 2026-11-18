@@ -115,6 +115,15 @@ Seth asked for the prices to be checked against real play. `game/dev/bot.js` is 
 
 The first version earned less than selling on foot with the same gear ($608 walking, $1,288 brisk) because the player stood waiting about half the time. Tuned, it beats walking sales at a walking pace by about 38% and sits near the $1,000 target. A sprinting walker still out-earns it in these runs, but the test player does not pay the energy cost of sprinting. Moonbeam on the counter is not measured. The settings are the `KITCHEN` line in `game/life.js`.
 
+**Named orders, measured (18 Nov 2026).** Customers now order by name from what is cooked, and a named order met tips $1. The test player has a `fillings` option that stands in for a tended garden (tomatoes and peppers kept in the stash). One festival each, walking pace, no helper:
+
+| Kitchen | Served | Walked off | Net per real hour |
+|---|---|---|---|
+| No garden (plain orders only) | 181 | 52 | $841 |
+| Tomatoes and peppers | 183 | 60 | $958 |
+
+Single runs, and two runs of the same settings differed by about 15% in this session, so read the gap as "a garden helps somewhat", not as a precise figure. The garden kitchen sits at the $1,000 target. Cooked sandwiches never go off, so nothing yet forces a balance between cooking ahead and selling out.
+
 The prices already agreed hold up against this rule, so they stay. The income column is a target for the stands, not a measurement: nothing above walking exists yet. When a stand is built, run the bot on it and adjust the stand, not the price.
 
 ## After Monday: the festival never ends (Seth, 18 Nov 2026)
@@ -123,7 +132,7 @@ One festival weekend is about 45 minutes of play, and nothing costing more than 
 
 ## Build order
 
-1. Orders and the camp kitchen with Moonbeam on a wage (step 2). **First version built 18 Nov 2026**; still to do: named-sandwich orders, the star rating, a second helper, and a test-player run to tune it toward its income target.
+1. Orders and the camp kitchen with Moonbeam on a wage (step 2). **First version built 18 Nov 2026**; named-sandwich orders built the same day; still to do: the star rating, a second helper, and a test-player run to tune it toward its income target.
 2. The table and pitch on the Street, with queues and the star rating (step 3).
 3. The booth, the rival stall and the health inspector (step 4).
 4. The car ladder up to the van, then the kitchen build and the pitches (step 5).

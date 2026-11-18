@@ -5,8 +5,11 @@
 // player (timing error set by `flipError`). Run from the browser console or a test script:
 //   const { makeBot } = await import('./dev/bot.js'); const bot = makeBot({ preset: 'start' }); bot.run(20000);
 // Call run() again until bot.done; bot.report() gives the numbers.
+// `fillings` (kitchen preset only, e.g. ['tomato', 'pepper']) stands in for a tended garden: the bot knows those
+// recipes, its stash is topped back up to twelve of each whenever one runs low, and at the stove it cooks whichever
+// sandwich on the board it has fewest of. With fillings on the board, customers order those sandwiches by name.
 
-export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed = 2.3 } = {}) {
+export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed = 2.3, fillings = [] } = {}) {
   const g = window.__game, S = g.state, P = g.player.root.position;
   const key = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code }));
   const total = () => S.day * 24 + S.hour;
@@ -25,6 +28,17 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
   if (preset === 'kitted' || preset === 'kitchen') { S.gear.stove = 6; S.gear.bag = 3; S.craft.made.tray = true; }
   const kitchen = preset === 'kitchen'; // stays at camp and serves the counter instead of walking sandwiches around
   if (kitchen) { S.craft.made.sign = true; S.gear.land = 3; S.kitchen.open = true; }
+  const larder = () => { for (const k of fillings) { S.recipes[k] = true; if (S.bag[k] + S.store[k] < 3) S.store[k] = 12; } };
+  const cooked = (k) => [...S.cheese, ...S.store.cheese].filter((s) => s.p >= 3 && (k ? s.f[0] === k : !s.f.length)).length;
+  function lightStove() { // E at the stove; with fillings in the stash the game asks what goes in
+    key('KeyE');
+    if (!S.menu) return;
+    const kinds = ['', ...fillings.filter((k) => S.bag[k] + S.store[k] > 0)].sort((a, b) => cooked(a) - cooked(b));
+    const i = kinds[0] ? 1 + fillOrder().indexOf(kinds[0]) : S.menu.options.length - 1; // the menu reads: best, each filling, plain
+    key('Digit' + (i + 1));
+  }
+  const fillOrder = () => ['morel', 'chanterelle', 'oyster', 'tomato', 'pepper', 'herbs'].filter((k) => (S.bag[k] || 0) + (S.store[k] || 0) > 0); // the order the stove menu lists them in
+  const short = () => kitchen && fillings.length > 0 && ['', ...fillings].some((k) => cooked(k) < 2);
 
   const log = { start: total(), cash0: S.cash + S.stash, hours: [], spent: { supplies: 0, permit: 0, water: 0, shower: 0, gear: 0 }, lost: 0, time: { sell: 0, cook: 0, shop: 0, rest: 0, walk: 0, wait: 0 }, offers: 0, stuck: 0 };
   let lastHour = Math.floor(total()), target = null, retarget = 0, lastCash = S.cash + S.stash, doing = 'wait';
@@ -72,11 +86,11 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
       const stock = S.cheese.length + S.store.cheese.length, open = h >= 8 || h < 2;
       const q = S.kitchen.queue.find((x) => x.at);
       if (q && stock) { const f = g.people[q.i]; if (!walkTo([f.x, f.z], 1.5)) return 'walk'; g.step(1, dt); const c = S.cash; key('KeyE'); if (S.menu) key('Escape'); if (S.cash > c) log.offers++; return 'sell'; }
-      if (stock < 6 && supplies() > 0) { if (!walkTo(SPOT.stove, 2)) return 'walk'; g.step(1, dt); key('KeyE'); return 'cook'; }
+      if ((stock < 6 || (short() && stock < 16 && !S.kitchen.queue.some((x) => x.at))) && supplies() > 0) { if (!walkTo(SPOT.stove, 2)) return 'walk'; g.step(1, dt); lightStove(); return 'cook'; }
       if (stock < 4 && supplies() === 0 && cash >= 5 && open) {
         if (!walkTo(SPOT.store, 2)) return 'walk';
         g.step(1, dt); key('KeyE');
-        for (let i = 0; i < Math.min(8, Math.floor((cash - 6) / 5)); i++) { const c = pick(/Bread and cheese/); if (c === false || S.cash === c) break; log.spent.supplies += c - S.cash; }
+        for (let i = 0; i < Math.min(fillings.length ? 12 : 8, Math.floor((cash - 6) / 5)); i++) { const c = pick(/Bread and cheese/); if (c === false || S.cash === c) break; log.spent.supplies += c - S.cash; }
         key('Escape'); return 'shop';
       }
       if (!walkTo(SPOT.stove, 3.5)) return 'walk';
@@ -119,6 +133,7 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
         simMs += dt * 1000;
         for (let k = timers.length - 1; k >= 0; k--) if (timers[k].at <= simMs) { const t = timers.splice(k, 1)[0]; t.fn(...t.a); }
         if (S.over) { this.done = true; break; }
+        if (fillings.length) larder();
         if (S.panel || (S.menu && !S.canMove)) key('Escape');
         if (S.dialogue) { key('KeyE'); doing = 'wait'; }
         else if (S.cooking) { cookStep(); doing = 'cook'; }
@@ -135,7 +150,7 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
     report() {
       const gameHours = total() - log.start, worth = S.cash + S.stash, realHours = Object.values(log.time).reduce((a, b) => a + b, 0) / 3600;
       const spent = Object.values(log.spent).reduce((a, b) => a + b, 0);
-      return { preset, speed, gameHours: +gameHours.toFixed(1), realHoursPlayed: +realHours.toFixed(2), start: log.cash0, end: worth, net: worth - log.cash0, sold: S.sold, offers: log.offers, served: S.kitchen.served, walkedOff: S.kitchen.walked,
+      return { preset, speed, fillings, wrongOrders: S.kitchen.wrong || 0, cookedLeft: [...S.cheese, ...S.store.cheese].length, gameHours: +gameHours.toFixed(1), realHoursPlayed: +realHours.toFixed(2), start: log.cash0, end: worth, net: worth - log.cash0, sold: S.sold, offers: log.offers, served: S.kitchen.served, walkedOff: S.kitchen.walked,
         netPerGameDay: +((worth - log.cash0) / gameHours * 24).toFixed(0), netPerRealHour: +((worth - log.cash0) / realHours).toFixed(0), spent: log.spent, spentTotal: spent, lostToTheftAndFines: Math.round(log.lost),
         timeShare: Object.fromEntries(Object.entries(log.time).map(([k, v]) => [k, Math.round(v / (realHours * 36)) + '%'])), stuckFrames: log.stuck, hustle: g.life.level('hustle'), byDay: log.hours.filter((_, i) => i % 12 === 11) };
     },

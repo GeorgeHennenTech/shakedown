@@ -98,7 +98,7 @@ export function createLife(ctx) {
     chain: { i: 0, stats: { digs: 0, builds: 0, perfect: 0, herbs: 0, rainCamp: 0, kandi: 0, headliner: 0 } }, trophies: {},
     garden: { on: false, wet: false, start: 0, ready: 0 }, permitDay: -1, heal: { next: 0, ids: [], count: 0 },
     weather: { rain: false, until: 0, next: 31 + Math.random() * 8 }, // the first shower comes on Friday
-    plots: [], recipes: {}, shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
+    plots: [], recipes: {}, cookFill: 'best', shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
     fx: { clear: 0, soul: 0, zombie: 0, broth: 0, smoke: 0, trip: 0, tripDay: -1 }, glow: 0, vision: false, visionUsed: false,
     offer: '', pal: { friend: 0, watch: 0, gift: -1 }, danced: 0, daily: null, over: false, act: '',
     tree: {}, dayLog: { worth: 40, sold: 0, helped: 0, picked: 0 },
@@ -260,7 +260,7 @@ export function createLife(ctx) {
     let left = amount;
     const put = (where) => {
       const fit = Math.min(left, room(where, k));
-      if (k === 'cheese') for (let i = 0; i < fit; i++) (where === 'bag' ? state.cheese : state.store.cheese).push(quality);
+      if (k === 'cheese') for (let i = 0; i < fit; i++) (where === 'bag' ? state.cheese : state.store.cheese).push({ p: quality.p, f: [...quality.f] });
       else (where === 'bag' ? state.bag : state.store)[k] += fit;
       left -= fit;
     };
@@ -274,7 +274,7 @@ export function createLife(ctx) {
     if (!amount) { toast(to === 'bag' ? 'Your bag is full.' : 'Your stash is full.'); return; }
     if (k === 'cheese') {
       const src = from === 'bag' ? state.cheese : state.store.cheese, dst = to === 'bag' ? state.cheese : state.store.cheese;
-      src.sort((a, b) => b - a); dst.push(...src.splice(0, amount));
+      src.sort((a, b) => b.p - a.p); dst.push(...src.splice(0, amount));
     } else { (from === 'bag' ? state.bag : state.store)[k] -= amount; (to === 'bag' ? state.bag : state.store)[k] += amount; }
   }
   function useItem(k) {
@@ -323,7 +323,8 @@ export function createLife(ctx) {
       info = `<div class="info">${ICONS[r.id]}<span><b>${r.name}</b><br><small>${r.does}. You made this.</small></span><span></span></div>`;
     } else if (picked) {
       const it = ITEMS[picked.k], c = count(picked.where, picked.k);
-      const extra = picked.k === 'cheese' ? ` <small>worth $${(picked.where === 'bag' ? state.cheese : state.store.cheese).reduce((a, b) => a + b, 0)}</small>` : '';
+      const pile = picked.where === 'bag' ? state.cheese : state.store.cheese;
+      const extra = picked.k === 'cheese' ? ` <small>worth $${pile.reduce((a, b) => a + b.p, 0)}: ${stockLine([pile])}</small>` : '';
       const buttons = picked.where === 'bag'
         ? `${it.use ? `<button data-do="use">${it.use}</button>` : ''}${camp ? '<button data-do="stash">Stash</button>' : ''}`
         : '<button data-do="take">Take</button>';
@@ -608,6 +609,34 @@ export function createLife(ctx) {
   const NARROW = [[0.57, 'raw'], [0.63, 'golden'], [0.69, 'perfect'], [0.75, 'golden'], [1.01, 'burnt']];
   const WIDEST = [[0.5, 'raw'], [0.57, 'golden'], [0.73, 'perfect'], [0.82, 'golden'], [1.01, 'burnt']];
   let ZONES = NARROW;
+  // A sandwich is { p: what it is worth, f: the fillings in it }. Its name comes from its first filling.
+  const sandwichName = (item) => { const f = FILLINGS.find((x) => x.item === item); return !f ? 'grilled cheese' : /melt|popper/i.test(f.name) ? f.name.toLowerCase() : `${f.name.toLowerCase()} grilled cheese`; };
+  const plural = (name, c) => (c === 1 ? name : /cheese$/.test(name) ? name : `${name}s`);
+  function stockLine(pools) { // "4 grilled cheese, 2 tomato melts"
+    const by = {};
+    for (const pool of pools) for (const s of pool) { const k = s.p < 2 ? 'burnt' : s.f[0] || ''; by[k] = (by[k] || 0) + 1; }
+    const keys = ['', ...FILLINGS.map((f) => f.item), 'burnt'].filter((k) => by[k]);
+    return keys.length ? keys.map((k) => `${by[k]} ${k === 'burnt' ? 'burnt' : plural(sandwichName(k), by[k])}`).join(', ') : 'nothing cooked';
+  }
+  // With fillings to hand you say what goes in before you light the stove; with none it is plain grilled cheese.
+  function stoveMenu() {
+    const mine = FILLINGS.filter((f) => have(f.item) > 0);
+    if (!mine.length || !have('supplies')) { startCooking(); return; }
+    const go = (fill) => () => { state.cookFill = fill; startCooking(); };
+    const mark = (fill) => (state.cookFill === fill ? ' · last time' : '');
+    menu(`What goes in? Cooked so far: ${stockLine([state.cheese, state.store.cheese])}`, [
+      { label: `Best filling I have <small>${sandwichName(mine[0].item)} first${mark('best')}</small>`, act: go('best') },
+      ...mine.map((f) => ({ label: `${f.name}${/melt|popper/i.test(f.name) ? '' : ' grilled cheese'} <small>+$${f.bonus} each, you have ${have(f.item)}; plain once they run out${mark(f.item)}</small>`, act: go(f.item) })),
+      { label: `Plain grilled cheese <small>keep the fillings for later${mark('none')}</small>`, act: go('none') },
+    ]);
+  }
+  function fillsFor(base) { // what goes into the next sandwich: your choice at the stove, and the press adds the next best
+    if (base < 2 || state.cookFill === 'none') return []; // a burnt sandwich is past saving
+    const mine = FILLINGS.filter((f) => have(f.item) > 0), two = state.gear.stove >= 7;
+    if (state.cookFill === 'best' || !state.cookFill) return mine.slice(0, two ? 2 : 1);
+    const first = mine.find((f) => f.item === state.cookFill);
+    return first ? [first, ...(two ? mine.filter((f) => f !== first).slice(0, 1) : [])] : [];
+  }
   function startCooking() {
     if (!have('supplies')) { toast('You need bread and cheese. The General Store sells it.'); return; }
     const pans = state.gear.stove >= 4 ? 2 : 1;
@@ -660,8 +689,7 @@ export function createLife(ctx) {
     const base = price, batch = Math.min(state.gear.stove >= 6 ? 2 : 1, have('supplies'));
     for (let j = 0; j < batch; j++) {
       price = base;
-      // The best fillings you have go in by themselves; a burnt sandwich is past saving. The press takes two.
-      const fills = base >= 2 ? FILLINGS.filter((f) => have(f.item) > 0).slice(0, state.gear.stove >= 7 ? 2 : 1) : [];
+      const fills = fillsFor(base);
       for (const f of fills) {
         const bad = badFilling(f.item);
         spend(f.item, 1);
@@ -669,7 +697,7 @@ export function createLife(ctx) {
         price += f.bonus;
       }
       if (fills.length && price > base) name = fills.length > 1 ? `${fills[0].name} with ${ITEMS[fills[1].item].name.toLowerCase()}` : fills[0].name;
-      spend('supplies', 1); give('cheese', 1, price, true); // cooked at camp: what the bag cannot hold always goes in the stash
+      spend('supplies', 1); give('cheese', 1, { p: price, f: price > base ? fills.map((f) => f.item) : [] }, true); // cooked at camp: what the bag cannot hold always goes in the stash
       c.made++;
       gain('hustle', price >= 4 ? 2 : 1);
     }
@@ -739,7 +767,7 @@ export function createLife(ctx) {
         else { if (f.thirst === undefined) f.thirst = Math.random(); read = f.thirst > 0.62 ? ' · they look parched' : f.thirst < 0.38 ? ' · they are carrying a drink' : ' · could go either way'; }
       }
     }
-    return (kind === 'balloons' ? balloonPitch() : kind === 'cheese' ? `Offer a grilled cheese ($${Math.max(...state.cheese)})` : 'Offer cold water ($2)') + read + more;
+    return (kind === 'balloons' ? balloonPitch() : kind === 'cheese' ? `Offer a grilled cheese ($${Math.max(...state.cheese.map((s) => s.p))})` : 'Offer cold water ($2)') + read + more;
   };
   function buyer() {
     if (!onOffer().length) return null;
@@ -767,8 +795,8 @@ export function createLife(ctx) {
     const kind = offering();
     if (kind === 'balloons') { sellBalloon(f); return; }
     if (kind === 'water') { sellWater(f); return; }
-    state.cheese.sort((a, b) => b - a);
-    const price = state.cheese[0];
+    state.cheese.sort((a, b) => b.p - a.p);
+    const price = state.cheese[0].p;
     f.next = total() + 3 - Math.min(1.5, (level('charisma') - 1) * 0.25) - (state.tree.regulars ? 1 : 0);
     // A sale is never certain. It depends on how hungry this person is, the time of day,
     // how good the sandwich is, how you smell and how you come across.
@@ -804,8 +832,8 @@ export function createLife(ctx) {
   }
   function eat() {
     if (!state.cheese.length) return;
-    state.cheese.sort((a, b) => a - b);
-    const price = state.cheese.shift(); // eat the worst one first
+    state.cheese.sort((a, b) => a.p - b.p);
+    const price = state.cheese.shift().p; // eat the worst one first
     add('nourishment', (price >= 4 ? 0.38 : price === 1 ? 0.2 : 0.3) * (state.tree.gut ? 1.25 : 1));
     if (price >= 3) add('vibes', 0.02);
     toast(price === 1 ? 'You ate the burnt one. It was food.' : 'You ate a grilled cheese.');
@@ -871,7 +899,7 @@ export function createLife(ctx) {
     toast(mood);
     menu(`Moonbeam, your neighbour${pal.friend ? ` (friendship ${pal.friend})` : ''}`, [
       { label: 'Share a grilled cheese <small>they share something back</small>', can: () => (state.cheese.length ? true : 'you have none on you'), act: () => {
-        state.cheese.sort((a, b) => a - b); state.cheese.pop(); // you give them your best one
+        state.cheese.sort((a, b) => a.p - b.p); state.cheese.pop(); // you give them your best one
         pal.friend++; add('vibes', 0.05);
         const k = ['fabric', 'salvage', 'bottles'][pal.friend % 3], left = give(k, 1);
         toast(left ? '"Bless you, neighbour." They had a gift for you, but your bag is full.' : `"Bless you, neighbour. Here, take this." +1 ${ITEMS[k].name.toLowerCase()}.`);
@@ -1412,8 +1440,12 @@ export function createLife(ctx) {
   }
 
   // ---- the camp kitchen: put the sign up and people nearby walk over and order. You serve them, or Moonbeam does.
-  const KITCHEN = { queue: 4, gap: [0.1, 0.3], rush: 0.6, premium: 1 }; // tuned with dev/bot.js: queue length, game hours between customers, how much faster at mealtimes, dollars over the sandwich's price
-  const ORDERS = { any: { ask: 'whatever is hot', min: 2 }, classic: { ask: 'a proper golden one ($3 or better)', min: 3 }, fancy: { ask: 'something special ($5 or better)', min: 5 } };
+  const KITCHEN = { queue: 4, gap: [0.1, 0.3], rush: 0.6, premium: 1, tip: 1, mix: [0.2, 0.6] }; // tuned with dev/bot.js: queue length, game hours between customers, how much faster at mealtimes, dollars over the sandwich's price, the tip when someone gets the named sandwich they asked for, and the order mix (below the first number: anything; below the second: plain; the rest: a named sandwich off today's board)
+  // What a customer asks for: 'any' (whatever is hot), 'plain' (a golden grilled cheese) or a filling, meaning the sandwich named after it.
+  const asks = (want) => (want === 'any' ? 'whatever is hot' : want === 'plain' ? 'a golden grilled cheese ($3 or better)' : `a ${sandwichName(want)}`);
+  const meets = (s, want) => (want === 'any' ? s.p >= 2 : want === 'plain' ? s.p >= 3 : s.f.includes(want));
+  // Today's board: plain grilled cheese, plus every named sandwich sitting cooked on the counter. People order what they can see.
+  const board = (pools) => FILLINGS.filter((f) => pools.some((pool) => pool.some((s) => s.f.includes(f.item))));
   const kitchenReady = () => (!made('sign') ? 'build a hand-painted sign at your workbench' : state.gear.stove < 6 ? 'needs the flat-top griddle' : state.gear.land < 3 ? 'needs four garden plots' : true);
   const hired = (job) => state.kitchen.hire.job === job && total() < state.kitchen.hire.until;
   const working = () => total() < state.kitchen.hire.until;
@@ -1421,18 +1453,23 @@ export function createLife(ctx) {
   function leaveQueue(q) { crowd.release(q.i); state.kitchen.queue = state.kitchen.queue.filter((x) => x !== q); }
   function closeKitchen(quiet) { const k = state.kitchen; k.open = false; for (const q of [...k.queue]) leaveQueue(q); if (!quiet) toast('Sign down. The kitchen is closed.'); }
   function serve(q, byPal) {
-    const k = state.kitchen, o = ORDERS[q.want], f = people[q.i];
-    let best = null; // the cheapest sandwich that meets the order; failing that, the best one below it
-    for (const pool of byPal ? [state.store.cheese] : [state.cheese, state.store.cheese]) pool.forEach((price, idx) => {
-      const ok = price >= o.min;
-      if (price >= 2 && (!best || (ok && !best.ok) || (ok === best.ok && (ok ? price < best.price : price > best.price)))) best = { pool, idx, price, ok };
+    const k = state.kitchen, f = people[q.i];
+    // The sandwich that meets the order with the fewest fillings, then the cheapest, so the special ones are kept for whoever asks for them.
+    // With nothing that meets it: the best plain one, or failing that the cheapest filled one.
+    let best = null;
+    for (const pool of byPal ? [state.store.cheese] : [state.cheese, state.store.cheese]) pool.forEach((s, idx) => {
+      if (s.p < 2) return;
+      const ok = meets(s, q.want), rank = ok ? s.f.length * 100 + s.p : s.f.length ? 100 + s.p : -s.p;
+      if (!best || (ok && !best.ok) || (ok === best.ok && rank < best.rank)) best = { pool, idx, price: s.p, ok, rank, f: s.f };
     });
     if (!best) { if (!byPal) toast('You have nothing cooked to give them. They wander off.'); k.walked++; leaveQueue(q); return; }
-    if (!best.ok && Math.random() < 0.5) { if (!byPal) toast(`"I wanted ${o.ask}." They wander off.`); k.walked++; leaveQueue(q); return; }
+    if (!best.ok && Math.random() < 0.5) { if (!byPal) toast(`"I wanted ${asks(q.want)}." They wander off.`); k.walked++; leaveQueue(q); return; }
     best.pool.splice(best.idx, 1);
-    const pay = best.price + (byPal ? 0 : KITCHEN.premium); // served by you, at your own counter: a dollar more than on foot
+    if (!best.ok) k.wrong = (k.wrong || 0) + 1;
+    const named = best.ok && q.want !== 'any' && q.want !== 'plain';
+    const pay = best.price + (byPal ? 0 : KITCHEN.premium) + (named ? KITCHEN.tip : 0); // served by you, at your own counter: a dollar more than on foot. A named order met: a tip, whoever serves it
     if (byPal) { state.stash += pay; k.palSold++; k.palTake += pay; }
-    else { state.cash += pay; gain('hustle', 2); add('vibes', 0.015); sfx('coin'); toast(`+$${pay}. ${best.ok ? 'Just what they ordered.' : 'Not what they asked for, but they took it.'}`); }
+    else { state.cash += pay; gain('hustle', 2); add('vibes', 0.015); sfx('coin'); toast(`+$${pay} for a ${sandwichName(best.f[0])}. ${named ? `Just what they ordered: $${KITCHEN.tip} tip.` : best.ok ? 'Just what they ordered.' : 'Not what they asked for, but they took it.'}`); }
     state.sold++; k.served++; if (f) { f.next = total() + 3; f.appetite = Math.random() * 0.4; }
     leaveQueue(q);
   }
@@ -1463,14 +1500,15 @@ export function createLife(ctx) {
       const near = people.filter((f) => !f.away && !f.fixed && !f.called && f.next <= now && Math.hypot(f.x - CAMP.tent[0], f.z - CAMP.tent[1]) < 75);
       const f = near[Math.floor(Math.random() * near.length)], slot = [0, 1, 2, 3, 4].find((s) => !k.queue.some((q) => q.slot === s));
       if (f && Math.random() < Math.min(1, near.length / 12)) { // a thin crowd means long gaps between customers
-        const r = Math.random(), want = r < 0.25 ? 'any' : r < 0.7 || !Object.keys(state.recipes).length ? 'classic' : 'fancy';
+        const menuToday = board(hired('front') && !atCamp() ? [state.store.cheese] : [state.cheese, state.store.cheese]);
+        const r = Math.random(), want = r < KITCHEN.mix[0] ? 'any' : r < KITCHEN.mix[1] || !menuToday.length ? 'plain' : menuToday[Math.floor(Math.random() * menuToday.length)].item;
         const [x, z] = queueSpot(slot);
         if (crowd.call(f.i, x, z, Math.atan2(COUNTER[0] - x, COUNTER[1] - z))) k.queue.push({ i: f.i, slot, want, at: 0, born: now });
       }
     }
     for (const q of [...k.queue]) {
       if (!people[q.i] || !people[q.i].called) { k.queue = k.queue.filter((x) => x !== q); continue; }
-      if (!q.at && crowd.waiting(q.i)) { q.at = now; if (atCamp() && !hired('front')) toast(`A customer at your counter wants ${ORDERS[q.want].ask}.`); }
+      if (!q.at && crowd.waiting(q.i)) { q.at = now; if (atCamp() && !hired('front')) toast(`A customer at your counter wants ${asks(q.want)}.`); }
       if (q.at && hired('front') && now - q.at > 0.08) serve(q, true);
       else if (q.at && now - q.at > 0.9) { if (atCamp()) toast('A customer got tired of waiting and wandered off.'); k.walked++; leaveQueue(q); }
       else if (!q.at && now - q.born > 2) leaveQueue(q);
@@ -1481,6 +1519,7 @@ export function createLife(ctx) {
     menu(`Your camp kitchen${k.open ? ' (open)' : ''}: ${k.served} served`, [
       k.open ? { label: 'Take the sign down <small>stop taking orders</small>', act: () => closeKitchen() }
         : { label: 'Put the sign up <small>people nearby walk over and order. An open kitchen draws more thieves</small>', can: () => ready, act: () => { k.open = true; k.next = total(); toast('Sign up. Stay at camp and customers will come to the counter.'); } },
+      { label: `On the board today: ${['grilled cheese', ...board([state.cheese, state.store.cheese]).map((f) => sandwichName(f.item))].join(', ')} <small>cooked: ${stockLine([state.cheese, state.store.cheese])}</small>`, can: () => 'for your information', act() {} },
       { label: `Moonbeam has sold ${k.palSold} for $${k.palTake} <small>hire them from their camp chair, $35 a day</small>`, can: () => 'for your information', act() {} },
     ]);
   }
@@ -1543,7 +1582,7 @@ export function createLife(ctx) {
 
   // ---- places you can use
   interactables.push(
-    { test: (p) => nearOrder(p) !== undefined, label: () => `Serve: they want ${ORDERS[nearOrder(getPlayer().root.position).want].ask}`, use: () => serve(nearOrder(getPlayer().root.position), false) },
+    { test: (p) => nearOrder(p) !== undefined, label: () => `Serve: they want ${asks(nearOrder(getPlayer().root.position).want)}`, use: () => serve(nearOrder(getPlayer().root.position), false) },
     { test: (p) => made('sign') && Math.hypot(p.x - COUNTER[0], p.z - COUNTER[1]) < 1.9, label: () => (state.kitchen.open ? 'Your kitchen counter (open)' : 'Your kitchen counter'), use: counterMenu },
     { test: (p) => !week().musicDay && Math.hypot(p.x + 62.5, p.z + 121) < 3.4, label: 'Stage crew: work a shift', use: crewShift },
     { at: BOOTH, r: 3.4, label: 'Open Decks: play a set', use: openDecks },
@@ -1592,7 +1631,7 @@ export function createLife(ctx) {
       { label: 'Open your bag and stash', act: () => togglePanel(true) },
       { label: 'Stash or take cash <small>choose how much</small>', act: cashMenu },
     ]) },
-    { at: CAMP.stove, r: 2.7, label: 'Cook on your camp stove', use: startCooking },
+    { at: CAMP.stove, r: 2.7, label: 'Cook on your camp stove', use: stoveMenu },
     { at: CAMP.bench, r: 1.9, label: 'Your workbench', use: workbench },
     { at: CAMP.garden, r: 2.6, use: gardenMenu, label: gardenLabel },
     { test: (p) => shroomSlots() > 0 && Math.hypot(p.x - CAMP.myco[0], p.z - CAMP.myco[1]) < 1.8, label: 'Your mushroom shelf', use: mycoMenu },
@@ -1652,7 +1691,7 @@ export function createLife(ctx) {
   interactables.unshift(interactables.splice(interactables.findIndex((i) => i.label === 'Your tank'), 1)[0]);
 
   // ---- saving. The game saves itself once you are free to roam; the opening is short enough to replay.
-  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay'];
+  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'cookFill'];
   let saveClock = 0;
   function save() {
     if (state.mode !== 'free') return;
@@ -1728,6 +1767,8 @@ export function createLife(ctx) {
         if (state[k] && typeof state[k] === 'object' && !Array.isArray(state[k])) Object.assign(state[k], data[k]); else state[k] = data[k];
       }
       state.kitchen.queue = []; // customers do not wait through a reload
+      const whole = (list) => list.map((s) => (typeof s === 'number' ? { p: s, f: [] } : { p: s.p, f: s.f || [] })); // sandwiches were once only a price
+      state.cheese = whole(state.cheese); state.store.cheese = whole(state.store.cheese);
       if (!data.plots && data.garden && data.garden.on) state.plots = [{ crop: 'herbs', wet: data.garden.wet, start: data.garden.start, ready: data.garden.ready }]; // a planter from before the garden grew
       if (onGear) onGear(state.gear, state.craft.made);
       gfx.setTime(state.hour);
