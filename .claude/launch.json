@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    {"name": "shakedown-game", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "8790", "--directory", "game"], "port": 8790}
+    {"name": "shakedown-game", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "8790", "--directory", "/Users/sethmatthews/code/shakedown/game"], "port": 8790}
   ]
 }
