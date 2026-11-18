@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Prop zoo</title>
+<script type="importmap">{"imports":{"three":"./lib/build/three.module.js","three/addons/":"./lib/examples/jsm/"}}</script>
+<style>body{margin:0;background:#888;font:12px sans-serif}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+// Lines every prop up, each seen from its +z side (the side the game treats as its front)
+// and from above, so the right "yaw" for assets/props/yaw.json can be read off by eye.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const names = location.hash.slice(1).split(',');
+const yaw = await (await fetch('./assets/props/yaw.json?' + Date.now())).json().catch(() => ({}));
+const cols = Math.min(names.length, 6), rows = Math.ceil(names.length / cols), cell = 210;
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(cols * cell, rows * cell * 2);
+renderer.setScissorTest(true);
+const loader = new GLTFLoader();
+for (let i = 0; i < names.length; i++) {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(i % 2 ? 0x9a9a9a : 0x8a8a8a);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 2.2));
+  const g = (await loader.loadAsync(`./assets/props/${names[i]}.glb`)).scene;
+  g.rotation.y = (yaw[names[i]] || 0) * Math.PI / 180;
+  g.traverse((o) => { if (o.isMesh) o.material = new THREE.MeshLambertMaterial({ map: o.material.map, side: THREE.DoubleSide }); });
+  const box = new THREE.Box3().setFromObject(g), c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+  g.position.sub(c);
+  scene.add(g);
+  const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, -s.y / 2, 0), Math.max(s.x, s.z) * 0.7, 0xff0000, 0.2, 0.15);
+  scene.add(arrow);
+  const r = Math.max(s.x, s.y, s.z) * 0.62;
+  const x = (i % cols) * cell, y = (rows - 1 - Math.floor(i / cols)) * cell * 2;
+  const front = new THREE.OrthographicCamera(-r, r, r, -r, 0.01, 100);
+  front.position.set(0, 0, 10); front.lookAt(0, 0, 0);
+  renderer.setViewport(x, y + cell, cell, cell); renderer.setScissor(x, y + cell, cell, cell); renderer.render(scene, front);
+  const top = new THREE.OrthographicCamera(-r, r, r, -r, 0.01, 100);
+  top.position.set(0, 10, 0); top.up.set(0, 0, -1); top.lookAt(0, 0, 0);
+  renderer.setViewport(x, y, cell, cell); renderer.setScissor(x, y, cell, cell); renderer.render(scene, top);
+}
+document.title = 'zoo ready';
+</script></body></html>

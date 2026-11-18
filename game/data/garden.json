@@ -1,0 +1,61 @@
+{
+  "_about": "Everything you can grow or forage, as plain data. The game reads this file; so can any other engine (it maps one-to-one onto data tables). Hours are game hours. Money is dollars.",
+
+  "crops": {
+    "herbs":  { "name": "Herbs",         "seed": "seeds",      "seedName": "Herb seeds",    "seedCost": 3, "hours": 4, "yield": 8, "item": "herbs" },
+    "tomato": { "name": "Tomatoes",      "seed": "seedTomato", "seedName": "Tomato seeds",  "seedCost": 5, "hours": 8, "yield": 6, "item": "tomato" },
+    "pepper": { "name": "Peppers",       "seed": "seedPepper", "seedName": "Pepper seeds",  "seedCost": 5, "hours": 8, "yield": 6, "item": "pepper" },
+    "sage":   { "name": "Healing herbs", "seed": "seedSage",   "seedName": "Sage seeds",    "seedCost": 6, "hours": 6, "yield": 5, "item": "sage" }
+  },
+
+  "fillings": [
+    { "item": "morel",       "bonus": 5, "name": "Morel melt" },
+    { "item": "chanterelle", "bonus": 4, "name": "Chanterelle melt" },
+    { "item": "oyster",      "bonus": 3, "name": "Mushroom melt" },
+    { "item": "tomato",      "bonus": 2, "name": "Tomato melt" },
+    { "item": "pepper",      "bonus": 2, "name": "Jalapeño popper" },
+    { "item": "herbs",       "bonus": 1, "name": "Herbed" }
+  ],
+
+  "grown": {
+    "oyster":    { "name": "Oyster",      "on": "a bag of straw",        "hours": 6,  "yield": 4, "source": "store", "cost": 8,
+                   "use": "Goes into a sandwich as a mushroom melt, worth $3 more." },
+    "lionsmane": { "name": "Lion's mane", "on": "a log under shade cloth", "hours": 12, "yield": 2, "source": "elder", "cost": 15,
+                   "use": "Clear Head tea. For four hours you learn faster, read what people want before you ask, cannot be pickpocketed, and timing games slow down." },
+    "reishi":    { "name": "Reishi",      "on": "an old stump",          "hours": 24, "yield": 2, "source": "elder", "cost": 20,
+                   "use": "Old Soul tea. For a day none of your bars can fall below a tenth, so you cannot collapse." },
+    "cordyceps": { "name": "Cordyceps",   "on": "a jar in the tent",     "hours": 10, "yield": 2, "source": "elder", "cost": 15,
+                   "use": "Zombie Legs. Sprinting costs no Energy for one hour. Then the bill arrives all at once." },
+    "foxfire":   { "name": "Foxfire",     "on": "a jar of sawdust",      "hours": 8,  "yield": 2, "source": "elder", "cost": 12,
+                   "use": "Glow jars. Set them out as camp lanterns that need no power, or carry one and wild mushrooms nearby show themselves at night." },
+    "goldcap":   { "name": "Golden caps", "on": "a tub in the dark of your tent", "hours": 16, "yield": 2, "source": "quest", "cost": 0,
+                   "use": "The Trip. Where you are, who is with you and how you feel decide how it goes. One handful a day." }
+  },
+
+  "wild": {
+    "chanterelle": { "name": "Chanterelle", "habitat": "oaks", "when": "day", "afterRain": true, "weight": 3, "yield": 2,
+                     "looks": "A golden, trumpet-shaped mushroom", "check": "under", "tell": "Blunt, forked ridges that run down the stem. Not true gills.",
+                     "use": "A chanterelle melt, worth $4 more." },
+    "jack":        { "name": "Jack-o'-lantern", "habitat": "oaks", "when": "any", "afterRain": false, "weight": 2, "yield": 0, "poison": true, "fakes": "chanterelle",
+                     "looks": "A golden, trumpet-shaped mushroom", "check": "under", "tell": "True gills: thin, crowded and sharp as a knife edge. It glows faintly at night.",
+                     "use": "Poisonous. Leave it." },
+    "morel":       { "name": "Morel", "habitat": "river", "when": "day", "afterRain": true, "weight": 2, "yield": 2,
+                     "looks": "A wrinkled brown cap on a pale stem", "check": "cut", "tell": "Completely hollow from the tip of the cap to the bottom of the stem.",
+                     "use": "A morel melt, worth $5 more. The best sandwich on the lot." },
+    "falsemorel":  { "name": "False morel", "habitat": "river", "when": "day", "afterRain": false, "weight": 2, "yield": 0, "poison": true, "fakes": "morel",
+                     "looks": "A wrinkled brown cap on a pale stem", "check": "cut", "tell": "Cottony and chambered inside, not hollow. The cap is lobed like a brain.",
+                     "use": "Poisonous. Leave it." },
+    "chicken":     { "name": "Chicken of the woods", "habitat": "oaks", "when": "any", "afterRain": false, "weight": 2, "yield": 1,
+                     "looks": "Bright orange and yellow shelves on a dead trunk", "check": "under", "tell": "Tiny pores underneath, no gills at all, and it only grows on wood.",
+                     "use": "A whole meal. Eat it to fill most of your Nourishment." },
+    "puffball":    { "name": "Puffball", "habitat": "grass", "when": "any", "afterRain": true, "weight": 3, "yield": 1,
+                     "looks": "A smooth white ball in the grass", "check": "cut", "tell": "Pure white and solid all the way through, like a marshmallow.",
+                     "use": "A smoke bomb. Throw it to lose security: Buzzkill drops, and nobody can pick your pocket for an hour." },
+    "turkeytail":  { "name": "Turkey tail", "habitat": "oaks", "when": "any", "afterRain": false, "weight": 3, "yield": 2,
+                     "looks": "Thin, striped fans on a fallen log", "check": "under", "tell": "White underneath with pores too small to see, and velvety bands of colour on top.",
+                     "use": "Iron broth. For a day, rain, cold and a bad mushroom cannot make you ill." },
+    "ghostcap":    { "name": "Ghost cap", "habitat": "oaks", "when": "night", "afterRain": true, "rainOnly": true, "weight": 1, "yield": 1,
+                     "looks": "A small, pale mushroom that seems to be lit from inside", "check": "under", "tell": "No colour anywhere. It fruits only at night, after rain.",
+                     "use": "The rare one. Its finished page is worth a skill point by itself; the Elder will want to see it." }
+  }
+}

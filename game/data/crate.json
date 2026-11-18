@@ -1,0 +1,34 @@
+{
+  "_about": "Every track you can own, and the rules of a set, as plain data. The game reads this file; so can any other engine. Keys are Camelot wheel codes (8A = A minor, 8B = C major): the same code, a neighbouring number or the same number with the other letter mix cleanly. Energy runs 1 (a breather) to 5 (peak).",
+
+  "start": ["sunburn", "lotlizard", "grilled", "portapotty", "river"],
+
+  "tracks": {
+    "sunburn":    { "name": "Sunburn Anthem",         "artist": "Dusty Sandals",      "bpm": 128, "key": "8A",  "energy": 3, "tag": "feels" },
+    "lotlizard":  { "name": "Lot Lizard Shuffle",     "artist": "The Wook Report",    "bpm": 126, "key": "9A",  "energy": 2, "tag": "groove" },
+    "grilled":    { "name": "Grilled Cheese Sunrise", "artist": "Sunset Sermon",      "bpm": 124, "key": "8B",  "energy": 2, "tag": "feels" },
+    "portapotty": { "name": "Porta-Potty Panic",      "artist": "Lazer Moth",         "bpm": 130, "key": "7A",  "energy": 4, "tag": "808" },
+    "kandi":      { "name": "Kandi Kid Forever",      "artist": "Dusty Sandals",      "bpm": 128, "key": "9B",  "energy": 4, "tag": "feels" },
+    "mycar":      { "name": "Where's My Car",         "artist": "The Wook Report",    "bpm": 118, "key": "11A", "energy": 2, "tag": "groove" },
+    "freepile":   { "name": "Free Pile Treasure",     "artist": "Sunset Sermon",      "bpm": 112, "key": "8A",  "energy": 1, "tag": "downtempo" },
+    "lullaby":    { "name": "Nitrous Lullaby",        "artist": "DJ Third Eye",       "bpm": 108, "key": "7A",  "energy": 1, "tag": "downtempo" },
+    "thirdeye":   { "name": "Third Eye Open",         "artist": "DJ Third Eye",       "bpm": 122, "key": "10A", "energy": 3, "tag": "halftime" },
+    "ground":     { "name": "Ground Score",           "artist": "Lost Sock",          "bpm": 126, "key": "8A",  "energy": 4, "tag": "glitch" },
+    "river":      { "name": "River Rinse",            "artist": "Sunset Sermon",      "bpm": 120, "key": "9A",  "energy": 2, "tag": "groove" },
+    "balloon":    { "name": "Balloon Animal",         "artist": "Lazer Moth",         "bpm": 136, "key": "6A",  "energy": 4, "tag": "808" },
+    "wookflu":    { "name": "Wook Flu",               "artist": "Lazer Moth",         "bpm": 140, "key": "5A",  "energy": 5, "tag": "wonk" },
+    "mycelium":   { "name": "Mycelium Network",       "artist": "Electric Mycelium",  "bpm": 132, "key": "8A",  "energy": 5, "tag": "wonk",  "rare": true },
+    "headliner":  { "name": "Headliner Energy",       "artist": "Electric Mycelium",  "bpm": 130, "key": "9A",  "energy": 5, "tag": "feels", "rare": true }
+  },
+
+  "set": {
+    "mixes": 3,
+    "trackBeats": 96,
+    "blendBeats": 16,
+    "phraseBeats": 16,
+    "tight": 0.05,
+    "wreck": 0.17,
+    "stretch": 0.08,
+    "weights": { "align": 0.4, "phrase": 0.15, "swap": 0.15, "key": 0.15, "mood": 0.15 }
+  }
+}
