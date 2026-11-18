@@ -51,11 +51,11 @@ It needs `art/logo/`, which is on Seth's Mac but not in the repository (see "Wha
 
 ## What is built
 
-Needs bars, inventory with hotbar, camp stash, save and continue, crafting bench, gear ladders (tent, stove 1 to 7, cooler, bag, lock, garden land, mushroom shelf), five numbered skills with perks (Craft, Hustle, Wellness, Charisma, Decks), grilled cheese cooking, selling sandwiches, water and balloons, the towed cooler, pickpockets and camp raids, weather, a quest chain and daily jobs, Moonbeam the neighbour, dancing, healing, the Vinny and Whip nitrous storyline with seven endings, a six-plot garden, fillings from crops, mushroom growing and foraging with a field journal, the Trip and Vision Quest, the General Store, the Decks minigame at the Open Decks tent, and a crowd that follows a daily timetable.
+Needs bars, inventory with hotbar, camp stash, save and continue, crafting bench, gear ladders (tent, stove 1 to 7, cooler, bag, lock, garden land, mushroom shelf), five numbered skills with perks (Craft, Hustle, Wellness, Charisma, Decks), grilled cheese cooking, selling sandwiches, water and balloons, the towed cooler, pickpockets and camp raids, weather, a quest chain and daily jobs, Moonbeam the neighbour, dancing, healing, the Vinny and Whip nitrous storyline with seven endings, a six-plot garden, fillings from crops, mushroom growing and foraging with a field journal, the Trip and Vision Quest, the General Store, the Decks minigame at the Open Decks tent, a crowd that follows a daily timetable and a weekly one (festival Thursday to Sunday, exodus Monday, quiet Tuesday, arrivals Wednesday), a camp kitchen where customers walk up and order, and Moonbeam for hire by the day.
 
 ## What is next
 
-Seth's agreed order is the build order at the end of `design/food-truck-path.md`, starting with orders and the camp kitchen with Moonbeam hired on a wage. Still unbuilt from the map: the car ladder (Find Your Car, van $2,000, RV $12,000 which starts the Tour), storage, comfort, security extras, power and light, hygiene gear, workbench levels, more kitchen gear.
+Seth's agreed order is the build order at the end of `design/food-truck-path.md`, whose first step (the camp kitchen) has a first version built. Still unbuilt from the map: the car ladder (Find Your Car, van $2,000, RV $12,000 which starts the Tour), storage, comfort, security extras, power and light, hygiene gear, workbench levels, more kitchen gear.
 
 Good jobs to hand to a second model, because they are already specified: any ladder in `camp-upgrade-map.md` marked "Next", more content in the three data files, balance tuning, interface polish.
 

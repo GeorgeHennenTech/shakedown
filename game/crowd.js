@@ -1,10 +1,12 @@
-// SHAKEDOWN, the crowd: every festival-goer has a day. They sleep in the Campgrounds, drift to
-// Shakedown Street at mealtimes, pack the Main Stage field when the music is on, and walk the
-// paths in between. The timetable is data/crowd.json. The people are still statues (no legs
-// moving): walking is a glide with a step-bob until the models are rigged.
+// SHAKEDOWN, the crowd: every festival-goer has a day and a week. They sleep in the Campgrounds,
+// drift to Shakedown Street at mealtimes, pack the Main Stage field when the music is on, and walk
+// the paths in between. Most leave on Monday and come back on Wednesday. The timetable is
+// data/crowd.json. The people are still statues (no legs moving): walking is a glide with a
+// step-bob until the models are rigged.
 
 const hash = (i, k) => { const v = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return v - Math.floor(v); };
 const PLACES = ['stage', 'street', 'camp', 'village', 'sleep'];
+const WEEK = ['Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday'];
 
 // Which row of the plan an hour falls in. Hours before 3 AM count as 24 to 27.
 export function planRow(plan, hour) {
@@ -18,6 +20,16 @@ export function wantOf(row, roll) {
   let sum = 0;
   for (const k of PLACES) { sum += row[k] || 0; if (roll < sum) return k; }
   return 'camp';
+}
+// The shape of the week at one moment: which weekday it counts as (the small hours belong to the
+// night before), how much of the crowd is on site, and whether the Main Stage is playing today.
+export function weekOf(data, day, hour) {
+  const d = hour < 3 ? Math.max(0, day - 1) : day, name = WEEK[d % 7], h = hour < 3 ? hour + 24 : hour;
+  let share = 1;
+  if (!(d === 0 && data.firstDayFull)) for (const [from, s] of data.attendance[name] || [[3, 1]]) if (h >= from) share = s;
+  const pre = data.preparty && data.preparty[name];
+  const music = data.music.includes(name) ? (h >= 14) : pre !== undefined && h >= pre;
+  return { name, share, music, musicDay: data.music.includes(name), preparty: pre !== undefined, quiet: !data.music.includes(name) && pre === undefined };
 }
 
 export function createCrowd({ THREE, people, instanced, routeSamples, data, isFree, rand }) {
@@ -33,6 +45,7 @@ export function createCrowd({ THREE, people, instanced, routeSamples, data, isFr
   people.forEach((f, i) => {
     f.i = i; f.late = hash(i, 1) * data.lateBy; f.speed = data.walkSpeed[0] + hash(i, 2) * (data.walkSpeed[1] - data.walkSpeed[0]); f.lane = 0.5 + hash(i, 3) * 1.4;
     f.ph = f.ph ?? hash(i, 4) * 6; f.mode = 'idle'; f.goal = null; f.path = null; f.spots = {}; f.heading = f.rot;
+    f.stays = f.kind === 'street' ? 0 : hash(i, 77); // who is still here on a quiet Tuesday: the Street's regulars, then the lowest rolls
   });
 
   function spot(f, place) { // each person keeps the same spot at each place, so regulars are where you left them
@@ -40,7 +53,8 @@ export function createCrowd({ THREE, people, instanced, routeSamples, data, isFr
     let s = null;
     const home = { x: f.home.x, z: f.home.z, rot: f.home.rot };
     if (place === 'sleep') return spot(f, 'camp');
-    if (place === f.kind) s = home;
+    if (place === 'gone') s = { x: routeSamples[0].x + rand(-3, 3), z: routeSamples[0].z + rand(-2, 6), rot: 0 }; // out in the Parking Lot, by their car
+    else if (place === f.kind) s = home;
     else if (place === 'stage') for (let t = 0; t < 30 && !s; t++) { const x = rand(-62, -49), z = rand(-137, -105); if (isFree(x, z)) s = { x, z, rot: -Math.PI / 2 + rand(-0.35, 0.35) }; }
     else if (place === 'street') for (let t = 0; t < 30 && !s; t++) { const side = Math.random() < 0.5 ? -1 : 1, x = side * rand(3.4, 6.6), z = rand(-64, -18); if (isFree(x, z)) s = { x, z, rot: side * -Math.PI / 2 + rand(-0.6, 0.6) }; }
     else if (place === 'village') { const [x, z] = VILLAGE_SPOTS[Math.floor(Math.random() * VILLAGE_SPOTS.length)]; s = { x: x + rand(-2.5, 2.5), z: z + rand(-2.5, 2.5), rot: rand(0, 6.28) }; }
@@ -57,26 +71,39 @@ export function createCrowd({ THREE, people, instanced, routeSamples, data, isFr
     return pts;
   }
   function settle(f, s, place) {
-    f.x = s.x; f.z = s.z; f.heading = s.rot; f.mode = 'idle'; f.path = null; f.away = place === 'sleep'; f.at = place;
+    f.x = s.x; f.z = s.z; f.heading = s.rot; f.mode = 'idle'; f.path = null; f.away = place === 'sleep' || place === 'gone'; f.at = place;
+  }
+  function walk(f, dt) { // one step along the path; true on arrival
+    const [tx, tz] = f.path[f.pi], dx = tx - f.x, dz = tz - f.z, d = Math.hypot(dx, dz), step = f.speed * dt;
+    if (d <= step) { f.x = tx; f.z = tz; return ++f.pi >= f.path.length; }
+    f.x += dx / d * step; f.z += dz / d * step; f.heading = Math.atan2(dx, dz);
+    return false;
   }
 
-  // c: { hour, day, total, rain, showtime, heal: [ids], px, pz }
+  // c: { hour, day, total, rain, heal: [ids], px, pz }
   function update(dt, t, c) {
     const row = planRow(data.plan, c.hour), snap = lastTotal === null || Math.abs(c.total - lastTotal) > 0.25;
+    const week = weekOf(data, c.day, c.hour);
     lastTotal = c.total;
     const touched = new Set();
     for (const f of people) {
       if (!f.name) continue;
       const hurt = c.heal.includes(f.i);
-      if (!f.fixed && !hurt) {
+      if (f.called) { // on their way to your camp kitchen, or waiting at it
+        f.away = false;
+        if (f.mode === 'walk') { f.stopped = false; if (walk(f, dt * 1.25)) { f.mode = 'idle'; f.path = null; f.at = 'called'; f.heading = f.called.rot; } }
+      } else if (!f.fixed && !hurt) {
         // a person changes their mind a little after the row changes, each by their own delay
         const h = c.hour < data.plan[0].from ? c.hour + 24 : c.hour, r = h - data.plan[row].from < f.late ? (row + data.plan.length - 1) % data.plan.length : row;
-        const key = c.day * 100 + r + (c.rain ? 0.5 : 0);
+        const here = f.stays < week.share;
+        const key = c.day * 100 + r + (c.rain ? 0.5 : 0) + (here ? 0 : 0.25) + (week.music ? 0 : 0.125);
         if (key !== f.key) {
           f.key = key;
           let want = wantOf(data.plan[r], hash(f.i, 10 + c.day * 31 + r));
           if (want === 'camp' && f.kind === 'street') want = 'street'; // the Street's regulars stay on the Street
           if (want === 'stage' && c.rain && hash(f.i, 50 + r) < data.rainSendsHome) want = 'camp';
+          if (want === 'stage' && !week.music) want = hash(f.i, 60 + r) < 0.6 ? 'camp' : 'street'; // nothing on the Main Stage
+          if (!here) want = 'gone'; // packed up and left, or not arrived yet
           if (want !== f.goal) {
             f.goal = want;
             const s = spot(f, want);
@@ -93,9 +120,7 @@ export function createCrowd({ THREE, people, instanced, routeSamples, data, isFr
           } else {
             if (!near) f.stopLeft = undefined;
             f.stopped = false;
-            const [tx, tz] = f.path[f.pi], dx = tx - f.x, dz = tz - f.z, d = Math.hypot(dx, dz), step = f.speed * dt;
-            if (d <= step) { f.x = tx; f.z = tz; if (++f.pi >= f.path.length) settle(f, spot(f, f.goal), f.goal); }
-            else { f.x += dx / d * step; f.z += dz / d * step; f.heading = Math.atan2(dx, dz); }
+            if (walk(f, dt)) settle(f, spot(f, f.goal), f.goal);
           }
         }
       } else if (hurt) { f.away = false; if (f.mode === 'walk') { f.mode = 'idle'; f.key = null; f.goal = null; } } // somebody who needs a healer stays where they are
@@ -103,7 +128,7 @@ export function createCrowd({ THREE, people, instanced, routeSamples, data, isFr
       if (f.col) { f.col.x = f.x; f.col.z = f.z; f.col.r = f.away ? 0 : f.mode === 'walk' && !f.stopped ? 0 : 0.35; }
       // the statue itself
       const im = instanced[f.name].mesh, walking = f.mode === 'walk' && !f.stopped;
-      const dancing = !walking && c.showtime && (f.at === 'stage' || (f.fixed && f.amp > 0.04));
+      const dancing = !walking && week.music && (f.at === 'stage' || (f.fixed && f.amp > 0.04));
       const amp = dancing ? Math.max(0.06, f.amp || 0.1) : (f.amp && f.fixed ? f.amp : 0.012);
       const y = f.away ? -5 : walking ? Math.abs(Math.sin(t * 8.5 + f.ph)) * 0.05 : dancing ? Math.abs(Math.sin(t * 3.3 + f.ph)) * amp : 0;
       const yaw = f.heading + (walking ? Math.sin(t * 8.5 + f.ph) * 0.06 : Math.sin(t * 1.7 + f.ph) * amp * 1.4);
@@ -115,10 +140,20 @@ export function createCrowd({ THREE, people, instanced, routeSamples, data, isFr
     for (const im of touched) im.instanceMatrix.needsUpdate = true;
   }
 
+  // Ask one person to walk to a spot and wait there (a customer coming to your camp). release() sends them back to their day.
+  function call(i, x, z, rot = 0) {
+    const f = people[i];
+    if (!f || f.fixed || f.away || f.called) return false;
+    f.called = { x, z, rot }; f.path = pathTo(f, f.called); f.pi = 0; f.mode = 'walk'; f.at = null;
+    return true;
+  }
+  function release(i) { const f = people[i]; if (f && f.called) { f.called = null; f.key = null; f.goal = null; f.at = null; } }
+  const waiting = (i) => { const f = people[i]; return !!(f && f.called && f.mode === 'idle'); };
+
   function count() { // for tests and the map: how many people are at each place right now
-    const out = { stage: 0, street: 0, camp: 0, village: 0, sleep: 0, walking: 0 };
-    for (const f of people) if (!f.fixed && f.goal) out[f.mode === 'walk' ? 'walking' : f.goal]++;
+    const out = { stage: 0, street: 0, camp: 0, village: 0, sleep: 0, gone: 0, walking: 0, called: 0 };
+    for (const f of people) if (f.called) out.called++; else if (!f.fixed && f.goal) out[f.mode === 'walk' ? 'walking' : f.goal]++;
     return out;
   }
-  return { update, count };
+  return { update, count, call, release, waiting, week: (day, hour) => weekOf(data, day, hour) };
 }

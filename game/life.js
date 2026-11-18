@@ -60,6 +60,7 @@ const RECIPES = [
   { id: 'totem', name: 'Fairy-light totem', level: 4, xp: 16, needs: { lights: 1, salvage: 2 }, does: 'Your Vibes settle higher' },
   { id: 'can', name: 'Watering can', level: 1, xp: 5, needs: { salvage: 1 }, does: 'One water does every plot in your garden' },
   { id: 'compost', name: 'Compost bin', level: 2, xp: 8, needs: { salvage: 3 }, does: 'Crops grow a quarter faster' },
+  { id: 'sign', name: 'Hand-painted sign', level: 2, xp: 8, needs: { salvage: 1, fabric: 1 }, does: 'Open a kitchen at your camp: people walk up and order (also needs the griddle and four plots)' },
   { id: 'hoodie', name: 'Hidden-pocket hoodie', level: 5, xp: 20, needs: { fabric: 3, salvage: 1 }, does: 'Pickpockets get nothing, and security cannot find your sandwiches when they throw you out' },
 ];
 const LEVEL_XP = [0, 0, 8, 20, 38, 62, 92, 130]; // xp needed to reach each Craft level
@@ -79,13 +80,14 @@ for (const k of ['oyster', 'chanterelle', 'morel', 'lionsmane', 'reishi', 'cordy
 for (const k of ['seedTomato', 'seedPepper', 'seedSage']) ICONS[k] = ICONS.seeds;
 
 export function createLife(ctx) {
-  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH } = ctx;
+  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER } = ctx;
   const sfx = ctx.sfx || (() => {});
   Object.assign(state, {
     hour: 16 + 20 / 60, day: 0, cash: 40, stash: 0, cheese: [], sold: 0, noSprint: false, menu: null, cooking: null, panel: false,
     needs: { hydration: 0.72, energy: 0.8, nourishment: 0.62, hygiene: 0.8, buzzkill: 0 },
     lot: { on: false, camp: false, supplies: false, cook: false, sell: false, sleep: false },
-    gear: { tent: 1, stove: 1, cooler: 1, bag: 1, lock: 1, land: 1, myco: 1 }, raid: null, raidNext: 0, water: 0, pileNext: 0,
+    gear: { tent: 1, stove: 1, cooler: 1, bag: 1, lock: 1, land: 1, myco: 1 }, raid: null, raidNext: 0, water: 0, pileNext: 0, crewDay: -1,
+    kitchen: { open: false, queue: [], next: 0, served: 0, walked: 0, palSold: 0, palTake: 0, gardenNext: 0, hire: { job: '', until: 0 } },
     bag: { supplies: 0, bottles: 0, wipes: 0, salvage: 0, fabric: 0, lights: 0, seeds: 0, herbs: 0, kandi: 0, electro: 0, trailmix: 0, balloons: 0, b12: 0 },
     store: { cheese: [], supplies: 0, bottles: 0, wipes: 0, salvage: 0, fabric: 0, lights: 0, seeds: 0, herbs: 0, kandi: 0, electro: 0, trailmix: 0, balloons: 0, b12: 0 }, // the camp stash
     body: 1,
@@ -431,7 +433,7 @@ export function createLife(ctx) {
       <p style="margin:4px 0 8px">Nobody is packing up. This festival does not end. Here is how ${look.name}'s first weekend went.</p>`
       + row('Money in hand and at camp', `$${worth}`) + row('Grilled cheese sold', state.sold) + row('People you helped', state.heal.count) + row('Litter binned', state.picked)
       + row('Things made at the workbench', made) + row('Quests finished', `${quests} of ${CHAIN.length + 1}`) + row('Skill levels, all together', levels)
-      + row('Songs danced', state.danced) + row('Sets played', state.crate.sets) + row('Friendship with Moonbeam', state.pal.friend)
+      + row('Songs danced', state.danced) + row('Sets played', state.crate.sets) + row('Served at your camp kitchen', state.kitchen.served) + row('Friendship with Moonbeam', state.pal.friend)
       + `<h3 class="comix" style="margin-top:12px;text-align:center;font-size:30px">${title}</h3>
       <p class="hint" style="margin-bottom:16px">The music is back on at 2 PM, same as every day.</p><div class="next">Esc to close</div>`;
   }
@@ -447,7 +449,7 @@ export function createLife(ctx) {
       + li('Watch out', 'From Friday: pickpockets on Shakedown Street, raids on an empty camp, rain and cold nights. Stash cash, buy camp security, befriend Moonbeam next door, get a rainfly.')
       + li('Grow and forage', 'Your garden takes seeds from the General Store; what you harvest goes into your sandwiches by itself and makes them worth more. Build a mushroom shelf at your workbench: the store has oyster spawn, and the Village Elder keeps the stranger cultures. Wild mushrooms come up under the big trees, on the river bank and in the open grass, most of them the morning after rain. Look before you pick: two of them have poisonous twins. J opens your field journal.')
       + li('The nitrous game', 'Optional and risky. Vinny sells balloons at the far end of Shakedown Street. Sell for him on commission, or get your own tank: from Whip behind the Costume Shop, from town through the lot office, or off Vinny’s stall while he sleeps (3 to 6 AM). Selling against him raises his heat until he comes for you, and the friends you have made decide how that goes. If a buyer speaks first, listen to how. Chaining balloons wrecks your Body.')
-      + li('Keys', 'E use · Q choose what to offer · I bag · K skills · J journal · M map · H this guide · F eat · R drink from a towed cooler · X dance at the Main Stage · E at the Open Decks tent to play a set · 1 to 9 use a bag slot · G graphics · N sound')
+      + li('Keys', 'E use · Q choose what to offer · I bag · K skills · J journal · M map · H this guide · F eat · R drink from a towed cooler · X dance at the Main Stage · E at the Open Decks tent to play a set · E at your kitchen counter to open it and serve · 1 to 9 use a bag slot · G graphics · N sound')
       + (state.over ? '<p class="hint"><button data-report="1">Show your first-weekend report</button></p>' : '')
       + '<div class="next" style="position:static;text-align:right;margin-top:8px">H or Esc to close</div>';
   }
@@ -743,7 +745,7 @@ export function createLife(ctx) {
     if (!onOffer().length) return null;
     const p = getPlayer().root.position, now = total();
     let best = null, bd = 2.1;
-    for (const f of people) { if (f.away || f.next > now || f === people[PAL] || f === people[WHIPI]) continue; const d = Math.hypot(f.x - p.x, f.z - p.z); if (d < bd) { bd = d; best = f; } }
+    for (const f of people) { if (f.away || f.called || f.next > now || f === people[PAL] || f === people[WHIPI]) continue; const d = Math.hypot(f.x - p.x, f.z - p.z); if (d < bd) { bd = d; best = f; } }
     return best;
   }
   function sellWater(f, quiet) {
@@ -880,6 +882,10 @@ export function createLife(ctx) {
       { label: 'Ask them to be your lookout tonight <small>slower heat; a warning when a buyer smells wrong</small>', cost: 10,
         can: () => (lookout() ? 'they are already watching' : pal.friend < 2 ? 'share food first' : !state.nos.tank && !state.bag.balloons ? 'you have nothing to look out for' : true),
         act: () => { state.nos.lookoutUntil = state.hour < 6 ? state.day * 24 + 6 : (state.day + 1) * 24 + 6; toast('Moonbeam: I’ll whistle if I see tracksuits. Or new tie-dye.'); } },
+      { label: 'Hire for the day: run the counter <small>sells from your camp stash while you are out; the money goes in your stash</small>', cost: 35,
+        can: () => (pal.friend < 4 ? 'needs friendship 4' : !state.kitchen.open ? 'put your kitchen sign up first' : working() ? 'already working for you today' : true), act: () => hire('front') },
+      { label: 'Hire for the day: tend the garden <small>waters, picks and replants from your seeds</small>', cost: 35,
+        can: () => (pal.friend < 4 ? 'needs friendship 4' : working() ? 'already working for you today' : true), act: () => hire('garden') },
       { label: 'Ask for some lot wisdom <small>once a day</small>', can: () => (pal.gift === state.day ? 'ask again tomorrow' : pal.friend >= 1 ? true : 'share food first'), act: () => {
         pal.gift = state.day;
         const tip = ['"The Free Pile gets fresh stuff every hour. Dig early."', '"Lunch and dinner are when folks buy. And late, after the headliner."', '"Rain coming? Get a rainfly on that tent, or sleep wet."',
@@ -890,9 +896,9 @@ export function createLife(ctx) {
   }
   // ---- dancing at the Main Stage: X, when a set is on and you are close enough to feel it
   const LINEUP = [[14, 'Dusty Sandals'], [16, 'The Wook Report'], [18, 'Sunset Sermon'], [20, 'Lazer Moth'], [22, 'Electric Mycelium, the headliner'], [24, 'DJ Third Eye, late night']];
-  const nowPlaying = () => { const h = state.hour < 3 ? state.hour + 24 : state.hour; let act = ''; for (const [from, name] of LINEUP) if (h >= from && h < 27) act = name; return act; };
-  const headliner = () => state.hour >= 22;
-  const atStage = () => { const p = getPlayer().root.position; return Math.hypot(p.x + 70, p.z + 121) < 42 && (state.hour >= 14 || state.hour < 3); };
+  const nowPlaying = () => { const w = week(); if (!w.music) return ''; if (w.preparty) return 'The pre-party: open decks all night'; const h = state.hour < 3 ? state.hour + 24 : state.hour; let act = ''; for (const [from, name] of LINEUP) if (h >= from && h < 27) act = name; return act; };
+  const headliner = () => state.hour >= 22 && week().musicDay;
+  const atStage = () => { const p = getPlayer().root.position; return Math.hypot(p.x + 70, p.z + 121) < 42 && week().music; };
   function dance() {
     if (n.energy < 0.12) { toast('Your legs are done. Rest first.'); return; }
     state.canMove = false; state.danced++; if (headliner()) state.chain.stats.headliner = (state.chain.stats.headliner || 0) + 1;
@@ -1405,6 +1411,93 @@ export function createLife(ctx) {
     ]);
   }
 
+  // ---- the camp kitchen: put the sign up and people nearby walk over and order. You serve them, or Moonbeam does.
+  const ORDERS = { any: { ask: 'whatever is hot', min: 2 }, classic: { ask: 'a proper golden one ($3 or better)', min: 3 }, fancy: { ask: 'something special ($5 or better)', min: 5 } };
+  const kitchenReady = () => (!made('sign') ? 'build a hand-painted sign at your workbench' : state.gear.stove < 6 ? 'needs the flat-top griddle' : state.gear.land < 3 ? 'needs four garden plots' : true);
+  const hired = (job) => state.kitchen.hire.job === job && total() < state.kitchen.hire.until;
+  const working = () => total() < state.kitchen.hire.until;
+  const queueSpot = (i) => [COUNTER[0] + 1.3 + i * 0.95, COUNTER[1] + 0.9 + i * 0.35];
+  function leaveQueue(q) { crowd.release(q.i); state.kitchen.queue = state.kitchen.queue.filter((x) => x !== q); }
+  function closeKitchen(quiet) { const k = state.kitchen; k.open = false; for (const q of [...k.queue]) leaveQueue(q); if (!quiet) toast('Sign down. The kitchen is closed.'); }
+  function serve(q, byPal) {
+    const k = state.kitchen, o = ORDERS[q.want], f = people[q.i];
+    let best = null; // the cheapest sandwich that meets the order; failing that, the best one below it
+    for (const pool of byPal ? [state.store.cheese] : [state.cheese, state.store.cheese]) pool.forEach((price, idx) => {
+      const ok = price >= o.min;
+      if (price >= 2 && (!best || (ok && !best.ok) || (ok === best.ok && (ok ? price < best.price : price > best.price)))) best = { pool, idx, price, ok };
+    });
+    if (!best) { if (!byPal) toast('You have nothing cooked to give them. They wander off.'); k.walked++; leaveQueue(q); return; }
+    if (!best.ok && Math.random() < 0.5) { if (!byPal) toast(`"I wanted ${o.ask}." They wander off.`); k.walked++; leaveQueue(q); return; }
+    best.pool.splice(best.idx, 1);
+    const pay = best.price + (byPal ? 0 : 1); // served by you, at your own counter: a dollar more than on foot
+    if (byPal) { state.stash += pay; k.palSold++; k.palTake += pay; }
+    else { state.cash += pay; gain('hustle', 2); add('vibes', 0.015); sfx('coin'); toast(`+$${pay}. ${best.ok ? 'Just what they ordered.' : 'Not what they asked for, but they took it.'}`); }
+    state.sold++; k.served++; if (f) { f.next = total() + 3; f.appetite = Math.random() * 0.4; }
+    leaveQueue(q);
+  }
+  const nearOrder = (p) => state.kitchen.queue.find((q) => q.at && people[q.i] && Math.hypot(people[q.i].x - p.x, people[q.i].z - p.z) < 2.3);
+  function tendGarden() {
+    let did = 0;
+    for (const p of plots()) {
+      const s = plotState(p);
+      if (s === 'dry') { wetPlot(p); did++; }
+      else if (s === 'ready') {
+        const crop = p.crop, c = CROPS[crop];
+        state.store[c.item] += Math.max(0, Math.min(c.yield, room('store', c.item))); // straight into your camp stash, not your bag
+        if (FILLINGS.find((x) => x.item === c.item)) state.recipes[c.item] = true;
+        p.crop = null; p.wet = false;
+        if (have(c.seed) > 0) { spend(c.seed, 1); p.crop = crop; wetPlot(p); } // replants from your own seeds
+        did++;
+      }
+    }
+    if (did && atCamp()) toast('Moonbeam has been at the garden: watered, picked and replanted.');
+  }
+  function kitchenTick() {
+    const k = state.kitchen, now = total(), h = state.hour;
+    if (hired('garden') && now >= k.gardenNext) { k.gardenNext = now + 0.5; tendGarden(); }
+    if (!k.open) return;
+    if ((h >= 8 || h < 2) && now >= k.next && k.queue.length < 3 && (atCamp() || hired('front'))) {
+      k.next = now + 0.2 + Math.random() * 0.35;
+      const near = people.filter((f) => !f.away && !f.fixed && !f.called && f.next <= now && Math.hypot(f.x - CAMP.tent[0], f.z - CAMP.tent[1]) < 75);
+      const f = near[Math.floor(Math.random() * near.length)], slot = [0, 1, 2].find((s) => !k.queue.some((q) => q.slot === s));
+      if (f && Math.random() < Math.min(1, near.length / 12)) { // a thin crowd means long gaps between customers
+        const r = Math.random(), want = r < 0.25 ? 'any' : r < 0.7 || !Object.keys(state.recipes).length ? 'classic' : 'fancy';
+        const [x, z] = queueSpot(slot);
+        if (crowd.call(f.i, x, z, Math.atan2(COUNTER[0] - x, COUNTER[1] - z))) k.queue.push({ i: f.i, slot, want, at: 0, born: now });
+      }
+    }
+    for (const q of [...k.queue]) {
+      if (!people[q.i] || !people[q.i].called) { k.queue = k.queue.filter((x) => x !== q); continue; }
+      if (!q.at && crowd.waiting(q.i)) { q.at = now; if (atCamp() && !hired('front')) toast(`A customer at your counter wants ${ORDERS[q.want].ask}.`); }
+      if (q.at && hired('front') && now - q.at > 0.08) serve(q, true);
+      else if (q.at && now - q.at > 0.9) { if (atCamp()) toast('A customer got tired of waiting and wandered off.'); k.walked++; leaveQueue(q); }
+      else if (!q.at && now - q.born > 2) leaveQueue(q);
+    }
+  }
+  function counterMenu() {
+    const k = state.kitchen, ready = kitchenReady();
+    menu(`Your camp kitchen${k.open ? ' (open)' : ''}: ${k.served} served`, [
+      k.open ? { label: 'Take the sign down <small>stop taking orders</small>', act: () => closeKitchen() }
+        : { label: 'Put the sign up <small>people nearby walk over and order. An open kitchen draws more thieves</small>', can: () => ready, act: () => { k.open = true; k.next = total(); toast('Sign up. Stay at camp and customers will come to the counter.'); } },
+      { label: `Moonbeam has sold ${k.palSold} for $${k.palTake} <small>hire them from their camp chair, $35 a day</small>`, can: () => 'for your information', act() {} },
+    ]);
+  }
+  function hire(job) {
+    state.kitchen.hire = { job, until: state.hour < 2 ? state.day * 24 + 2 : (state.day + 1) * 24 + 2 }; state.kitchen.gardenNext = 0;
+    toast(job === 'front' ? '"Counter is mine. Keep that stash full of sandwiches." Sales go in your camp stash.' : '"I love a garden. Leave your seeds in the stash and I will replant."');
+  }
+  // ---- the week: Thursday to Sunday is the festival. Monday people leave, Tuesday is quiet, Wednesday they roll back in.
+  const week = () => crowd.week(state.day, state.hour);
+  const DAY_NOTE = { Monday: 'Monday. People are packing up, and the Free Pile is overflowing.', Tuesday: 'Tuesday. The grounds are quiet: crews, lifers and you.', Wednesday: 'Wednesday. Cars are rolling in. The pre-party starts at 8 tonight.', Thursday: 'Thursday. The gates are open and the Main Stage starts at 2.' };
+  let noted = -1;
+  function crewShift() {
+    menu('Stage crew', [{ label: 'Work a three-hour shift <small>$30 cash. Hot, heavy work</small>', can: () => (state.crewDay === state.day ? 'one shift a day' : state.hour < 8 || state.hour >= 17 ? 'the crew works 8 AM to 5 PM' : n.energy < 0.35 ? 'you are too tired' : true), act: () => {
+      state.crewDay = state.day; state.canMove = false; pass(3); gfx.setTime(state.hour);
+      state.cash += 30; add('energy', -0.3); add('hydration', -0.25); add('hygiene', -0.2); add('nourishment', -0.12);
+      card('Three hours on the crew', 'Truss, cable and gaffer tape. $30 in your pocket and a new respect for whoever builds this place.', 3200, () => { state.canMove = true; gain('craft', 4); save(); });
+    } }]);
+  }
+
   // ---- the Decks: open decks at the tent by the Main Stage field
   const missing = (rare) => Object.keys(CRATE.tracks).filter((id) => !state.crate.owned.includes(id) && (rare === undefined || !!CRATE.tracks[id].rare === rare));
   const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
@@ -1448,6 +1541,9 @@ export function createLife(ctx) {
 
   // ---- places you can use
   interactables.push(
+    { test: (p) => nearOrder(p) !== undefined, label: () => `Serve: they want ${ORDERS[nearOrder(getPlayer().root.position).want].ask}`, use: () => serve(nearOrder(getPlayer().root.position), false) },
+    { test: (p) => made('sign') && Math.hypot(p.x - COUNTER[0], p.z - COUNTER[1]) < 1.9, label: () => (state.kitchen.open ? 'Your kitchen counter (open)' : 'Your kitchen counter'), use: counterMenu },
+    { test: (p) => !week().musicDay && Math.hypot(p.x + 62.5, p.z + 121) < 3.4, label: 'Stage crew: work a shift', use: crewShift },
     { at: BOOTH, r: 3.4, label: 'Open Decks: play a set', use: openDecks },
     { at: CAMP.cooler, r: 2.1, label: () => (state.towing ? 'Park your cooler' : 'Your cooler'), use: () => menu(`${GEAR.cooler[1][state.gear.cooler - 1].name} (${state.water} of ${coolerRoom()} waters)`, [
       { label: 'Drink a cold water', stay: true, can: () => (state.water > 0 ? true : 'empty: fill it at the General Store'), act: () => { state.water--; add('hydration', sip()); toast('Ahh.'); } },
@@ -1459,7 +1555,7 @@ export function createLife(ctx) {
     { at: PILE, r: 3.4, label: 'Dig through the Free Pile', use: () => {
       if (total() < state.pileNext) { toast('Picked clean for now. It restocks every hour or so.'); return; }
       if (['salvage', 'fabric', 'lights'].every((k) => room('bag', k) < 1)) { toast('Your bag is full. Stash something at camp first.'); return; }
-      state.pileNext = total() + (state.tree.keen ? 0.5 : 1);
+      state.pileNext = total() + (state.tree.keen ? 0.5 : 1) * (['Monday', 'Tuesday'].includes(week().name) ? 0.34 : 1); // everybody leaving dumps their gear
       pass(0.2);
       const finds = [['a broken camp chair', { salvage: 1 }], ['a tent with one pole', { salvage: 1, fabric: 1 }], ['half a sleeping bag', { fabric: 1 }],
         ['a tangle of dead fairy lights', { lights: 1 }], ['a tarp and some bungee cords', { fabric: 1, salvage: 1 }], ['a roll of duct tape, nearly full', { salvage: 2 }],
@@ -1554,7 +1650,7 @@ export function createLife(ctx) {
   interactables.unshift(interactables.splice(interactables.findIndex((i) => i.label === 'Your tank'), 1)[0]);
 
   // ---- saving. The game saves itself once you are free to roam; the opening is short enough to replay.
-  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate'];
+  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay'];
   let saveClock = 0;
   function save() {
     if (state.mode !== 'free') return;
@@ -1629,6 +1725,7 @@ export function createLife(ctx) {
         if (data[k] === undefined) continue;
         if (state[k] && typeof state[k] === 'object' && !Array.isArray(state[k])) Object.assign(state[k], data[k]); else state[k] = data[k];
       }
+      state.kitchen.queue = []; // customers do not wait through a reload
       if (!data.plots && data.garden && data.garden.on) state.plots = [{ crop: 'herbs', wet: data.garden.wet, start: data.garden.start, ready: data.garden.ready }]; // a planter from before the garden grew
       if (onGear) onGear(state.gear, state.craft.made);
       gfx.setTime(state.hour);
@@ -1717,7 +1814,7 @@ export function createLife(ctx) {
       if (free && !busy && state.day >= 1) {
         const p = getPlayer().root.position;
         if (zoneAt(p.x, p.z) === 'Shakedown Street' && state.cash >= 10 && !made('hoodie') && !fx('clear') && !fx('smoke') && Math.random() < hours * 0.05 * state.gear.bag) pickpocket();
-        if (!camp && total() > state.raidNext && Math.random() < hours * (night ? 0.07 : 0.02) * [0, 1, 0.5, 0.15][state.gear.lock] * (state.trophies.flag ? 0 : 1) * (total() < state.pal.watch ? 0.2 : 1)) raid();
+        if (!camp && total() > state.raidNext && Math.random() < hours * (night ? 0.07 : 0.02) * [0, 1, 0.5, 0.15][state.gear.lock] * (state.trophies.flag ? 0 : 1) * (total() < state.pal.watch ? 0.2 : 1) * (state.kitchen.open ? 1.5 : 1)) raid();
         if (camp && state.raid) {
           const what = state.raid; state.raid = null; state.canMove = false; add('vibes', -0.08);
           card('Your camp was hit', `${what}${state.gear.lock < 3 ? ' Leather & Burner sells camp security.' : ''}`, 3600, () => { state.canMove = true; });
@@ -1734,6 +1831,8 @@ export function createLife(ctx) {
         m.visible = !!f && free;
         if (f) { m.position.set(f.x, 2.3 + Math.sin(state.t * 3 + i) * 0.07, f.z); m.rotation.y = state.t * 1.5; }
       });
+      if (free) kitchenTick();
+      if (free && !busy && noted !== state.day && state.hour >= 8 && state.day > 0) { noted = state.day; if (DAY_NOTE[week().name]) toast(DAY_NOTE[week().name]); }
       if (free && !busy) nosTick(hours, camp);
       if (free && !busy) {
         const act = nowPlaying();

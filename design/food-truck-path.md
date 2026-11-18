@@ -108,11 +108,11 @@ The prices already agreed hold up against this rule, so they stay. The income co
 
 ## After Monday: the festival never ends (Seth, 18 Nov 2026)
 
-One festival weekend is about 45 minutes of play, and nothing costing more than about $1,000 can be earned inside one. Seth's answer: the days just keep flowing. This festival goes on for ever, which is also what lets it be the home base you come back to from the Tour. In the prototype the week now comes round again (Thursday to Wednesday, then Thursday), the line-up plays every day, and the Monday-noon report is a recap of your first weekend, not an ending.
+One festival weekend is about 45 minutes of play, and nothing costing more than about $1,000 can be earned inside one. Seth's answer: the days just keep flowing. This festival goes on for ever, which is also what lets it be the home base you come back to from the Tour. In the prototype the week now comes round again, and the Monday-noon report is a recap of your first weekend, not an ending. The week has a shape: festival Thursday to Sunday, exodus on Monday, a quiet Tuesday, arrivals and a pre-party on Wednesday (see `decisions.md`). Quiet days are for crew shifts, the Free Pile, the garden and stocking up; stands earn on festival days.
 
 ## Build order
 
-1. Orders and the camp kitchen with Moonbeam on a wage (step 2).
+1. Orders and the camp kitchen with Moonbeam on a wage (step 2). **First version built 18 Nov 2026**; still to do: named-sandwich orders, the star rating, a second helper, and a test-player run to tune it toward its income target.
 2. The table and pitch on the Street, with queues and the star rating (step 3).
 3. The booth, the rival stall and the health inspector (step 4).
 4. The car ladder up to the van, then the kitchen build and the pitches (step 5).

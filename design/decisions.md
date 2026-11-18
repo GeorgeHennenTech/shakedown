@@ -74,3 +74,20 @@ Every festival-goer now has a day, driven by the timetable in `game/data/crowd.j
 - Moonbeam, the Healing Village regulars and anyone who needs a healer stay put.
 - The models are still statues: walking is a glide with a step-bob until rigged, animated people exist. They walk straight through tents off the path. Positions are not saved; a time jump (sleep, loading) puts everyone where they should be.
 - This is the groundwork for selling from camp: customers can now walk up.
+
+### The week, the camp kitchen and hiring Moonbeam (18 Nov 2026)
+**The week (Seth's idea).** The festival never ends, but it has a weekly shape, set in `game/data/crowd.json`:
+
+| Day | What happens |
+|---|---|
+| Thursday to Sunday | The festival. Full crowd, Main Stage from 2 PM to 3 AM |
+| Monday | The exodus. People walk out to the Parking Lot through the day; about a fifth are left by 4 PM. The Free Pile restocks three times as fast (Monday and Tuesday) |
+| Tuesday | Quiet. About a third of the usual people: the Street's regulars, crews and lifers. No music |
+| Wednesday | Arrivals from 11 AM, most of the crowd in by evening. Pre-party at the Main Stage from 8 PM |
+
+On Monday, Tuesday and Wednesday the stage crew pays $30 for a three-hour shift (8 AM to 5 PM, once a day). The first Thursday of a new game is always full.
+
+**The camp kitchen, first version.** Build the hand-painted sign (workbench: 1 salvage, 1 fabric, Craft 2); with the griddle and four plots you can put it up at the counter by your stove. People within 75 m walk over, up to three in a queue, between 8 AM and 2 AM. Each wants one of three things: whatever is hot, a proper golden one ($3 or better), or something special ($5 or better, only once you have grown a filling). Serve with E: the cheapest sandwich that meets the order, for its price plus $1. The wrong sandwich is refused half the time. They wait about an hour of game time. An open kitchen is raided half again as often.
+*Not built:* orders by named sandwich (cooked sandwiches are stored as prices only; this needs the sandwich model changed), the star rating, cooking to order.
+
+**Hiring Moonbeam.** At friendship 4, $35 for the day (until 2 AM), paid when you ask; one job a day. *Counter:* serves the queue from your camp stash while you are anywhere, at the sandwich's price with no extra dollar; the money goes into the stash. *Garden:* every half hour waters dry plots, picks what is ready into the stash and replants from your seeds. Standing daily pay with quitting after missed days is not built.

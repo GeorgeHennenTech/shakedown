@@ -1,23 +1,203 @@
 {
   "_about": "Where the crowd is through the day, as plain data any engine can read. Each row starts at 'from' (game hour; 24 to 27 means midnight to 3 AM) and gives the share of people at each place. Every person rolls once per row, a little late or early, so the crowd drifts instead of marching.",
-
   "plan": [
-    { "from": 3,    "stage": 0,    "street": 0.3,  "camp": 0.25, "village": 0,    "sleep": 0.45, "note": "the music is over: the after-party spills onto the Street" },
-    { "from": 4,    "stage": 0,    "street": 0.05, "camp": 0.1,  "village": 0,    "sleep": 0.85, "note": "dead of night" },
-    { "from": 8,    "stage": 0,    "street": 0.15, "camp": 0.6,  "village": 0.1,  "sleep": 0.15, "note": "waking up" },
-    { "from": 10,   "stage": 0,    "street": 0.3,  "camp": 0.5,  "village": 0.2,  "sleep": 0,    "note": "morning" },
-    { "from": 12,   "stage": 0.05, "street": 0.5,  "camp": 0.3,  "village": 0.15, "sleep": 0,    "note": "lunch rush on Shakedown Street" },
-    { "from": 14,   "stage": 0.5,  "street": 0.2,  "camp": 0.2,  "village": 0.1,  "sleep": 0,    "note": "the music starts" },
-    { "from": 18,   "stage": 0.4,  "street": 0.37, "camp": 0.18, "village": 0.05, "sleep": 0,    "note": "dinner rush" },
-    { "from": 20,   "stage": 0.75, "street": 0.1,  "camp": 0.12, "village": 0.03, "sleep": 0,    "note": "night sets" },
-    { "from": 22,   "stage": 0.88, "street": 0.05, "camp": 0.07, "village": 0,    "sleep": 0,    "note": "the headliner" },
-    { "from": 24,   "stage": 0.47, "street": 0.25, "camp": 0.18, "village": 0,    "sleep": 0.1,  "note": "late night munchies" },
-    { "from": 25.5, "stage": 0.35, "street": 0.22, "camp": 0.18, "village": 0,    "sleep": 0.25, "note": "winding down" }
+    {
+      "from": 3,
+      "stage": 0,
+      "street": 0.3,
+      "camp": 0.25,
+      "village": 0,
+      "sleep": 0.45,
+      "note": "the music is over: the after-party spills onto the Street"
+    },
+    {
+      "from": 4,
+      "stage": 0,
+      "street": 0.05,
+      "camp": 0.1,
+      "village": 0,
+      "sleep": 0.85,
+      "note": "dead of night"
+    },
+    {
+      "from": 8,
+      "stage": 0,
+      "street": 0.15,
+      "camp": 0.6,
+      "village": 0.1,
+      "sleep": 0.15,
+      "note": "waking up"
+    },
+    {
+      "from": 10,
+      "stage": 0,
+      "street": 0.3,
+      "camp": 0.5,
+      "village": 0.2,
+      "sleep": 0,
+      "note": "morning"
+    },
+    {
+      "from": 12,
+      "stage": 0.05,
+      "street": 0.5,
+      "camp": 0.3,
+      "village": 0.15,
+      "sleep": 0,
+      "note": "lunch rush on Shakedown Street"
+    },
+    {
+      "from": 14,
+      "stage": 0.5,
+      "street": 0.2,
+      "camp": 0.2,
+      "village": 0.1,
+      "sleep": 0,
+      "note": "the music starts"
+    },
+    {
+      "from": 18,
+      "stage": 0.4,
+      "street": 0.37,
+      "camp": 0.18,
+      "village": 0.05,
+      "sleep": 0,
+      "note": "dinner rush"
+    },
+    {
+      "from": 20,
+      "stage": 0.75,
+      "street": 0.1,
+      "camp": 0.12,
+      "village": 0.03,
+      "sleep": 0,
+      "note": "night sets"
+    },
+    {
+      "from": 22,
+      "stage": 0.88,
+      "street": 0.05,
+      "camp": 0.07,
+      "village": 0,
+      "sleep": 0,
+      "note": "the headliner"
+    },
+    {
+      "from": 24,
+      "stage": 0.47,
+      "street": 0.25,
+      "camp": 0.18,
+      "village": 0,
+      "sleep": 0.1,
+      "note": "late night munchies"
+    },
+    {
+      "from": 25.5,
+      "stage": 0.35,
+      "street": 0.22,
+      "camp": 0.18,
+      "village": 0,
+      "sleep": 0.25,
+      "note": "winding down"
+    }
   ],
-
   "lateBy": 0.7,
   "rainSendsHome": 0.5,
-  "walkSpeed": [2.0, 2.7],
+  "walkSpeed": [
+    2.0,
+    2.7
+  ],
   "stopsForYou": 1.9,
-  "stopSeconds": 5
+  "stopSeconds": 5,
+  "_week": "The festival runs Thursday to Sunday, every week, for ever. 'attendance' is the share of the crowd on site, by weekday, as [from hour, share] steps; hours before 3 AM count as the night before. 'music' says which days the Main Stage plays; 'preparty' days only have music from that hour.",
+  "attendance": {
+    "Thursday": [
+      [
+        3,
+        0.9
+      ],
+      [
+        10,
+        1
+      ]
+    ],
+    "Friday": [
+      [
+        3,
+        1
+      ]
+    ],
+    "Saturday": [
+      [
+        3,
+        1
+      ]
+    ],
+    "Sunday": [
+      [
+        3,
+        1
+      ]
+    ],
+    "Monday": [
+      [
+        3,
+        1
+      ],
+      [
+        9,
+        0.8
+      ],
+      [
+        11,
+        0.55
+      ],
+      [
+        13,
+        0.35
+      ],
+      [
+        16,
+        0.22
+      ]
+    ],
+    "Tuesday": [
+      [
+        3,
+        0.2
+      ]
+    ],
+    "Wednesday": [
+      [
+        3,
+        0.2
+      ],
+      [
+        11,
+        0.35
+      ],
+      [
+        14,
+        0.55
+      ],
+      [
+        17,
+        0.75
+      ],
+      [
+        20,
+        0.85
+      ]
+    ]
+  },
+  "music": [
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday"
+  ],
+  "preparty": {
+    "Wednesday": 20
+  },
+  "firstDayFull": true
 }

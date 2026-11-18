@@ -3,13 +3,13 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=43';
+import { createLife, readSave, saveLabel } from './life.js?v=45';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { createCookView } from './cook.js?v=4';
 import { createDecks } from './decks.js?v=2';
-import { createCrowd } from './crowd.js?v=2';
+import { createCrowd } from './crowd.js?v=3';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -400,6 +400,14 @@ function buildCampLook() {
   }
   solid(CAMP.garden[0], CAMP.garden[1], 0.6);
 
+  // the kitchen counter: a plank on two crates, with a sign that goes up when you are open
+  campLook.counter = new THREE.Group();
+  campLook.counter.position.set(CAMP.counter[0], 0, CAMP.counter[1]); campLook.counter.rotation.y = -0.35;
+  mesh(new THREE.BoxGeometry(1.9, 0.07, 0.6), lambert(0xa9824f), 0, 0.95, 0, campLook.counter);
+  for (const x of [-0.7, 0.7]) mesh(new THREE.BoxGeometry(0.45, 0.92, 0.5), lambert(0x6b4a2b), x, 0.46, 0, campLook.counter);
+  campLook.counter.visible = false; scene.add(campLook.counter);
+  campLook.openSign = signBoard('KITCHEN OPEN', CAMP.counter[0], 1.75, CAMP.counter[1], -0.35, 1.7, 0.42, { bg: '#7cf29a' }); campLook.openSign.visible = false;
+  campLook.shutSign = signBoard('CLOSED', CAMP.counter[0], 1.75, CAMP.counter[1], -0.35, 1.2, 0.42, { bg: '#fff3d6' }); campLook.shutSign.visible = false;
   // the mushroom shelf: a log, a bag of straw and a plank of jars
   campLook.myco = new THREE.Group();
   campLook.myco.position.set(CAMP.myco[0], 0, CAMP.myco[1]); campLook.myco.rotation.y = 0.7;
@@ -555,6 +563,7 @@ function updateCamp(dt) {
     if (d && d.crop) { const [leaf, fruit] = CROP_LOOK[d.crop] || CROP_LOOK.herbs; pl.leaf.color.setHex(leaf); pl.fruit.color.setHex(grow > 0.7 ? fruit : leaf); }
   });
   campLook.myco.visible = state.gear.myco >= 2;
+  const hasCounter = !!state.craft.made.sign; campLook.counter.visible = hasCounter; campLook.openSign.visible = hasCounter && state.kitchen.open; campLook.shutSign.visible = hasCounter && !state.kitchen.open;
   campLook.caps.forEach((c, i) => { const s = state.shrooms[i]; c.visible = !!s; if (s) { const k = Math.min(1, (now - s.start) / Math.max(0.01, s.ready - s.start)); c.scale.setScalar(0.3 + k * 0.9); c.material.color.setHex({ oyster: 0xd9d2c4, lionsmane: 0xffffff, reishi: 0x8a2f1c, cordyceps: 0xff7a1a, foxfire: 0x9df2b0, goldcap: 0xd9a441 }[s.k] || 0xe8dcc6); } });
   campLook.glow.forEach((j, i) => { j.visible = i < state.glow; });
   let any = false;
@@ -598,7 +607,7 @@ function person(x, z, rot, amp = 0, kind = 'fixed') {
 const BOOTH = [-37, -98]; // the Open Decks tent, on the camp side of the Main Stage field
 const VILLAGE = { dome: [-58.5, -149.5], chill: [-28, -143.5], bath: [-24, -159], elder: [-49.5, -152] };
 const inVillage = (x, z) => x < -19 && x > -74 && z < -137;
-const CAMP = { tent: [22, -74.5], stove: [25.8, -76.8], cooler: [23.9, -77.6], bench: [20.4, -78.6], garden: [18.0, -77.3], tank: [19.3, -70.7], myco: [16.9, -72.4] }; // right beside the YOUR CAMP sign, where you cannot miss it
+const CAMP = { tent: [22, -74.5], stove: [25.8, -76.8], cooler: [23.9, -77.6], bench: [20.4, -78.6], garden: [18.0, -77.3], tank: [19.3, -70.7], myco: [16.9, -72.4], counter: [28.2, -75.2] }; // right beside the YOUR CAMP sign, where you cannot miss it
 const WHIP = [12.4, -52.6]; // the twitchy guy behind the Costume Shop
 const PERMIT = [4.4, -15.6]; // the lot office sign at the top of Shakedown Street // your ratty tent, near the gate end of the Campgrounds
 const STALLS = { water: [5.9, -22], burrito: [5.9, -31.2], cheese: [-5.9, -31.2], gear: [5.9, -40.4] };
@@ -652,6 +661,7 @@ function buildWorld() {
   signBoard('YOUR CAMP', CAMP.tent[0] - 2.4, 2.0, CAMP.tent[1] + 2.4, 0.5, 2.3, 0.56, { bg: '#ffc93c' });
   mesh(new THREE.BoxGeometry(0.08, 1.75, 0.08), lambert(0x6b4a2b), CAMP.tent[0] - 2.4, 0.87, CAMP.tent[1] + 2.4);
   // the Campgrounds
+  solid(CAMP.counter[0], CAMP.counter[1], 0.75); solid(CAMP.counter[0] + 2.4, CAMP.counter[1] + 1.3, 0.3); // your kitchen counter and its queue: keeps the neighbours' tents off them
   let n = 0, tries = 0;
   while (n < 76 && tries++ < 1200) {
     const x = rand(-22, 48), z = rand(-120, -72);
@@ -1336,14 +1346,14 @@ function update(dt) {
       for (const f of people) if (!f.away && Math.abs(f.x - p.x) < 14 && Math.abs(f.z - p.z) < 14) near++;
       crowdNear = Math.min(1, near / 14);
     }
-    const playing = state.mode !== 'creator' && !state.cooking && !state.decking, showtime = state.hour >= 14 || state.hour < 3;
+    const playing = state.mode !== 'creator' && !state.cooking && !state.decking, showtime = !!crowd && crowd.week(state.day || 0, state.hour ?? 16).music;
     sound.update(dt, {
       moving: playing && (player.current === 'Walk' || player.current === 'Run'), running: player.current === 'Run',
       rain: playing && !!(state.weather && state.weather.rain), crowd: playing ? crowdNear : 0,
       stage: playing && showtime ? Math.max(0, 1 - Math.hypot(p.x + 70, p.z + 121) / 95) ** 1.5 : 0,
     });
   }
-  if (crowd && life && !['load', 'creator'].includes(state.mode)) crowd.update(dt, state.t, { hour: state.hour, day: state.day, total: state.day * 24 + state.hour, rain: !!state.weather.rain, showtime: state.hour >= 14 || state.hour < 3, heal: state.heal.ids, px: player.root.position.x, pz: player.root.position.z });
+  if (crowd && life && !['load', 'creator'].includes(state.mode)) crowd.update(dt, state.t, { hour: state.hour, day: state.day, total: state.day * 24 + state.hour, rain: !!state.weather.rain, heal: state.heal.ids, px: player.root.position.x, pz: player.root.position.z });
   if (gfx && player) gfx.update(dt, state.t, player.root.position);
 }
 
@@ -1455,7 +1465,7 @@ async function boot() {
   crowd = createCrowd({ THREE, people, instanced, routeSamples, data: CROWD, rand, isFree: (x, z) => !nearRoute(x, z, 2) && !colliders.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 0.8) ** 2) });
   const CRATE = await (await fetch('./data/crate.json')).json(); // the tracks and the rules of a set
   const decks = createDecks({ $, crate: CRATE, isMuted: () => sound.isMuted() });
-  life = createLife({ DATA, CRATE, decks, BOOTH, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
+  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
   window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
