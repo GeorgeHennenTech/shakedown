@@ -104,6 +104,17 @@ Seth asked for the prices to be checked against real play. `game/dev/bot.js` is 
 | Food truck | about $3,500 | $5,000 with the van | About 2.5 |
 | RV | | $12,000 | About 3.5 |
 
+**The camp kitchen, measured (18 Nov 2026).** The test player now has a kitchen mode: griddle, big bag, tray, sign up, staying at camp and serving the counter, with no helper. One festival each:
+
+| Kitchen settings | Pace | Served | Walked off | Net per real hour |
+|---|---|---|---|---|
+| First version: a customer every 0.2 to 0.55 game hours, queue of 3 | Walking | 109 | 26 | $468 |
+| First version | Brisk | 119 | 29 | $584 |
+| Tuned: every 0.1 to 0.3 game hours, 40% faster at mealtimes, queue of 4 | Walking | 164 | 70 | $837 |
+| Tuned | Brisk | 201 | 58 | $977 |
+
+The first version earned less than selling on foot with the same gear ($608 walking, $1,288 brisk) because the player stood waiting about half the time. Tuned, it beats walking sales at a walking pace by about 38% and sits near the $1,000 target. A sprinting walker still out-earns it in these runs, but the test player does not pay the energy cost of sprinting. Moonbeam on the counter is not measured. The settings are the `KITCHEN` line in `game/life.js`.
+
 The prices already agreed hold up against this rule, so they stay. The income column is a target for the stands, not a measurement: nothing above walking exists yet. When a stand is built, run the bot on it and adjust the stand, not the price.
 
 ## After Monday: the festival never ends (Seth, 18 Nov 2026)

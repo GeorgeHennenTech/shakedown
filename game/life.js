@@ -1412,6 +1412,7 @@ export function createLife(ctx) {
   }
 
   // ---- the camp kitchen: put the sign up and people nearby walk over and order. You serve them, or Moonbeam does.
+  const KITCHEN = { queue: 4, gap: [0.1, 0.3], rush: 0.6, premium: 1 }; // tuned with dev/bot.js: queue length, game hours between customers, how much faster at mealtimes, dollars over the sandwich's price
   const ORDERS = { any: { ask: 'whatever is hot', min: 2 }, classic: { ask: 'a proper golden one ($3 or better)', min: 3 }, fancy: { ask: 'something special ($5 or better)', min: 5 } };
   const kitchenReady = () => (!made('sign') ? 'build a hand-painted sign at your workbench' : state.gear.stove < 6 ? 'needs the flat-top griddle' : state.gear.land < 3 ? 'needs four garden plots' : true);
   const hired = (job) => state.kitchen.hire.job === job && total() < state.kitchen.hire.until;
@@ -1429,7 +1430,7 @@ export function createLife(ctx) {
     if (!best) { if (!byPal) toast('You have nothing cooked to give them. They wander off.'); k.walked++; leaveQueue(q); return; }
     if (!best.ok && Math.random() < 0.5) { if (!byPal) toast(`"I wanted ${o.ask}." They wander off.`); k.walked++; leaveQueue(q); return; }
     best.pool.splice(best.idx, 1);
-    const pay = best.price + (byPal ? 0 : 1); // served by you, at your own counter: a dollar more than on foot
+    const pay = best.price + (byPal ? 0 : KITCHEN.premium); // served by you, at your own counter: a dollar more than on foot
     if (byPal) { state.stash += pay; k.palSold++; k.palTake += pay; }
     else { state.cash += pay; gain('hustle', 2); add('vibes', 0.015); sfx('coin'); toast(`+$${pay}. ${best.ok ? 'Just what they ordered.' : 'Not what they asked for, but they took it.'}`); }
     state.sold++; k.served++; if (f) { f.next = total() + 3; f.appetite = Math.random() * 0.4; }
@@ -1456,10 +1457,11 @@ export function createLife(ctx) {
     const k = state.kitchen, now = total(), h = state.hour;
     if (hired('garden') && now >= k.gardenNext) { k.gardenNext = now + 0.5; tendGarden(); }
     if (!k.open) return;
-    if ((h >= 8 || h < 2) && now >= k.next && k.queue.length < 3 && (atCamp() || hired('front'))) {
-      k.next = now + 0.2 + Math.random() * 0.35;
+    if ((h >= 8 || h < 2) && now >= k.next && k.queue.length < KITCHEN.queue && (atCamp() || hired('front'))) {
+      const rush = (h >= 12 && h < 14) || (h >= 18 && h < 20.5) || h >= 23 || h < 2; // the same mealtimes that help you on foot
+      k.next = now + (KITCHEN.gap[0] + Math.random() * (KITCHEN.gap[1] - KITCHEN.gap[0])) * (rush ? KITCHEN.rush : 1);
       const near = people.filter((f) => !f.away && !f.fixed && !f.called && f.next <= now && Math.hypot(f.x - CAMP.tent[0], f.z - CAMP.tent[1]) < 75);
-      const f = near[Math.floor(Math.random() * near.length)], slot = [0, 1, 2].find((s) => !k.queue.some((q) => q.slot === s));
+      const f = near[Math.floor(Math.random() * near.length)], slot = [0, 1, 2, 3, 4].find((s) => !k.queue.some((q) => q.slot === s));
       if (f && Math.random() < Math.min(1, near.length / 12)) { // a thin crowd means long gaps between customers
         const r = Math.random(), want = r < 0.25 ? 'any' : r < 0.7 || !Object.keys(state.recipes).length ? 'classic' : 'fancy';
         const [x, z] = queueSpot(slot);

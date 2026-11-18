@@ -22,7 +22,9 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
   document.getElementById('creator').classList.add('hidden'); document.getElementById('hud').classList.remove('hidden');
   window.removeEventListener('beforeunload', g.life.save);
   if (preset === 'mid') { S.gear.stove = 4; S.gear.bag = 2; }
-  if (preset === 'kitted') { S.gear.stove = 6; S.gear.bag = 3; S.craft.made.tray = true; }
+  if (preset === 'kitted' || preset === 'kitchen') { S.gear.stove = 6; S.gear.bag = 3; S.craft.made.tray = true; }
+  const kitchen = preset === 'kitchen'; // stays at camp and serves the counter instead of walking sandwiches around
+  if (kitchen) { S.craft.made.sign = true; S.gear.land = 3; S.kitchen.open = true; }
 
   const log = { start: total(), cash0: S.cash + S.stash, hours: [], spent: { supplies: 0, permit: 0, water: 0, shower: 0, gear: 0 }, lost: 0, time: { sell: 0, cook: 0, shop: 0, rest: 0, walk: 0, wait: 0 }, offers: 0, stuck: 0 };
   let lastHour = Math.floor(total()), target = null, retarget = 0, lastCash = S.cash + S.stash, doing = 'wait';
@@ -59,13 +61,27 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
     const n = S.needs, h = S.hour, cash = S.cash;
     if (S.menu) { key('Escape'); return 'wait'; }
     // sleep through the dead hours; nap when spent
-    if ((h >= 3.2 && h < 5) || n.energy < 0.18) {
+    if ((h >= (kitchen ? 2.1 : 3.2) && h < 5) || n.energy < 0.18) {
       if (!walkTo(SPOT.tent, 2.2)) return 'walk';
       g.step(1, dt); key('KeyE'); if (!pick(/Sleep until morning/)) pick(/Nap/); return 'rest';
     }
     if (n.hydration < 0.35 && cash >= 2) { if (!walkTo(SPOT.store, 2)) return 'walk'; g.step(1, dt); key('KeyE'); if (pick(/Cold water/) !== false) log.spent.water += 2; key('Escape'); return 'shop'; }
     if (n.nourishment < 0.35 && S.cheese.length) { key('KeyF'); return 'wait'; }
     if (n.hygiene < 0.5 && cash >= 3) { if (!walkTo(SPOT.showers, 2)) return 'walk'; g.step(1, dt); key('KeyE'); const c = pick(/shower/i); if (c !== false) log.spent.shower += c - S.cash; if (S.menu) key('Escape'); return 'rest'; }
+    if (kitchen) {
+      const stock = S.cheese.length + S.store.cheese.length, open = h >= 8 || h < 2;
+      const q = S.kitchen.queue.find((x) => x.at);
+      if (q && stock) { const f = g.people[q.i]; if (!walkTo([f.x, f.z], 1.5)) return 'walk'; g.step(1, dt); const c = S.cash; key('KeyE'); if (S.menu) key('Escape'); if (S.cash > c) log.offers++; return 'sell'; }
+      if (stock < 6 && supplies() > 0) { if (!walkTo(SPOT.stove, 2)) return 'walk'; g.step(1, dt); key('KeyE'); return 'cook'; }
+      if (stock < 4 && supplies() === 0 && cash >= 5 && open) {
+        if (!walkTo(SPOT.store, 2)) return 'walk';
+        g.step(1, dt); key('KeyE');
+        for (let i = 0; i < Math.min(8, Math.floor((cash - 6) / 5)); i++) { const c = pick(/Bread and cheese/); if (c === false || S.cash === c) break; log.spent.supplies += c - S.cash; }
+        key('Escape'); return 'shop';
+      }
+      if (!walkTo(SPOT.stove, 3.5)) return 'walk';
+      return 'wait';
+    }
     if (!S.cheese.length) {
       if (S.store.cheese.length) { // fetch from the camp stash
         if (!walkTo(SPOT.tent, 2.2)) return 'walk';
@@ -119,7 +135,7 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
     report() {
       const gameHours = total() - log.start, worth = S.cash + S.stash, realHours = Object.values(log.time).reduce((a, b) => a + b, 0) / 3600;
       const spent = Object.values(log.spent).reduce((a, b) => a + b, 0);
-      return { preset, speed, gameHours: +gameHours.toFixed(1), realHoursPlayed: +realHours.toFixed(2), start: log.cash0, end: worth, net: worth - log.cash0, sold: S.sold, offers: log.offers,
+      return { preset, speed, gameHours: +gameHours.toFixed(1), realHoursPlayed: +realHours.toFixed(2), start: log.cash0, end: worth, net: worth - log.cash0, sold: S.sold, offers: log.offers, served: S.kitchen.served, walkedOff: S.kitchen.walked,
         netPerGameDay: +((worth - log.cash0) / gameHours * 24).toFixed(0), netPerRealHour: +((worth - log.cash0) / realHours).toFixed(0), spent: log.spent, spentTotal: spent, lostToTheftAndFines: Math.round(log.lost),
         timeShare: Object.fromEntries(Object.entries(log.time).map(([k, v]) => [k, Math.round(v / (realHours * 36)) + '%'])), stuckFrames: log.stuck, hustle: g.life.level('hustle'), byDay: log.hours.filter((_, i) => i % 12 === 11) };
     },
