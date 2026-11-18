@@ -57,7 +57,7 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
   function pick(re) { const i = opt(re); if (i < 0) return false; const o = S.menu.options[i]; if (o.can && o.can() !== true) return false; const c = S.cash; key('Digit' + (i + 1)); return c; }
   const bagSlots = () => [0, 4, 6, 8, 10][S.gear.bag] + (S.craft.made.sling ? 1 : 0) + (S.tree.mule ? 2 : 0);
   const cheeseRoom = () => (bagSlots() - Object.entries(S.bag).filter(([k, v]) => k !== 'cheese' && v > 0).length) * 5 - S.cheese.length;
-  const supplies = () => (S.bag.supplies || 0) + (S.store.supplies || 0);
+  const supplies = () => (S.bag.supplies || 0) + (S.store.supplies || 0) + (S.pantry.supplies || 0);
   const atCamp = () => SPOT.tent && Math.hypot(P.x - SPOT.tent[0], P.z - SPOT.tent[1]) < 8;
 
   function cookStep() {
@@ -86,7 +86,8 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
       const stock = S.cheese.length + S.store.cheese.length, open = h >= 8 || h < 2;
       const q = S.kitchen.queue.find((x) => x.at);
       if (q && stock) { const f = g.people[q.i]; if (!walkTo([f.x, f.z], 1.5)) return 'walk'; g.step(1, dt); const c = S.cash; key('KeyE'); if (S.menu) key('Escape'); if (S.cash > c) log.offers++; return 'sell'; }
-      if ((stock < 6 || (short() && stock < 16 && !S.kitchen.queue.some((x) => x.at))) && supplies() > 0) { if (!walkTo(SPOT.stove, 2)) return 'walk'; g.step(1, dt); lightStove(); return 'cook'; }
+      const late = h >= 23.5 || h < 8; // cooked food goes stale at 5 AM, so cook little near closing
+      if ((stock < (late ? 2 : 6) || (!late && short() && stock < 16 && !S.kitchen.queue.some((x) => x.at))) && supplies() > 0) { if (!walkTo(SPOT.stove, 2)) return 'walk'; g.step(1, dt); lightStove(); return 'cook'; }
       if (stock < 4 && supplies() === 0 && cash >= 5 && open) {
         if (!walkTo(SPOT.store, 2)) return 'walk';
         g.step(1, dt); key('KeyE');

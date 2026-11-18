@@ -17,7 +17,7 @@ const LOW = {
 };
 // The bible's model: consumables stack in a slot; the bag has a few slots, the camp stash has many.
 const ITEMS = {
-  cheese: { name: 'Grilled cheese', stack: 5, use: 'Eat', desc: 'Eat it, or offer it to people around the festival.' },
+  cheese: { name: 'Grilled cheese', stack: 5, use: 'Eat', desc: 'Eat it, or offer it to people around the festival. Cooked food does not keep: at dawn, yesterday\'s sandwiches go stale.' },
   supplies: { name: 'Bread and cheese', stack: 5, desc: 'Cook it on your camp stove.' },
   bottles: { name: 'Water bottle', stack: 3, use: 'Drink', desc: 'Half a bar of Hydration.' },
   wipes: { name: 'Baby wipes', stack: 5, use: 'Wipe down', desc: 'A little Hygiene, anywhere.' },
@@ -98,7 +98,7 @@ export function createLife(ctx) {
     chain: { i: 0, stats: { digs: 0, builds: 0, perfect: 0, herbs: 0, rainCamp: 0, kandi: 0, headliner: 0 } }, trophies: {},
     garden: { on: false, wet: false, start: 0, ready: 0 }, permitDay: -1, heal: { next: 0, ids: [], count: 0 },
     weather: { rain: false, until: 0, next: 31 + Math.random() * 8 }, // the first shower comes on Friday
-    plots: [], recipes: {}, cookFill: 'best', shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
+    plots: [], recipes: {}, cookFill: 'best', pantry: {}, staleDay: 0, shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
     fx: { clear: 0, soul: 0, zombie: 0, broth: 0, smoke: 0, trip: 0, tripDay: -1 }, glow: 0, vision: false, visionUsed: false,
     offer: '', pal: { friend: 0, watch: 0, gift: -1 }, danced: 0, daily: null, over: false, act: '',
     tree: {}, dayLog: { worth: 40, sold: 0, helped: 0, picked: 0 },
@@ -250,17 +250,18 @@ export function createLife(ctx) {
     const cap = where === 'bag' ? bagSlots() : stashSlots(), c = count(where, k), st = ITEMS[k].stack;
     return (cap - used(where)) * st + (Math.ceil(c / st) * st - c);
   };
-  const have = (k) => count('bag', k) + count('store', k); // bag plus stash, for things you do at camp
+  const have = (k) => count('bag', k) + count('store', k) + (state.pantry[k] || 0); // bag, stash and kitchen pantry, for things you do at camp
   function spend(k, amount) { // take from the bag first, then the stash
-    const fromBag = Math.min(state.bag[k], amount);
-    state.bag[k] -= fromBag; state.store[k] -= amount - fromBag;
+    const fromBag = Math.min(state.bag[k], amount), fromStore = Math.min(state.store[k], amount - fromBag);
+    state.bag[k] -= fromBag; state.store[k] -= fromStore;
+    if (amount - fromBag - fromStore > 0) state.pantry[k] = Math.max(0, (state.pantry[k] || 0) - (amount - fromBag - fromStore)); // last, the kitchen pantry
   }
   // Put things in the bag. What does not fit goes to the stash if you are at camp, otherwise it is left behind.
   function give(k, amount, quality, toStash = atCamp()) {
     let left = amount;
     const put = (where) => {
       const fit = Math.min(left, room(where, k));
-      if (k === 'cheese') for (let i = 0; i < fit; i++) (where === 'bag' ? state.cheese : state.store.cheese).push({ p: quality.p, f: [...quality.f] });
+      if (k === 'cheese') for (let i = 0; i < fit; i++) (where === 'bag' ? state.cheese : state.store.cheese).push({ p: quality.p, f: [...quality.f], d: bakeDay() });
       else (where === 'bag' ? state.bag : state.store)[k] += fit;
       left -= fit;
     };
@@ -614,11 +615,21 @@ export function createLife(ctx) {
   const plural = (name, c) => (c === 1 ? name : /cheese$/.test(name) ? name : `${name}s`);
   function stockLine(pools) { // "4 grilled cheese, 2 tomato melts"
     const by = {};
-    for (const pool of pools) for (const s of pool) { const k = s.p < 2 ? 'burnt' : s.f[0] || ''; by[k] = (by[k] || 0) + 1; }
-    const keys = ['', ...FILLINGS.map((f) => f.item), 'burnt'].filter((k) => by[k]);
-    return keys.length ? keys.map((k) => `${by[k]} ${k === 'burnt' ? 'burnt' : plural(sandwichName(k), by[k])}`).join(', ') : 'nothing cooked';
+    for (const pool of pools) for (const s of pool) { const k = s.p < 2 ? 'burnt' : s.old ? 'day-old' : s.f[0] || ''; by[k] = (by[k] || 0) + 1; }
+    const keys = ['', ...FILLINGS.map((f) => f.item), 'day-old', 'burnt'].filter((k) => by[k]);
+    return keys.length ? keys.map((k) => `${by[k]} ${k === 'burnt' || k === 'day-old' ? k : plural(sandwichName(k), by[k])}`).join(', ') : 'nothing cooked';
   }
   // With fillings to hand you say what goes in before you light the stove; with none it is plain grilled cheese.
+  // Cooked food does not keep. The kitchen's day turns over at 5 AM: whatever was cooked before then is a day-old sandwich.
+  const bakeDay = () => Math.floor((total() - 5) / 24);
+  function staleTick() {
+    const today = bakeDay();
+    if (today <= state.staleDay) return;
+    state.staleDay = today;
+    let gone = 0;
+    for (const pool of [state.cheese, state.store.cheese]) for (const s of pool) if (s.d < today && s.p > KITCHEN.stale) { s.p = KITCHEN.stale; s.f = []; s.old = true; gone++; }
+    if (gone) toast(`${gone} of yesterday's sandwiches ${gone === 1 ? 'has' : 'have'} gone stale: day-old, $${KITCHEN.stale} each. Ingredients keep; cooked food does not.`);
+  }
   function stoveMenu() {
     const mine = FILLINGS.filter((f) => have(f.item) > 0);
     if (!mine.length || !have('supplies')) { startCooking(); return; }
@@ -853,17 +864,18 @@ export function createLife(ctx) {
       state.raid = `Security swept the Campgrounds and found the tub in your tent. It is gone${fine ? `, and so is $${fine} from your stash` : ''}.`;
       return;
     }
-    const kinds = Object.keys(ITEMS).filter((k) => count('store', k) > 0);
+    const kinds = Object.keys(ITEMS).filter((k) => count('store', k) > 0), larder = Object.keys(state.pantry).filter((k) => state.pantry[k] > 0); // the pantry is no safer than the tent
     if (state.stash >= 4) {
       // The better guarded the camp, the rarer the raid, and the more serious the thief who gets through.
       const guard = [0, 1, 0.5, 0.15][state.gear.lock] * (total() < state.pal.watch ? 0.2 : 1);
       const [share, most] = guard >= 1 ? [0.3, 25] : guard >= 0.5 ? [0.4, 60] : guard >= 0.1 ? [0.5, 120] : [0.6, 250];
       const loss = Math.min(most, Math.round(state.stash * share));
       state.stash -= loss; state.raid = `$${loss} of your stashed cash is gone.`;
-    } else if (kinds.length) {
-      const k = kinds[Math.floor(Math.random() * kinds.length)], amount = Math.min(count('store', k), ITEMS[k].stack);
-      if (k === 'cheese') state.store.cheese.splice(0, amount); else state.store[k] -= amount;
-      state.raid = `${amount} ${ITEMS[k].name.toLowerCase()} went missing from your stash.`;
+    } else if (kinds.length + larder.length) {
+      const pick = Math.floor(Math.random() * (kinds.length + larder.length)), inPantry = pick >= kinds.length, k = inPantry ? larder[pick - kinds.length] : kinds[pick];
+      const amount = Math.min(inPantry ? state.pantry[k] : count('store', k), ITEMS[k].stack);
+      if (inPantry) state.pantry[k] -= amount; else if (k === 'cheese') state.store.cheese.splice(0, amount); else state.store[k] -= amount;
+      state.raid = `${amount} ${ITEMS[k].name.toLowerCase()} went missing from your ${inPantry ? 'kitchen pantry' : 'stash'}.`;
     } else state.raid = 'Someone went through your tent and found nothing worth taking.';
   }
 
@@ -1440,7 +1452,7 @@ export function createLife(ctx) {
   }
 
   // ---- the camp kitchen: put the sign up and people nearby walk over and order. You serve them, or Moonbeam does.
-  const KITCHEN = { queue: 4, gap: [0.1, 0.3], rush: 0.6, premium: 1, tip: 1, mix: [0.2, 0.6] }; // tuned with dev/bot.js: queue length, game hours between customers, how much faster at mealtimes, dollars over the sandwich's price, the tip when someone gets the named sandwich they asked for, and the order mix (below the first number: anything; below the second: plain; the rest: a named sandwich off today's board)
+  const KITCHEN = { queue: 4, gap: [0.1, 0.3], rush: 0.6, premium: 1, tip: 1, mix: [0.2, 0.6], pantry: 30, stale: 2 }; // tuned with dev/bot.js: queue length, game hours between customers, how much faster at mealtimes, dollars over the sandwich's price, the tip when someone gets the named sandwich they asked for, the order mix, how many of each ingredient the pantry holds, and what a day-old sandwich is worth. The order mix is (below the first number: anything; below the second: plain; the rest: a named sandwich off today's board)
   // What a customer asks for: 'any' (whatever is hot), 'plain' (a golden grilled cheese) or a filling, meaning the sandwich named after it.
   const asks = (want) => (want === 'any' ? 'whatever is hot' : want === 'plain' ? 'a golden grilled cheese ($3 or better)' : `a ${sandwichName(want)}`);
   const meets = (s, want) => (want === 'any' ? s.p >= 2 : want === 'plain' ? s.p >= 3 : s.f.includes(want));
@@ -1481,7 +1493,9 @@ export function createLife(ctx) {
       if (s === 'dry') { wetPlot(p); did++; }
       else if (s === 'ready') {
         const crop = p.crop, c = CROPS[crop];
-        state.store[c.item] += Math.max(0, Math.min(c.yield, room('store', c.item))); // straight into your camp stash, not your bag
+        const shelf = pantryKinds().includes(c.item) ? Math.min(c.yield, pantryRoom(c.item)) : 0; // fillings go on the pantry shelf; the rest, and the overflow, into your camp stash
+        if (shelf) state.pantry[c.item] = (state.pantry[c.item] || 0) + shelf;
+        state.store[c.item] += Math.max(0, Math.min(c.yield - shelf, room('store', c.item)));
         if (FILLINGS.find((x) => x.item === c.item)) state.recipes[c.item] = true;
         p.crop = null; p.wet = false;
         if (have(c.seed) > 0) { spend(c.seed, 1); p.crop = crop; wetPlot(p); } // replants from your own seeds
@@ -1514,12 +1528,32 @@ export function createLife(ctx) {
       else if (!q.at && now - q.born > 2) leaveQueue(q);
     }
   }
+  // ---- the pantry: a shelf under the counter for ingredients only. It holds far more than the tent, and the stove cooks from it.
+  const pantryKinds = () => ['supplies', ...FILLINGS.map((f) => f.item)];
+  const pantryRoom = (k) => KITCHEN.pantry - (state.pantry[k] || 0);
+  const pantryLine = () => { const ks = pantryKinds().filter((k) => state.pantry[k] > 0); return ks.length ? ks.map((k) => `${state.pantry[k]} ${ITEMS[k].name.toLowerCase()}`).join(', ') : 'empty'; };
+  function stockPantry() {
+    let moved = 0;
+    for (const k of pantryKinds()) for (const from of [state.bag, state.store]) {
+      const n = Math.min(from[k], pantryRoom(k));
+      if (n > 0) { from[k] -= n; state.pantry[k] = (state.pantry[k] || 0) + n; moved += n; }
+    }
+    toast(moved ? `${moved} into the pantry. It now holds: ${pantryLine()}.` : 'Nothing more fits in the pantry.');
+  }
+  function emptyPantry() {
+    let left = 0;
+    for (const k of pantryKinds()) { const n = state.pantry[k] || 0; if (n) { state.pantry[k] = give(k, n, null, true); left += state.pantry[k]; } }
+    toast(left ? `Your bag and stash are full; ${left} stayed in the pantry.` : 'Pantry emptied into your bag and stash.');
+  }
   function counterMenu() {
     const k = state.kitchen, ready = kitchenReady();
     menu(`Your camp kitchen${k.open ? ' (open)' : ''}: ${k.served} served`, [
       k.open ? { label: 'Take the sign down <small>stop taking orders</small>', act: () => closeKitchen() }
         : { label: 'Put the sign up <small>people nearby walk over and order. An open kitchen draws more thieves</small>', can: () => ready, act: () => { k.open = true; k.next = total(); toast('Sign up. Stay at camp and customers will come to the counter.'); } },
       { label: `On the board today: ${['grilled cheese', ...board([state.cheese, state.store.cheese]).map((f) => sandwichName(f.item))].join(', ')} <small>cooked: ${stockLine([state.cheese, state.store.cheese])}</small>`, can: () => 'for your information', act() {} },
+      { label: `Pantry: ${pantryLine()} <small>bread and cheese for ${have('supplies')} more sandwiches, counting your bag and stash</small>`, can: () => 'for your information', act() {} },
+      { label: `Stock the pantry <small>moves bread, cheese and fillings from your bag and stash onto the shelf. Holds ${KITCHEN.pantry} of each; the stove cooks from it</small>`, can: () => (pantryKinds().some((x) => state.bag[x] + state.store[x] > 0 && pantryRoom(x) > 0) ? true : 'nothing to put in'), act: () => { stockPantry(); counterMenu(); } },
+      { label: 'Take everything back out <small>into your bag, then your stash</small>', can: () => (pantryKinds().some((x) => state.pantry[x] > 0) ? true : 'the pantry is empty'), act: () => { emptyPantry(); counterMenu(); } },
       { label: `Moonbeam has sold ${k.palSold} for $${k.palTake} <small>hire them from their camp chair, $35 a day</small>`, can: () => 'for your information', act() {} },
     ]);
   }
@@ -1691,7 +1725,7 @@ export function createLife(ctx) {
   interactables.unshift(interactables.splice(interactables.findIndex((i) => i.label === 'Your tank'), 1)[0]);
 
   // ---- saving. The game saves itself once you are free to roam; the opening is short enough to replay.
-  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'cookFill'];
+  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'cookFill', 'pantry', 'staleDay'];
   let saveClock = 0;
   function save() {
     if (state.mode !== 'free') return;
@@ -1767,7 +1801,8 @@ export function createLife(ctx) {
         if (state[k] && typeof state[k] === 'object' && !Array.isArray(state[k])) Object.assign(state[k], data[k]); else state[k] = data[k];
       }
       state.kitchen.queue = []; // customers do not wait through a reload
-      const whole = (list) => list.map((s) => (typeof s === 'number' ? { p: s, f: [] } : { p: s.p, f: s.f || [] })); // sandwiches were once only a price
+      if (data.staleDay === undefined) state.staleDay = bakeDay(); // a save from before food went stale: what is cooked counts as fresh today
+      const whole = (list) => list.map((s) => (typeof s === 'number' ? { p: s, f: [], d: bakeDay() } : { ...s, f: s.f || [], d: s.d === undefined ? bakeDay() : s.d })); // sandwiches were once only a price
       state.cheese = whole(state.cheese); state.store.cheese = whole(state.store.cheese);
       if (!data.plots && data.garden && data.garden.on) state.plots = [{ crop: 'herbs', wet: data.garden.wet, start: data.garden.start, ready: data.garden.ready }]; // a planter from before the garden grew
       if (onGear) onGear(state.gear, state.craft.made);
@@ -1874,7 +1909,7 @@ export function createLife(ctx) {
         m.visible = !!f && free;
         if (f) { m.position.set(f.x, 2.3 + Math.sin(state.t * 3 + i) * 0.07, f.z); m.rotation.y = state.t * 1.5; }
       });
-      if (free) kitchenTick();
+      if (free) { kitchenTick(); staleTick(); }
       if (free && !busy && noted !== state.day && state.hour >= 8 && state.day > 0) { noted = state.day; if (DAY_NOTE[week().name]) toast(DAY_NOTE[week().name]); }
       if (free && !busy) nosTick(hours, camp);
       if (free && !busy) {
