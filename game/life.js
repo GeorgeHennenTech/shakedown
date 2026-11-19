@@ -631,7 +631,7 @@ export function createLife(ctx) {
   const promised = (item) => state.cooking.stations.reduce((sum, st) => sum + (st.active && !st.fresh && st.top.includes(item) ? perFlip() : 0), 0);
   function drawTops() {
     const c = state.cooking;
-    $('cooktops').innerHTML = c.tops.length ? c.tops.map((item, n) => { const left = have(item) - promised(item); return `<button data-top="${item}"${left > 0 ? '' : ' disabled'}><kbd>${n + 1}</kbd>${ICONS[item]}<span>${FILLINGS.find((f) => f.item === item).name}</span><b>×${Math.max(0, left)}</b></button>`; }).join('') : '';
+    $('cooktops').innerHTML = !c.tops.length ? '<small>No toppings on you. Grow tomatoes, peppers or herbs in your garden, or forage mushrooms, and they show up here to put on.</small>' : c.tops.map((item, n) => { const left = have(item) - promised(item); return `<button data-top="${item}"${left > 0 ? '' : ' disabled'}><kbd>${n + 1}</kbd>${ICONS[item]}<span>${FILLINGS.find((f) => f.item === item).name}</span><b>×${Math.max(0, left)}</b></button>`; }).join('');
     $('cooktops').querySelectorAll('button').forEach((b) => { b.onclick = () => cookTop(b.dataset.top); });
     for (const st of c.stations) { const el = $('cookon' + st.i); if (el) el.textContent = !st.active || st.fresh ? '' : st.top.length ? st.top.map((k) => sandwichName(k).replace(' grilled cheese', '')).join(' + ') : 'plain'; }
   }
@@ -709,7 +709,7 @@ export function createLife(ctx) {
       if (fills.length && price > base) name = fills.length > 1 ? `${fills[0].name} with ${ITEMS[fills[1].item].name.toLowerCase()}` : fills[0].name;
       const done = { p: price, f: price > base ? fills.map((f) => f.item) : [] };
       spend('supplies', 1);
-      if (hired('front') && room('store', 'cheese') > 0) state.store.cheese.push(done); // Moonbeam is on the counter and serves from the stash, so it goes straight there
+      if ((state.kitchen.open || hired('front')) && room('store', 'cheese') > 0) state.store.cheese.push(done); // the stand is open (or Moonbeam is on the counter): it goes straight to the camp stash, which the counter serves from
       else give('cheese', 1, done, true); // cooked at camp: what the bag cannot hold always goes in the stash
       c.made++;
       gain('hustle', price >= 4 ? 2 : 1);
@@ -728,7 +728,7 @@ export function createLife(ctx) {
     document.body.classList.remove('cooking');
     cook.stop();
     const stashed = state.store.cheese.length - (state.stashedAtStart || 0);
-    if (made) { toast(stashed > 0 ? `You made ${made} grilled cheese. Your bag took ${made - stashed}; the other ${stashed} are in your camp stash (I, at camp).` : `You made ${made} grilled cheese.`); state.lot.cook = true; tick('cook'); }
+    if (made) { toast(stashed >= made ? `You made ${made} grilled cheese. They are in your camp stash, ready for the counter.` : stashed > 0 ? `You made ${made} grilled cheese. Your bag took ${made - stashed}; the other ${stashed} are in your camp stash (I, at camp).` : `You made ${made} grilled cheese.`); state.lot.cook = true; tick('cook'); }
   }
   function updateCooking(dt) {
     const c = state.cooking;

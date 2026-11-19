@@ -87,6 +87,7 @@ Good jobs to hand to a second model, because they are already specified: any lad
 
 ## Traps that have already bitten
 
+- **The Desktop app once showed old builds after a rebuild.** Its server sent no cache headers, so the app window kept a stale `index.html` (and so stale code), and an old server process outlived each rebuild. `build_app.sh` now bundles a no-cache server, stamps `build.txt`, and replaces any running server on 8777. The window title shows `SHAKEDOWN · build N` (N is the `main.js?v=N` number): after every rebuild, check `curl localhost:8777/build.txt` and tell Seth the build number. A window already open still needs Cmd+R or a relaunch.
 - The dev server runs on **8790**; the Desktop app serves on **8777**. Saves are per port, so a save made in one is not in the other.
 - People are instanced statues with no skeleton. Moving one means rewriting its instance matrix (see `crowd.js`).
 - Models do not face +z. To aim something at a character's face use the `headfront` bone, not the root's rotation.

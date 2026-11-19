@@ -42,8 +42,14 @@ cat > "$APP/Contents/MacOS/SHAKEDOWN" <<'LAUNCH'
 GAME="$(cd "$(dirname "$0")/../Resources/game" && pwd)"
 PORT=8777
 URL="http://localhost:$PORT/"
-if ! curl -s "${URL}main.js" 2>/dev/null | head -1 | grep -q SHAKEDOWN; then
-  nohup /usr/bin/python3 -m http.server "$PORT" --directory "$GAME" >/dev/null 2>&1 &
+# Reuse the server only if it is this build's own. An older one (or a plain http.server from an earlier build, which let
+# the browser keep a stale page) is stopped and replaced, so the window always shows the game that is in this app.
+if [ "$(curl -s -m 1 "${URL}build.txt" 2>/dev/null)" != "$(cat "$GAME/build.txt")" ] || ! curl -sI -m 1 "$URL" | grep -qi 'cache-control: no-store'; then
+  for pid in $(lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null); do
+    if ps -o command= -p "$pid" | grep -qE 'http\.server|serve\.py'; then kill "$pid" 2>/dev/null; fi
+  done
+  sleep 0.3
+  nohup /usr/bin/python3 "$GAME/../serve.py" "$PORT" "$GAME" >/dev/null 2>&1 &
   for i in $(seq 1 40); do curl -s -m 1 -o /dev/null "${URL}main.js" && break; sleep 0.3; done
 fi
 if [ -d "/Applications/Google Chrome.app" ]; then
@@ -53,5 +59,29 @@ else
 fi
 LAUNCH
 chmod +x "$APP/Contents/MacOS/SHAKEDOWN"
+
+# a stamp for this build, and a server that tells the browser never to keep an old copy of any file
+echo "$(grep -o 'main.js?v=[0-9]*' "$HERE/game/index.html" | cut -d= -f2) $(date '+%Y-%m-%d %H:%M:%S')" > "$APP/Contents/Resources/game/build.txt"
+cat > "$APP/Contents/Resources/serve.py" <<'SERVE'
+import functools, http.server, sys
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-store')
+        super().end_headers()
+    def log_message(self, *args):
+        pass
+
+http.server.ThreadingHTTPServer(('', int(sys.argv[1])), functools.partial(Handler, directory=sys.argv[2])).serve_forever()
+SERVE
+
+# If an earlier build's server is still running, swap it for this one now, so the next launch (or a reload) is this build.
+if lsof -ti tcp:8777 -sTCP:LISTEN >/dev/null 2>&1; then
+  for pid in $(lsof -ti tcp:8777 -sTCP:LISTEN); do
+    if ps -o command= -p "$pid" | grep -qE 'http\.server|serve\.py'; then kill "$pid" 2>/dev/null; fi
+  done
+  sleep 0.3
+  nohup /usr/bin/python3 "$APP/Contents/Resources/serve.py" 8777 "$APP/Contents/Resources/game" >/dev/null 2>&1 &
+fi
 touch "$APP"
 echo "BUILT $APP ($(du -sh "$APP" | cut -f1))"
