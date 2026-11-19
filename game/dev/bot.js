@@ -6,8 +6,8 @@
 //   const { makeBot } = await import('./dev/bot.js'); const bot = makeBot({ preset: 'start' }); bot.run(20000);
 // Call run() again until bot.done; bot.report() gives the numbers.
 // `fillings` (kitchen preset only, e.g. ['tomato', 'pepper']) stands in for a tended garden: the bot knows those
-// recipes, its stash is topped back up to twelve of each whenever one runs low, and at the stove it cooks whichever
-// sandwich on the board it has fewest of. With fillings on the board, customers order those sandwiches by name.
+// recipes, its stash is topped back up to twelve of each whenever one runs low, and it tops each sandwich in the pan
+// with whichever kind on the board it has fewest of. With fillings on the board, customers order those sandwiches by name.
 
 export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed = 2.3, fillings = [] } = {}) {
   const g = window.__game, S = g.state, P = g.player.root.position;
@@ -30,14 +30,15 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
   if (kitchen) { S.craft.made.sign = true; S.gear.land = 3; S.kitchen.open = true; }
   const larder = () => { for (const k of fillings) { S.recipes[k] = true; if (S.bag[k] + S.store[k] < 3) S.store[k] = 12; } };
   const cooked = (k) => [...S.cheese, ...S.store.cheese].filter((s) => s.p >= 3 && (k ? s.f[0] === k : !s.f.length)).length;
-  function lightStove() { // E at the stove; with fillings in the stash the game asks what goes in
-    key('KeyE');
-    if (!S.menu) return;
-    const kinds = ['', ...fillings.filter((k) => S.bag[k] + S.store[k] > 0)].sort((a, b) => cooked(a) - cooked(b));
-    const i = kinds[0] ? 1 + fillOrder().indexOf(kinds[0]) : S.menu.options.length - 1; // the menu reads: best, each filling, plain
-    key('Digit' + (i + 1));
+  const onPans = (k) => (S.cooking ? S.cooking.stations.filter((st) => st.active && !st.fresh && (k ? st.top[0] === k : st.top.done && !st.top.length)).length * 2 : 0);
+  function topPans() { // each new sandwich in a pan gets whichever kind on the board there is least of, cooked or cooking
+    for (const st of S.cooking.stations) {
+      if (!st.active || st.fresh || st.top.done) continue;
+      st.top.done = true;
+      const kinds = ['', ...fillings.filter((k) => S.cooking.tops.includes(k))].sort((a, b) => cooked(a) + onPans(a) - cooked(b) - onPans(b));
+      if (kinds[0]) { g.life.cookTop(kinds[0], st.i); st.top.done = true; }
+    }
   }
-  const fillOrder = () => ['morel', 'chanterelle', 'oyster', 'tomato', 'pepper', 'herbs'].filter((k) => (S.bag[k] || 0) + (S.store[k] || 0) > 0); // the order the stove menu lists them in
   const short = () => kitchen && fillings.length > 0 && ['', ...fillings].some((k) => cooked(k) < 2);
 
   const log = { start: total(), cash0: S.cash + S.stash, hours: [], spent: { supplies: 0, permit: 0, water: 0, shower: 0, gear: 0 }, lost: 0, time: { sell: 0, cook: 0, shop: 0, rest: 0, walk: 0, wait: 0 }, offers: 0, stuck: 0 };
@@ -62,6 +63,7 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
 
   function cookStep() {
     const c = S.cooking; let any = false;
+    if (fillings.length) topPans();
     for (const st of c.stations) {
       if (!st.active) continue; any = true;
       if (st.wait > 0) { st.aim = null; continue; }
@@ -86,7 +88,7 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
       const stock = S.cheese.length + S.store.cheese.length, open = h >= 8 || h < 2;
       const q = S.kitchen.queue.find((x) => x.at);
       if (q && stock) { const f = g.people[q.i]; if (!walkTo([f.x, f.z], 1.5)) return 'walk'; g.step(1, dt); const c = S.cash; key('KeyE'); if (S.menu) key('Escape'); if (S.cash > c) log.offers++; return 'sell'; }
-      if ((stock < 6 || (short() && stock < 16 && !S.kitchen.queue.some((x) => x.at))) && supplies() > 0) { if (!walkTo(SPOT.stove, 2)) return 'walk'; g.step(1, dt); lightStove(); return 'cook'; }
+      if ((stock < 6 || (short() && stock < 16 && !S.kitchen.queue.some((x) => x.at))) && supplies() > 0) { if (!walkTo(SPOT.stove, 2)) return 'walk'; g.step(1, dt); key('KeyE'); return 'cook'; }
       if (stock < 4 && supplies() === 0 && cash >= 5 && open) {
         if (!walkTo(SPOT.store, 2)) return 'walk';
         g.step(1, dt); key('KeyE');

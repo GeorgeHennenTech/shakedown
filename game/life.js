@@ -98,7 +98,7 @@ export function createLife(ctx) {
     chain: { i: 0, stats: { digs: 0, builds: 0, perfect: 0, herbs: 0, rainCamp: 0, kandi: 0, headliner: 0 } }, trophies: {},
     garden: { on: false, wet: false, start: 0, ready: 0 }, permitDay: -1, heal: { next: 0, ids: [], count: 0 },
     weather: { rain: false, until: 0, next: 31 + Math.random() * 8 }, // the first shower comes on Friday
-    plots: [], recipes: {}, cookFill: 'best', pantry: {}, shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
+    plots: [], recipes: {}, pantry: {}, shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
     fx: { clear: 0, soul: 0, zombie: 0, broth: 0, smoke: 0, trip: 0, tripDay: -1 }, glow: 0, vision: false, visionUsed: false,
     offer: '', pal: { friend: 0, watch: 0, gift: -1 }, danced: 0, daily: null, over: false, act: '',
     tree: {}, dayLog: { worth: 40, sold: 0, helped: 0, picked: 0 },
@@ -625,24 +625,27 @@ export function createLife(ctx) {
     const keys = ['', ...FILLINGS.map((f) => f.item), 'burnt'].filter((k) => by[k]);
     return keys.length ? keys.map((k) => `${by[k]} ${k === 'burnt' ? k : plural(sandwichName(k), by[k])}`).join(', ') : 'nothing cooked';
   }
-  // With fillings to hand you say what goes in before you light the stove; with none it is plain grilled cheese.
-  function stoveMenu() {
-    const mine = FILLINGS.filter((f) => have(f.item) > 0);
-    if (!mine.length || !have('supplies')) { startCooking(); return; }
-    const go = (fill) => () => { state.cookFill = fill; startCooking(); };
-    const mark = (fill) => (state.cookFill === fill ? ' · last time' : '');
-    menu(`What goes in? Cooked so far: ${stockLine([state.cheese, state.store.cheese])}`, [
-      { label: `Best filling I have <small>${sandwichName(mine[0].item)} first${mark('best')}</small>`, act: go('best') },
-      ...mine.map((f) => ({ label: `${f.name}${/melt|popper/i.test(f.name) ? '' : ' grilled cheese'} <small>+$${f.bonus} each, you have ${have(f.item)}; plain once they run out${mark(f.item)}</small>`, act: go(f.item) })),
-      { label: `Plain grilled cheese <small>keep the fillings for later${mark('none')}</small>`, act: go('none') },
-    ]);
+  // ---- toppings go on by hand, one sandwich at a time, while it is in the pan. No topping means plain grilled cheese.
+  const topLimit = () => (state.gear.stove >= 7 ? 2 : 1); // the sandwich press takes two
+  const perFlip = () => (state.gear.stove >= 6 ? 2 : 1); // the griddle does two sandwiches to a flip, and one press tops both
+  const promised = (item) => state.cooking.stations.reduce((sum, st) => sum + (st.active && !st.fresh && st.top.includes(item) ? perFlip() : 0), 0);
+  function drawTops() {
+    const c = state.cooking;
+    $('cooktops').innerHTML = c.tops.length ? c.tops.map((item, n) => { const left = have(item) - promised(item); return `<button data-top="${item}"${left > 0 ? '' : ' disabled'}><kbd>${n + 1}</kbd>${ICONS[item]}<span>${FILLINGS.find((f) => f.item === item).name}</span><b>×${Math.max(0, left)}</b></button>`; }).join('') : '';
+    $('cooktops').querySelectorAll('button').forEach((b) => { b.onclick = () => cookTop(b.dataset.top); });
+    for (const st of c.stations) { const el = $('cookon' + st.i); if (el) el.textContent = !st.active || st.fresh ? '' : st.top.length ? st.top.map((k) => sandwichName(k).replace(' grilled cheese', '')).join(' + ') : 'plain'; }
   }
-  function fillsFor(base) { // what goes into the next sandwich: your choice at the stove, and the press adds the next best
-    if (base < 2 || state.cookFill === 'none') return []; // a burnt sandwich is past saving
-    const mine = FILLINGS.filter((f) => have(f.item) > 0), two = state.gear.stove >= 7;
-    if (state.cookFill === 'best' || !state.cookFill) return mine.slice(0, two ? 2 : 1);
-    const first = mine.find((f) => f.item === state.cookFill);
-    return first ? [first, ...(two ? mine.filter((f) => f !== first).slice(0, 1) : [])] : [];
+  // Put a topping on the sandwich in pan i; with no pan named, on the one furthest along that still has room for it.
+  function cookTop(item, i) {
+    const c = state.cooking;
+    if (!c || !c.tops.includes(item)) return;
+    const open = (st) => st.active && !st.fresh && st.top.length < topLimit() && !st.top.includes(item);
+    const st = i !== undefined ? c.stations[i] : c.stations.filter(open).sort((x, y) => (y.side + y.x) - (x.side + x.x))[0];
+    if (!st || !open(st)) { $('cookmsg').textContent = 'Nothing in the pan has room for that.'; return; }
+    if (have(item) - promised(item) < 1) { $('cookmsg').textContent = `You are out of ${ITEMS[item].name.toLowerCase()}.`; return; }
+    st.top.push(item); sfx('pick');
+    $('cookmsg').textContent = `${FILLINGS.find((f) => f.item === item).name} going on${c.pans > 1 ? ` the ${st.i ? 'right' : 'left'} pan` : ''}.`;
+    drawTops();
   }
   function startCooking() {
     if (!have('supplies')) { toast('You need bread and cheese. The General Store sells it.'); return; }
@@ -653,21 +656,21 @@ export function createLife(ctx) {
     const totalToCook = Math.max(1, Math.min(Math.ceil(have('supplies') / per), pans * 5, Math.floor(space / per)));
     state.stashedAtStart = state.store.cheese.length;
     state.canMove = false;
-    state.cooking = { pans, queue: totalToCook, total: totalToCook, made: 0, stations: [] };
+    state.cooking = { pans, queue: totalToCook, total: totalToCook, made: 0, stations: [], tops: FILLINGS.filter((f) => have(f.item) > 0).map((f) => f.item) };
     ZONES = state.gear.stove >= 5 ? WIDEST : state.gear.stove >= 3 ? WIDE : NARROW;
     const pc = ZONES.map(([edge]) => `${Math.min(edge, 1) * 100}%`);
     const paint = `linear-gradient(90deg,#f6e7c1 0 ${pc[0]},#e8a33d ${pc[0]} ${pc[1]},#ffd23f ${pc[1]} ${pc[2]},#e8a33d ${pc[2]} ${pc[3]},#3b2416 ${pc[3]} 100%)`;
-    $('cookbars').innerHTML = Array.from({ length: pans }, (_, i) => `<div class="cookrow">${pans > 1 ? `<kbd>${'AD'[i]}</kbd>` : ''}<div class="cookbar" style="background:${paint}"><i id="cookmark${i}"></i></div></div>`).join('');
+    $('cookbars').innerHTML = Array.from({ length: pans }, (_, i) => `<div class="cookrow">${pans > 1 ? `<kbd>${'AD'[i]}</kbd>` : ''}<div class="cookbar" style="background:${paint}"><i id="cookmark${i}"></i></div><span class="cookon" id="cookon${i}"></span></div>`).join('');
     $('cook').classList.remove('hidden'); $('prompt').classList.add('hidden');
     document.body.classList.add('cooking');
-    $('cookmsg').textContent = pans > 1 ? 'Two pans. A flips the left, D flips the right. Space flips whichever is further along.' : 'Flip it when the marker hits the gold. Space or click.';
+    $('cookmsg').textContent = (pans > 1 ? 'Two pans. A flips the left, D flips the right. Space flips whichever is further along.' : 'Flip it when the marker hits the gold. Space or click.') + (state.cooking.tops.length ? ' Number keys put a topping on what is in the pan.' : '');
     cook.start(gfx.light, Math.min(4, state.gear.stove));
     for (let i = 0; i < pans; i++) {
-      const st = { i, side: 0, x: 0, speed: 0.3, first: null, wait: 0, fresh: false, active: false };
+      const st = { i, side: 0, x: 0, speed: 0.3, first: null, wait: 0, fresh: false, active: false, top: [] };
       state.cooking.stations.push(st);
       if (state.cooking.queue > 0) { state.cooking.queue--; st.active = true; cook.newSandwich(i); st.wait = 0.42 + i * 0.9; } // the second pan starts a beat later
     }
-    drawCount();
+    drawCount(); drawTops();
   }
   const drawCount = () => { const c = state.cooking; $('cookcount').textContent = `${c.made} sandwich${c.made === 1 ? '' : 'es'} done`; };
   function nextSide(st) {
@@ -696,7 +699,7 @@ export function createLife(ctx) {
     const base = price, batch = Math.min(state.gear.stove >= 6 ? 2 : 1, have('supplies'));
     for (let j = 0; j < batch; j++) {
       price = base;
-      const fills = fillsFor(base);
+      const fills = base >= 2 ? st.top.map((item) => FILLINGS.find((f) => f.item === item)).filter((f) => have(f.item) > 0) : []; // what you put on it; a burnt sandwich is past saving, and its toppings go back in the box
       for (const f of fills) {
         const bad = badFilling(f.item);
         spend(f.item, 1);
@@ -704,16 +707,19 @@ export function createLife(ctx) {
         price += f.bonus;
       }
       if (fills.length && price > base) name = fills.length > 1 ? `${fills[0].name} with ${ITEMS[fills[1].item].name.toLowerCase()}` : fills[0].name;
-      spend('supplies', 1); give('cheese', 1, { p: price, f: price > base ? fills.map((f) => f.item) : [] }, true); // cooked at camp: what the bag cannot hold always goes in the stash
+      const done = { p: price, f: price > base ? fills.map((f) => f.item) : [] };
+      spend('supplies', 1);
+      if (hired('front') && room('store', 'cheese') > 0) state.store.cheese.push(done); // Moonbeam is on the counter and serves from the stash, so it goes straight there
+      else give('cheese', 1, done, true); // cooked at camp: what the bag cannot hold always goes in the stash
       c.made++;
       gain('hustle', price >= 4 ? 2 : 1);
     }
     st.side = 0;
     pass(8 / 60 / c.pans);
     $('cookmsg').textContent = `${name}${/melt|popper/i.test(name) ? '' : ' grilled cheese'}${batch > 1 ? ', two of them' : ''}. Worth $${price}${batch > 1 ? ' each' : ''}.`;
-    st.wait = 1.25; st.fresh = true;
+    st.wait = 1.25; st.fresh = true; st.top = [];
     cook.plate(st.i, name);
-    drawCount();
+    drawCount(); drawTops();
   }
   function stopCooking() {
     const made = state.cooking.made;
@@ -735,6 +741,7 @@ export function createLife(ctx) {
           if (st.fresh) { // the last one is plated: start another, or this pan is finished
             st.fresh = false;
             if (c.queue > 0) { c.queue--; cook.newSandwich(st.i); st.wait = 0.42; } else st.active = false;
+            drawTops();
           } else nextSide(st);
         }
         continue;
@@ -1685,7 +1692,7 @@ export function createLife(ctx) {
       { label: 'Open your bag and stash', act: () => togglePanel(true) },
       { label: 'Stash or take cash <small>choose how much</small>', act: cashMenu },
     ]) },
-    { at: CAMP.stove, r: 2.7, label: 'Cook on your camp stove', use: stoveMenu },
+    { at: CAMP.stove, r: 2.7, label: 'Cook on your camp stove', use: startCooking },
     { at: CAMP.bench, r: 1.9, label: 'Your workbench', use: workbench },
     { at: CAMP.garden, r: 2.6, use: gardenMenu, label: gardenLabel },
     { test: (p) => shroomSlots() > 0 && Math.hypot(p.x - CAMP.myco[0], p.z - CAMP.myco[1]) < 1.8, label: 'Your mushroom shelf', use: mycoMenu },
@@ -1746,7 +1753,7 @@ export function createLife(ctx) {
   interactables.unshift(interactables.splice(interactables.findIndex((i) => i.label === 'Your tank'), 1)[0]);
 
   // ---- saving. The game saves itself once you are free to roam; the opening is short enough to replay.
-  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'cookFill', 'pantry'];
+  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry'];
   let saveClock = 0;
   function save() {
     if (state.mode !== 'free') return;
@@ -1837,6 +1844,7 @@ export function createLife(ctx) {
         if (e.code === 'Space') cookPress();
         else if (e.code === 'KeyA' || e.code === 'ArrowLeft') cookPress(0);
         else if (e.code === 'KeyD' || e.code === 'ArrowRight') cookPress(state.cooking.pans > 1 ? 1 : 0);
+        else if (e.code.startsWith('Digit')) { const item = state.cooking.tops[+e.code.slice(5) - 1]; if (item) cookTop(item); }
         else if (e.code === 'Escape') stopCooking();
         return true;
       }
@@ -1862,6 +1870,7 @@ export function createLife(ctx) {
       return false;
     },
     // A click while cooking: with two pans, the left half of the screen is the left pan.
+    cookTop,
     cookClick(xFraction) { if (state.cooking) cookPress(state.cooking.pans > 1 ? (xFraction < 0.5 ? 0 : 1) : 0); },
     update(dt) {
       if (['load', 'creator', 'intro'].includes(state.mode)) return;

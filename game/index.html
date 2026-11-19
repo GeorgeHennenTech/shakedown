@@ -148,6 +148,12 @@ body.cooking #cook{bottom:18px;background:rgba(255,243,214,.93)}
 #decks .foot{margin-top:8px;font-size:12px;opacity:.7}
 body.decking #hud{visibility:hidden}
 .cookrow{display:flex;align-items:center;gap:8px}
+.cookon{min-width:86px;font:600 13px/1.2 inherit;color:var(--grape);text-align:right}
+#cooktops{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
+#cooktops button{display:flex;align-items:center;gap:5px;padding:3px 8px 3px 4px;border:2px solid var(--ink);border-radius:8px;background:#fff;font:600 13px/1 inherit;cursor:pointer}
+#cooktops button:disabled{opacity:.4;cursor:default}
+#cooktops svg{width:22px;height:22px}
+#cooktops kbd{padding:0 5px;border:2px solid var(--ink);border-radius:5px;background:#ffd23f;font:700 12px/18px ui-monospace,Menlo,monospace}
 .cookrow kbd{display:inline-block;padding:0 7px;border:2px solid var(--ink);border-radius:6px;background:#fff;font:700 13px/22px ui-monospace,Menlo,monospace}
 #bagpanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(460px,calc(100vw - 32px));max-height:80vh;overflow:auto;padding:14px 18px 24px;pointer-events:auto}
 #bagpanel h3{margin:0 0 6px;font-size:22px;color:var(--grape)}
@@ -242,7 +248,7 @@ body.tripping canvas#view{animation:trip 14s linear infinite}
   <div id="help" class="panel"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Shift</kbd> sprint · drag or <kbd>←</kbd><kbd>→</kbd> look · <kbd>E</kbd> use · <kbd>I</kbd> bag · <kbd>K</kbd> skills · <kbd>J</kbd> journal · <kbd>M</kbd> map · <kbd>H</kbd> guide</div>
   <div id="toast" class="panel comix"></div>
   <div id="menu" class="panel hidden"><h3 class="comix" id="menutitle"></h3><div id="menuopts"></div><div class="next">number keys or click · Esc to leave</div></div>
-  <div id="cook" class="panel hidden"><h3 class="comix">Grilled cheese</h3><div id="cookcount"></div><div id="cookbars"></div><div id="cookmsg"></div><div class="next">Space to flip · Esc to stop</div></div>
+  <div id="cook" class="panel hidden"><h3 class="comix">Grilled cheese</h3><div id="cookcount"></div><div id="cookbars"></div><div id="cooktops"></div><div id="cookmsg"></div><div class="next">Space to flip · numbers to top · Esc to stop</div></div>
   <div id="bagpanel" class="panel hidden"></div>
   <div id="bath" class="hidden"><div id="bathtarget"></div><div id="bathring"></div><div id="bathmsg" class="panel comix"></div></div>
   <div id="levelup" class="panel"></div>
@@ -253,6 +259,6 @@ body.tripping canvas#view{animation:trip 14s linear infinite}
 <div id="card" class="hidden"><div><h1 class="comix" id="cardh"></h1><p id="cardp"></p></div></div>
 <div id="done" class="panel hidden"><h2 class="comix">Quest complete: Bare Witness</h2><p>You chased a screaming naked man into a sunset and got the whole tour.</p><ul id="tour"></ul><p style="font-size:13px;color:#6b5d78">That is the end of the opening. The Healing Village is open, north of the main stage.</p><button id="explore" class="big comix" style="background:var(--teal)">Keep exploring</button><button id="again" class="big comix" style="background:var(--sun)">Play again</button></div>
 
-<script type="module" src="./main.js?v=84"></script>
+<script type="module" src="./main.js?v=85"></script>
 </body>
 </html>
