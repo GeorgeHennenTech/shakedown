@@ -1483,7 +1483,14 @@ export function createLife(ctx) {
     state.sold++; k.served++; if (f) { f.next = total() + 3; f.appetite = Math.random() * 0.4; }
     leaveQueue(q);
   }
-  const nearOrder = (p) => state.kitchen.queue.find((q) => q.at && people[q.i] && Math.hypot(people[q.i].x - p.x, people[q.i].z - p.z) < 2.3);
+  // Who E serves: from behind the counter, whoever has waited longest; anywhere else, a waiting customer you are standing next to.
+  const atCounter = (p) => made('sign') && Math.hypot(p.x - COUNTER[0], p.z - COUNTER[1]) < 2.6;
+  const nearOrder = (p) => {
+    const waiting = state.kitchen.queue.filter((q) => q.at && people[q.i]);
+    if (atCounter(p)) return waiting.sort((a, b) => a.at - b.at)[0];
+    return waiting.find((q) => Math.hypot(people[q.i].x - p.x, people[q.i].z - p.z) < 2.3);
+  };
+  let servedT = -9; // E serves and E opens the counter menu, so the menu stays shut while anyone is queueing and for a moment after a sale
   function tendGarden() {
     let did = 0;
     for (const p of plots()) {
@@ -1628,8 +1635,9 @@ export function createLife(ctx) {
   // ---- places you can use
   interactables.push(
     { test: (p) => (state.gear.pantry >= 2 || Object.values(state.pantry).some((v) => v > 0)) && Math.hypot(p.x - CAMP.pantry[0], p.z - CAMP.pantry[1]) < 1.6, label: () => `Your ${GEAR.pantry[1][state.gear.pantry - 1].name.toLowerCase().replace('no cabinet', 'old pantry shelf')}: ${pantryLine()}`, use: pantryMenu },
-    { test: (p) => nearOrder(p) !== undefined, label: () => `Serve: they want ${asks(nearOrder(getPlayer().root.position).want)}`, use: () => serve(nearOrder(getPlayer().root.position), false) },
-    { test: (p) => made('sign') && Math.hypot(p.x - COUNTER[0], p.z - COUNTER[1]) < 1.9, label: () => (state.kitchen.open ? 'Your kitchen counter (open)' : 'Your kitchen counter'), use: counterMenu },
+    { test: (p) => nearOrder(p) !== undefined, label: () => `Serve: they want ${asks(nearOrder(getPlayer().root.position).want)}`, use: () => { serve(nearOrder(getPlayer().root.position), false); servedT = state.t; } },
+    { test: (p) => atCounter(p) && state.kitchen.open && (state.kitchen.queue.length > 0 || state.t - servedT < 1.5), label: () => (state.kitchen.queue.length ? 'A customer is walking up to your counter' : 'Your kitchen counter (open)'), use() {} },
+    { test: (p) => made('sign') && Math.hypot(p.x - COUNTER[0], p.z - COUNTER[1]) < 1.9, label: () => (state.kitchen.open ? 'Your kitchen counter (open): sign, board and stock' : 'Your kitchen counter'), use: counterMenu },
     { test: (p) => !week().musicDay && Math.hypot(p.x + 62.5, p.z + 121) < 3.4, label: 'Stage crew: work a shift', use: crewShift },
     { at: BOOTH, r: 3.4, label: 'Open Decks: play a set', use: openDecks },
     { at: CAMP.cooler, r: 2.1, label: () => (state.towing ? 'Park your cooler' : 'Your cooler'), use: () => menu(`${GEAR.cooler[1][state.gear.cooler - 1].name} (${state.water} of ${coolerRoom()} waters)`, [
