@@ -17,7 +17,7 @@ const LOW = {
 };
 // The bible's model: consumables stack in a slot; the bag has a few slots, the camp stash has many.
 const ITEMS = {
-  cheese: { name: 'Grilled cheese', stack: 5, use: 'Eat', desc: 'Eat it, or offer it to people around the festival. Cooked food does not keep: at dawn, yesterday\'s sandwiches go stale.' },
+  cheese: { name: 'Grilled cheese', stack: 5, use: 'Eat', desc: 'Eat it, or offer it to people around the festival. Cooked food keeps for two days, then goes stale at dawn.' },
   supplies: { name: 'Bread and cheese', stack: 5, desc: 'Cook it on your camp stove.' },
   bottles: { name: 'Water bottle', stack: 3, use: 'Drink', desc: 'Half a bar of Hydration.' },
   wipes: { name: 'Baby wipes', stack: 5, use: 'Wipe down', desc: 'A little Hygiene, anywhere.' },
@@ -621,15 +621,15 @@ export function createLife(ctx) {
     return keys.length ? keys.map((k) => `${by[k]} ${k === 'burnt' || k === 'day-old' ? k : plural(sandwichName(k), by[k])}`).join(', ') : 'nothing cooked';
   }
   // With fillings to hand you say what goes in before you light the stove; with none it is plain grilled cheese.
-  // Cooked food does not keep. The kitchen's day turns over at 5 AM: whatever was cooked before then is a day-old sandwich.
+  // Cooked food does not keep for ever. The kitchen's day turns over at 5 AM; a sandwich that has seen KITCHEN.keeps of those is a day-old sandwich.
   const bakeDay = () => Math.floor((total() - 5) / 24);
   function staleTick() {
     const today = bakeDay();
     if (today <= state.staleDay) return;
     state.staleDay = today;
     let gone = 0;
-    for (const pool of [state.cheese, state.store.cheese]) for (const s of pool) if (s.d < today && s.p > KITCHEN.stale) { s.p = KITCHEN.stale; s.f = []; s.old = true; gone++; }
-    if (gone) toast(`${gone} of yesterday's sandwiches ${gone === 1 ? 'has' : 'have'} gone stale: day-old, $${KITCHEN.stale} each. Ingredients keep; cooked food does not.`);
+    for (const pool of [state.cheese, state.store.cheese]) for (const s of pool) if (today - s.d >= KITCHEN.keeps && s.p > KITCHEN.stale) { s.p = KITCHEN.stale; s.f = []; s.old = true; gone++; }
+    if (gone) toast(`${gone} of your older sandwiches ${gone === 1 ? 'has' : 'have'} gone stale: day-old, $${KITCHEN.stale} each. Cooked food keeps ${KITCHEN.keeps} days; ingredients keep for good.`);
   }
   function stoveMenu() {
     const mine = FILLINGS.filter((f) => have(f.item) > 0);
@@ -1455,7 +1455,7 @@ export function createLife(ctx) {
   }
 
   // ---- the camp kitchen: put the sign up and people nearby walk over and order. You serve them, or Moonbeam does.
-  const KITCHEN = { queue: 4, gap: [0.1, 0.3], rush: 0.6, premium: 1, tip: 1, mix: [0.2, 0.6], pantry: 30, stale: 2 }; // tuned with dev/bot.js: queue length, game hours between customers, how much faster at mealtimes, dollars over the sandwich's price, the tip when someone gets the named sandwich they asked for, the order mix, how many of each ingredient the pantry holds, and what a day-old sandwich is worth. The order mix is (below the first number: anything; below the second: plain; the rest: a named sandwich off today's board)
+  const KITCHEN = { queue: 4, gap: [0.1, 0.3], rush: 0.6, premium: 1, tip: 1, mix: [0.2, 0.6], pantry: 30, stale: 2, keeps: 2 }; // tuned with dev/bot.js: queue length, game hours between customers, how much faster at mealtimes, dollars over the sandwich's price, the tip when someone gets the named sandwich they asked for, the order mix, how many of each ingredient the pantry holds, what a day-old sandwich is worth, and how many dawns a cooked sandwich lasts (2: cooked on Thursday, stale at 5 AM on Saturday). The order mix is (below the first number: anything; below the second: plain; the rest: a named sandwich off today's board)
   // What a customer asks for: 'any' (whatever is hot), 'plain' (a golden grilled cheese) or a filling, meaning the sandwich named after it.
   const asks = (want) => (want === 'any' ? 'whatever is hot' : want === 'plain' ? 'a golden grilled cheese ($3 or better)' : `a ${sandwichName(want)}`);
   const meets = (s, want) => (want === 'any' ? s.p >= 2 : want === 'plain' ? s.p >= 3 : s.f.includes(want));
