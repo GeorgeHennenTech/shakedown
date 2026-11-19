@@ -86,8 +86,7 @@ export function makeBot({ preset = 'start', flipError = 0.03, dt = 1 / 20, speed
       const stock = S.cheese.length + S.store.cheese.length, open = h >= 8 || h < 2;
       const q = S.kitchen.queue.find((x) => x.at);
       if (q && stock) { const f = g.people[q.i]; if (!walkTo([f.x, f.z], 1.5)) return 'walk'; g.step(1, dt); const c = S.cash; key('KeyE'); if (S.menu) key('Escape'); if (S.cash > c) log.offers++; return 'sell'; }
-      const late = h >= 23.5 || h < 8; // cooked food goes stale at 5 AM, so cook little near closing
-      if ((stock < (late ? 2 : 6) || (!late && short() && stock < 16 && !S.kitchen.queue.some((x) => x.at))) && supplies() > 0) { if (!walkTo(SPOT.stove, 2)) return 'walk'; g.step(1, dt); lightStove(); return 'cook'; }
+      if ((stock < 6 || (short() && stock < 16 && !S.kitchen.queue.some((x) => x.at))) && supplies() > 0) { if (!walkTo(SPOT.stove, 2)) return 'walk'; g.step(1, dt); lightStove(); return 'cook'; }
       if (stock < 4 && supplies() === 0 && cash >= 5 && open) {
         if (!walkTo(SPOT.store, 2)) return 'walk';
         g.step(1, dt); key('KeyE');

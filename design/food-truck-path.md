@@ -124,7 +124,7 @@ The first version earned less than selling on foot with the same gear ($608 walk
 
 Single runs, and two runs of the same settings differed by about 15% in this session, so read the gap as "a garden helps somewhat", not as a precise figure. The garden kitchen sits at the $1,000 target.
 
-**With the pantry and stale food (same day).** Cooked sandwiches now go stale at 5 AM ($2 day-old), and ingredients wait in a pantry at the counter. The test player cooks little after 11:30 PM. One run each: no garden $775 an hour (182 served, 58 walked off), tomatoes and peppers $828 (163 served, 70 walked off). Both are inside the 15% run-to-run spread of the figures above, so going stale costs a careful player little; a careless one loses whatever is left at dawn.
+**Stale food, tried and removed (19 Nov 2026).** For a day cooked sandwiches went stale at dawn. One run each with that rule: no garden $775 an hour, tomatoes and peppers $828, both inside the 15% run-to-run spread of the table above, so it changed little and Seth took it out. Ingredients now wait in a bought produce cabinet (see `decisions.md`); the figures in the table above are the ones that stand.
 
 The prices already agreed hold up against this rule, so they stay. The income column is a target for the stands, not a measurement: nothing above walking exists yet. When a stand is built, run the bot on it and adjust the stand, not the price.
 

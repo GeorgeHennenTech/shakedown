@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=52';
+import { createLife, readSave, saveLabel } from './life.js?v=53';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -388,18 +388,57 @@ function buildCampLook() {
     const soil = mesh(new THREE.BoxGeometry(1.18, 0.05, 0.48), new THREE.MeshLambertMaterial({ color: 0x6b5238 }), 0, 0.35, 0, planter);
     const sprouts = new THREE.Group(); sprouts.position.y = 0.37;
     const leaf = new THREE.MeshLambertMaterial({ color: 0x5cb85c, flatShading: true }), fruit = new THREE.MeshLambertMaterial({ color: 0xe0392b });
-    for (let j = 0; j < 7; j++) {
-      const x = -0.48 + j * 0.16, z = (j % 2 ? 0.1 : -0.1);
-      mesh(new THREE.ConeGeometry(0.09, 0.42, 6), leaf, x, 0.21, z, sprouts);
-      mesh(new THREE.SphereGeometry(0.07, 6, 5), fruit, x + 0.04, 0.3, z + 0.03, sprouts);
+    // one little bed per crop, so a planter looks like what is in it
+    const beds = { herbs: new THREE.Group(), tomato: new THREE.Group(), pepper: new THREE.Group(), sage: new THREE.Group() };
+    for (let j = 0; j < 9; j++) { // herbs: a low, dense row of leafy tufts
+      const x = -0.5 + j * 0.125, z = (j % 2 ? 0.11 : -0.11);
+      mesh(new THREE.ConeGeometry(0.075, 0.26, 5), leaf, x, 0.13, z, beds.herbs);
+      mesh(new THREE.ConeGeometry(0.05, 0.2, 5), leaf, x + 0.05, 0.1, -z * 0.5, beds.herbs).rotation.z = 0.5;
     }
+    for (let j = 0; j < 4; j++) { // tomatoes: tall staked vines hung with round fruit
+      const x = -0.44 + j * 0.29, z = (j % 2 ? 0.07 : -0.07);
+      mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.78, 5), lambert(0xb08d57), x, 0.39, z, beds.tomato);
+      mesh(new THREE.ConeGeometry(0.15, 0.62, 6), leaf, x, 0.34, z, beds.tomato);
+      for (const [fx, fy, fz] of [[0.1, 0.2, 0.08], [-0.09, 0.34, 0.07], [0.05, 0.46, -0.08]]) mesh(new THREE.SphereGeometry(0.06, 7, 6), fruit, x + fx, fy, z + fz, beds.tomato);
+    }
+    for (let j = 0; j < 5; j++) { // peppers: squat bushes with long pods hanging down
+      const x = -0.46 + j * 0.23, z = (j % 2 ? 0.08 : -0.08);
+      const bush = mesh(new THREE.SphereGeometry(0.13, 7, 5), leaf, x, 0.3, z, beds.pepper); bush.scale.y = 0.8;
+      mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.2, 5), leaf, x, 0.1, z, beds.pepper);
+      for (const s of [-1, 1]) { const pod = mesh(new THREE.ConeGeometry(0.035, 0.17, 6), fruit, x + s * 0.09, 0.2, z + 0.06, beds.pepper); pod.rotation.x = Math.PI; }
+    }
+    for (let j = 0; j < 6; j++) { // sage: soft grey mounds with flower spikes
+      const x = -0.46 + j * 0.185, z = (j % 2 ? 0.09 : -0.09);
+      const mound = mesh(new THREE.SphereGeometry(0.12, 7, 5), leaf, x, 0.12, z, beds.sage); mound.scale.y = 0.9;
+      mesh(new THREE.ConeGeometry(0.028, 0.24, 5), fruit, x, 0.34, z, beds.sage);
+      mesh(new THREE.ConeGeometry(0.022, 0.18, 5), fruit, x + 0.07, 0.28, z - 0.04, beds.sage);
+    }
+    for (const b of Object.values(beds)) sprouts.add(b);
     planter.add(sprouts);
     planter.visible = i === 0;
     scene.add(planter);
-    campLook.plots.push({ planter, soil, sprouts, leaf, fruit });
+    campLook.plots.push({ planter, soil, sprouts, leaf, fruit, beds });
   }
   solid(CAMP.garden[0], CAMP.garden[1], 0.6);
 
+  // the produce cabinet by the stove: a crate, then a cabinet, then a larder (gear ladder 'pantry')
+  campLook.pantry = [null, null];
+  { const [px, pz] = CAMP.pantry;
+    const crate = new THREE.Group();
+    mesh(new THREE.BoxGeometry(0.8, 0.5, 0.55), lambert(0xa9824f), 0, 0.25, 0, crate);
+    for (const y of [0.14, 0.36]) mesh(new THREE.BoxGeometry(0.84, 0.06, 0.59), lambert(0x8a6a3c), 0, y, 0, crate);
+    for (const [x, c] of [[-0.2, 0xe0392b], [0.02, 0x4fbf4a], [0.22, 0xe0392b]]) mesh(new THREE.SphereGeometry(0.09, 7, 6), lambert(c), x, 0.54, 0.05, crate);
+    const cabinet = new THREE.Group();
+    mesh(new THREE.BoxGeometry(0.9, 1.3, 0.5), lambert(0x7a5632), 0, 0.65, 0, cabinet);
+    for (const x of [-0.22, 0.22]) mesh(new THREE.BoxGeometry(0.4, 1.14, 0.04), lambert(0x9a7445), x, 0.67, 0.26, cabinet);
+    for (const x of [-0.05, 0.05]) mesh(new THREE.SphereGeometry(0.03, 6, 5), lambert(0xffd23f), x, 0.7, 0.3, cabinet);
+    const larder = new THREE.Group();
+    mesh(new THREE.BoxGeometry(1.7, 1.6, 0.55), lambert(0x5d6f58), 0, 0.8, 0, larder);
+    for (const x of [-0.63, -0.21, 0.21, 0.63]) mesh(new THREE.BoxGeometry(0.38, 1.42, 0.04), lambert(0x7d927a), x, 0.82, 0.29, larder);
+    mesh(new THREE.BoxGeometry(1.8, 0.07, 0.65), lambert(0x8a6a3c), 0, 1.63, 0, larder);
+    for (const [x, c] of [[-0.5, 0xe0392b], [-0.3, 0xe0392b], [0.1, 0x4fbf4a], [0.45, 0xe8a33d]]) mesh(new THREE.SphereGeometry(0.1, 7, 6), lambert(c), x, 1.76, 0, larder);
+    for (const g of [crate, cabinet, larder]) { g.position.set(px, 0, pz); g.rotation.y = -0.5; g.visible = false; scene.add(g); campLook.pantry.push(g); }
+  }
   // the kitchen counter: a plank on two crates, with a sign that goes up when you are open
   campLook.counter = new THREE.Group();
   campLook.counter.position.set(CAMP.counter[0], 0, CAMP.counter[1]); campLook.counter.rotation.y = -0.35;
@@ -553,13 +592,14 @@ function updateCooler() {
 function updateCamp(dt) {
   if (!state.plots || !campLook.rain) return;
   const now = state.day * 24 + state.hour;
-  const CROP_LOOK = { herbs: [0x5cb85c, 0x4caf50], tomato: [0x3f9d4a, 0xe0392b], pepper: [0x3f9d4a, 0x7ac96b], sage: [0x9fb8a0, 0xb9a0d8] };
+  const CROP_LOOK = { herbs: [0x5cb85c, 0x4caf50], tomato: [0x3f9d4a, 0xe0392b], pepper: [0x2f8f45, 0x4fbf4a], sage: [0x9fb8a0, 0xb9a0d8] };
   campLook.plots.forEach((pl, i) => {
     const d = state.plots[i];
     pl.planter.visible = i < Math.max(1, state.plots.length);
     const grow = !d || !d.crop ? 0 : !d.wet ? 0.02 : Math.min(1, 0.15 + 0.85 * (now - d.start) / Math.max(0.01, d.ready - d.start));
     pl.sprouts.visible = !!(d && d.crop); pl.sprouts.scale.set(1, Math.max(0.02, grow), 1);
     pl.soil.material.color.set(d && d.crop && d.wet ? 0x3a2a1c : 0x6b5238);
+    for (const k in pl.beds) pl.beds[k].visible = !!d && (pl.beds[d.crop] ? d.crop : 'herbs') === k;
     if (d && d.crop) { const [leaf, fruit] = CROP_LOOK[d.crop] || CROP_LOOK.herbs; pl.leaf.color.setHex(leaf); pl.fruit.color.setHex(grow > 0.7 ? fruit : leaf); }
   });
   campLook.myco.visible = state.gear.myco >= 2;
@@ -594,6 +634,8 @@ function showGear(g, made = {}) {
   campLook.fly.children.forEach((m) => m.material.color.set(g.tent >= 5 ? 0x4a5670 : 0x9fb4bf)); // the blackout liner darkens it
   campLook.tape.visible = g.cooler >= 2;
   campLook.wheels.visible = g.cooler >= 3;
+  campLook.pantry.forEach((m, lv) => { if (m) m.visible = (g.pantry || 1) === lv; });
+  if (campLook.pantrySolid) campLook.pantrySolid.x = (g.pantry || 1) >= 2 ? CAMP.pantry[0] : 1e6;
 }
 let crowd = null; // moves everybody through their day (crowd.js)
 const people = []; // everyone you could sell a sandwich to
@@ -607,7 +649,7 @@ function person(x, z, rot, amp = 0, kind = 'fixed') {
 const BOOTH = [-37, -98]; // the Open Decks tent, on the camp side of the Main Stage field
 const VILLAGE = { dome: [-58.5, -149.5], chill: [-28, -143.5], bath: [-24, -159], elder: [-49.5, -152] };
 const inVillage = (x, z) => x < -19 && x > -74 && z < -137;
-const CAMP = { tent: [22, -74.5], stove: [25.8, -76.8], cooler: [23.9, -77.6], bench: [20.4, -78.6], garden: [18.0, -77.3], tank: [19.3, -70.7], myco: [16.9, -72.4], counter: [28.2, -75.2] }; // right beside the YOUR CAMP sign, where you cannot miss it
+const CAMP = { tent: [22, -74.5], stove: [25.8, -76.8], cooler: [23.9, -77.6], bench: [20.4, -78.6], garden: [18.0, -77.3], tank: [19.3, -70.7], myco: [16.9, -72.4], counter: [28.2, -75.2], pantry: [27.9, -78.2] }; // right beside the YOUR CAMP sign, where you cannot miss it
 const WHIP = [12.4, -52.6]; // the twitchy guy behind the Costume Shop
 const PERMIT = [4.4, -15.6]; // the lot office sign at the top of Shakedown Street // your ratty tent, near the gate end of the Campgrounds
 const STALLS = { water: [5.9, -22], burrito: [5.9, -31.2], cheese: [-5.9, -31.2], gear: [5.9, -40.4] };
@@ -661,6 +703,7 @@ function buildWorld() {
   signBoard('YOUR CAMP', CAMP.tent[0] - 2.4, 2.0, CAMP.tent[1] + 2.4, 0.5, 2.3, 0.56, { bg: '#ffc93c' });
   mesh(new THREE.BoxGeometry(0.08, 1.75, 0.08), lambert(0x6b4a2b), CAMP.tent[0] - 2.4, 0.87, CAMP.tent[1] + 2.4);
   // the Campgrounds
+  solid(1e6, CAMP.pantry[1], 0.6); campLook.pantrySolid = colliders[colliders.length - 1]; // moved into place once you own a cabinet
   solid(CAMP.counter[0], CAMP.counter[1], 0.75); solid(CAMP.counter[0] + 2.4, CAMP.counter[1] + 1.3, 0.3); // your kitchen counter and its queue: keeps the neighbours' tents off them
   let n = 0, tries = 0;
   while (n < 76 && tries++ < 1200) {

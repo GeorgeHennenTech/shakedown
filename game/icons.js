@@ -2,6 +2,12 @@
 const svg = (body) => `<svg viewBox="0 0 48 48" aria-hidden="true"><g stroke="#17111f" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">${body}</g></svg>`;
 
 export const ICONS = {
+  // seed packets: each shows the plant it grows
+  seeds: svg(`<path d="M9 12h30l-3 32H12z" fill="#e2b877"/><path d="M9 12l4-8h22l4 8z" fill="#c9a05c"/><path d="M13 8h22" fill="none"/><g transform="translate(11.5 16.5) scale(0.52)"><path d="M24 44V20" fill="none"/><path d="M24 22C12 22 8 14 8 6c10 0 16 6 16 16zM24 26c11 0 16-7 16-16-10 0-16 6-16 16zM24 34c-8 0-12-4-12-9 7 0 12 3 12 9z" fill="#5cb85c"/>
+    <path d="M17 40h14" stroke="#c9822b" fill="none"/></g>`),
+  seedTomato: svg(`<path d="M9 12h30l-3 32H12z" fill="#f3d9c4"/><path d="M9 12l4-8h22l4 8z" fill="#c9a05c"/><path d="M13 8h22" fill="none"/><g transform="translate(11.5 16.5) scale(0.52)"><circle cx="24" cy="27" r="16" fill="#e0392b"/><path d="M24 13c-4-5-9-3-10 0 4 0 6 1 10 0zM24 13c4-5 9-3 10 0-4 0-6 1-10 0zM24 6v8" fill="#3f9d4a"/><path d="M15 22c2-4 6-5 9-4" stroke="#fff" fill="none"/></g>`),
+  seedPepper: svg(`<path d="M9 12h30l-3 32H12z" fill="#dfeccf"/><path d="M9 12l4-8h22l4 8z" fill="#c9a05c"/><path d="M13 8h22" fill="none"/><g transform="translate(11.5 16.5) scale(0.52)"><path d="M20 14c-10 4-12 18-6 26 4 5 10 2 12-4 3-8 8-12 6-20-1-5-8-5-12-2z" fill="#3f9d4a"/><path d="M24 12c0-4 2-7 6-8" fill="none"/><path d="M17 22c0-3 2-5 4-6" stroke="#fff" fill="none"/></g>`),
+  seedSage: svg(`<path d="M9 12h30l-3 32H12z" fill="#e3dcef"/><path d="M9 12l4-8h22l4 8z" fill="#c9a05c"/><path d="M13 8h22" fill="none"/><g transform="translate(11.5 16.5) scale(0.52)"><path d="M24 44V18" fill="none"/><path d="M24 20c-9-2-11-9-9-14 6 1 10 6 9 14zM24 28c9-2 12-9 10-14-7 1-11 6-10 14zM24 36c-8-1-11-7-10-11 6 0 10 4 10 11z" fill="#9fb8a0"/><path d="M18 42h12" stroke="#8a5a2b" fill="none"/></g>`),
   serum: svg(`<path d="M19 6h10v4H19z" fill="#8a5a2b"/><path d="M20 10h8v10l8 16a4 4 0 0 1-4 6H16a4 4 0 0 1-4-6l8-16z" fill="#d8f3dc"/><path d="M16 30h16l4 6a4 4 0 0 1-4 6H16a4 4 0 0 1-4-6z" fill="#52d273"/><path d="M24 33v-5m0 0c0-3 2-4 4-4m-4 4c0-3-2-4-4-4" fill="none"/>`),
   // things you carry
   cheese: svg(`<path d="M6 30 24 10l18 20z" fill="#e8a33d"/><path d="M6 30h36v6H6z" fill="#ffd23f"/><path d="M6 36h36l-2 5H8z" fill="#c9822b"/>
@@ -18,8 +24,6 @@ export const ICONS = {
     <path d="M14 15h6M26 25h8M12 35h5M22 35h5" stroke="#fff" fill="none"/>`),
   lights: svg(`<path d="M4 12c8 10 14 10 20 2s12-6 20 4" fill="none"/><path d="M9 19l-2 8a4 4 0 0 0 7 1z" fill="#ff5d8f"/><path d="M22 18l-1 9a4 4 0 0 0 7-1z" fill="#ffc93c"/>
     <path d="M36 15l1 9a4 4 0 0 0 7-2z" fill="#2ec4b6"/><path d="M16 38l4 4M24 37v6M32 38l-4 4" stroke="#8a8f96" fill="none"/>`),
-  seeds: svg(`<path d="M10 14h28l-3 28H13z" fill="#e2b877"/><path d="M10 14l4-8h20l4 8z" fill="#c9a05c"/><path d="M24 36V24" fill="none"/>
-    <path d="M24 28c-6 0-8-4-8-7 5 0 8 3 8 7zM24 26c5 0 8-3 8-7-5 0-8 3-8 7z" fill="#5cb85c"/>`),
   herbs: svg(`<path d="M24 44V20" fill="none"/><path d="M24 22C12 22 8 14 8 6c10 0 16 6 16 16zM24 26c11 0 16-7 16-16-10 0-16 6-16 16zM24 34c-8 0-12-4-12-9 7 0 12 3 12 9z" fill="#5cb85c"/>
     <path d="M17 40h14" stroke="#c9822b" fill="none"/>`),
   kandi: svg(`<circle cx="24" cy="24" r="15" fill="none" stroke-width="3"/><circle cx="24" cy="9" r="5" fill="#ff5d8f"/><circle cx="37" cy="17" r="5" fill="#ffc93c"/><circle cx="37" cy="31" r="5" fill="#2ec4b6"/>
