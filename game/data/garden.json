@@ -8,6 +8,8 @@
     "sage":   { "name": "Healing herbs", "seed": "seedSage",   "seedName": "Sage seeds",    "seedCost": 6, "hours": 6, "yield": 5, "item": "sage" }
   },
 
+  "serum": { "cost": 10, "perJob": 1, "_about": "Grow serum: one bottle brings one watered, growing plot to harvest at once. Bought at the General Store; one is also given for each job of the day." },
+
   "fillings": [
     { "item": "morel",       "bonus": 5, "name": "Morel melt" },
     { "item": "chanterelle", "bonus": 4, "name": "Chanterelle melt" },

@@ -2,6 +2,7 @@
 const svg = (body) => `<svg viewBox="0 0 48 48" aria-hidden="true"><g stroke="#17111f" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">${body}</g></svg>`;
 
 export const ICONS = {
+  serum: svg(`<path d="M19 6h10v4H19z" fill="#8a5a2b"/><path d="M20 10h8v10l8 16a4 4 0 0 1-4 6H16a4 4 0 0 1-4-6l8-16z" fill="#d8f3dc"/><path d="M16 30h16l4 6a4 4 0 0 1-4 6H16a4 4 0 0 1-4-6z" fill="#52d273"/><path d="M24 33v-5m0 0c0-3 2-4 4-4m-4 4c0-3-2-4-4-4" fill="none"/>`),
   // things you carry
   cheese: svg(`<path d="M6 30 24 10l18 20z" fill="#e8a33d"/><path d="M6 30h36v6H6z" fill="#ffd23f"/><path d="M6 36h36l-2 5H8z" fill="#c9822b"/>
     <path d="M14 36c0 4 3 4 3 0M29 36c0 5 4 5 4 0" fill="#ffd23f"/><path d="M17 24l4-4M25 26l5-6" stroke="#8a5a1c" fill="none"/>`),

@@ -2,7 +2,7 @@
 // buying and eating, the grilled cheese and cold water hustles, and saving the game.
 // Kept apart from the opening quest in main.js.
 
-import { ICONS } from './icons.js?v=9';
+import { ICONS } from './icons.js?v=10';
 
 const HOUR = 50; // real seconds per game hour, so a full day is 20 minutes
 const DAYS = ['Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday']; // the festival never ends: the week just comes round again
@@ -30,6 +30,7 @@ const ITEMS = {
   seedTomato: { name: 'Tomato seeds', stack: 3, desc: 'Plant them in your garden. Eight hours.' },
   seedPepper: { name: 'Pepper seeds', stack: 3, desc: 'Plant them in your garden. Eight hours.' },
   seedSage: { name: 'Sage seeds', stack: 3, desc: 'Healing herbs for your garden. Six hours.' },
+  serum: { name: 'Grow serum', stack: 3, desc: 'Pour a bottle on a plot that is growing and it is ready to harvest at once. Use it at your garden.' },
   tomato: { name: 'Tomatoes', stack: 6, desc: 'One goes into a sandwich: a tomato melt, worth $2 more.' },
   pepper: { name: 'Peppers', stack: 6, desc: 'One goes into a sandwich: a jalapeño popper, worth $2 more.' },
   sage: { name: 'Sage', stack: 5, use: 'Burn', desc: 'Burn a little to settle yourself, or give it to somebody who needs a healer.' },
@@ -1208,6 +1209,7 @@ export function createLife(ctx) {
 
   // ---- the garden: up to six plots, four crops. What you grow goes into what you cook.
   const { crops: CROPS, fillings: FILLINGS, grown: GROWN, wild: WILD } = DATA;
+  const SERUM = DATA.serum || { cost: 10, perJob: 1 };
   const fx = (k) => total() < state.fx[k]; // is an effect still running?
   const landPlots = () => [0, 1, 2, 4, 6][state.gear.land];
   function plots() {
@@ -1238,7 +1240,8 @@ export function createLife(ctx) {
           } }))) };
       }
       if (s === 'dry') return { label: `Plot ${i + 1}: ${name} <small>needs water</small>`, can: () => (waterOnHand() ? true : 'bring a water bottle, or fill your cooler'), act: () => { takeWater(); wetPlot(p); toast(`Watered. ${name} in about ${Math.ceil(growHours(p.crop))} hours.`); gardenMenu(); } };
-      if (s === 'growing') return { label: `Plot ${i + 1}: ${name} <small>about ${Math.ceil(p.ready - total())} h left</small>`, can: () => 'growing', act() {} };
+      if (s === 'growing') return { label: `Plot ${i + 1}: ${name} <small>about ${Math.ceil(p.ready - total())} h left${have('serum') ? ` · pour grow serum (you have ${have('serum')})` : ''}</small>`, can: () => (have('serum') ? true : 'growing'),
+        act: () => { spend('serum', 1); p.ready = total(); sfx('build'); toast(`The ${name.toLowerCase()} shoot up while you watch. Ready to harvest.`); gardenMenu(); } };
       return { label: `Plot ${i + 1}: harvest the ${name.toLowerCase()}`, act: () => {
         const c = CROPS[p.crop], left = give(c.item, c.yield, undefined, true);
         if (p.crop === 'herbs') state.chain.stats.herbs++;
@@ -1692,6 +1695,7 @@ export function createLife(ctx) {
       shelf('Tomato seeds <small>8 hours: tomato melts</small>', 'seedTomato', 1, 5),
       shelf('Pepper seeds <small>8 hours: jalapeño poppers</small>', 'seedPepper', 1, 5),
       shelf('Sage seeds <small>6 hours: healing herbs</small>', 'seedSage', 1, 6),
+      shelf('Grow serum <small>one growing plot is ready at once</small>', 'serum', 1, SERUM.cost, () => toast('Grow serum. Pour it on a growing plot at your garden.')),
       { icon: 'oyster', stay: true, label: 'Oyster spawn <small>grow mushrooms: needs a shelf</small>', cost: 8, can: () => (state.cultures.oyster ? 'you have it' : true), act: () => { state.cultures.oyster = true; toast(shroomSlots() ? 'Oyster spawn. Start it on your mushroom shelf.' : 'Oyster spawn. Build a mushroom shelf at your workbench first.'); } },
       { icon: 'usb', stay: true, label: 'Dusty USB stick <small>one mystery track for your crate</small>', cost: 12, can: () => (missing(false).length ? true : 'nothing on these you do not have'),
         act: () => { const id = pickOne(missing(false)); state.crate.owned.push(id); toast(`On the stick: “${CRATE.tracks[id].name}” by ${CRATE.tracks[id].artist}. It is in your crate.`); } },
@@ -1769,7 +1773,8 @@ export function createLife(ctx) {
     const [, goal, value] = DAILY[d.kind];
     if (!d.done && value() - d.base >= goal) {
       d.done = true; state.cash += 10; state.points++;
-      tick('daily'); sfx('level'); levelUp('Job of the day done', '+$10 and a skill point. A new one tomorrow.');
+      const lost = give('serum', SERUM.perJob, undefined, true) > 0; // what will not fit in the bag is left behind unless you are at camp
+      tick('daily'); sfx('level'); levelUp('Job of the day done', `+$10, a skill point and ${lost ? 'a bottle of grow serum you had no room for' : 'a bottle of grow serum'}. A new one tomorrow.`);
     }
   }
   function chainTick() {
@@ -1791,7 +1796,7 @@ export function createLife(ctx) {
       if (!lotDone()) { quest('Lot Life 101', LOT); for (const [k] of LOT) if (state.lot[k]) tick(k); return; }
       const q = CHAIN[state.chain.i];
       if (q) { quest(q.title, q.steps.map(([id, text]) => [id, text])); for (const [id, , ok] of q.steps) if (ok()) tick(id); }
-      else if (state.daily) { quest('Job of the day', [['daily', `${DAILY[state.daily.kind][0]} ($10 and a skill point)`]]); if (state.daily.done) tick('daily'); }
+      else if (state.daily) { quest('Job of the day', [['daily', `${DAILY[state.daily.kind][0]} ($10, a skill point and a grow serum)`]]); if (state.daily.done) tick('daily'); }
       else quest('Festival regular', [['free', 'The lot is yours.']]);
     },
     // Put a saved game back. main.js has already switched to free roaming and moved the player.
