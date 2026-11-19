@@ -52,10 +52,13 @@ if [ "$(curl -s -m 1 "${URL}build.txt" 2>/dev/null)" != "$(cat "$GAME/build.txt"
   nohup /usr/bin/python3 "$GAME/../serve.py" "$PORT" "$GAME" >/dev/null 2>&1 &
   for i in $(seq 1 40); do curl -s -m 1 -o /dev/null "${URL}main.js" && break; sleep 0.3; done
 fi
+# Open a web address that is new for every build. A browser that kept the front page from an older build (it can hold
+# one for hours) has never seen this address, so it must fetch it. Saves are unaffected: they belong to localhost:8777.
+PAGE="${URL}?b=$(tr -c '0-9\n' '-' < "$GAME/build.txt" | tr -d '\n')"
 if [ -d "/Applications/Google Chrome.app" ]; then
-  open -na "Google Chrome" --args --app="$URL" --window-size=1400,900
+  open -na "Google Chrome" --args --app="$PAGE" --window-size=1400,900
 else
-  open "$URL"
+  open "$PAGE"
 fi
 LAUNCH
 chmod +x "$APP/Contents/MacOS/SHAKEDOWN"

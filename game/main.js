@@ -10,7 +10,9 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { createCookView } from './cook.js?v=4';
 import { createDecks } from './decks.js?v=2';
 import { createCrowd } from './crowd.js?v=3';
-document.title = `SHAKEDOWN · build ${new URL(import.meta.url).searchParams.get('v') || '?'}`; // shown in the app window's title bar: check it against the build number you were told
+const BUILD = new URL(import.meta.url).searchParams.get('v') || '?';
+document.title = `SHAKEDOWN · build ${BUILD}`; // in the window's title bar and the top-right corner: check it against the build number you were told
+{ const tag = document.createElement('div'); tag.textContent = `build ${BUILD}`; tag.style.cssText = 'position:fixed;right:8px;top:5px;z-index:99;pointer-events:none;font:700 12px ui-monospace,Menlo,monospace;color:#fff;text-shadow:0 1px 3px #000,0 0 2px #000'; document.body.appendChild(tag); }
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
