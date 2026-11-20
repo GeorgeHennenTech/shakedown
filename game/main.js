@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=70';
+import { createLife, readSave, saveLabel } from './life.js?v=71';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -291,8 +291,10 @@ function buildInstances() {
   }
 }
 function signBoard(text, x, y, z, rot, w = 3.4, h = 0.72, opts = {}) {
-  const s = mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: signTexture(text, opts), side: THREE.DoubleSide }), x, y, z);
-  s.rotation.y = rot; s.castShadow = false;
+  // two faces back to back, so the words read the right way round from either side (one two-sided face reads mirrored from behind)
+  const s = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ map: signTexture(text, opts) });
+  for (const turn of [0, Math.PI]) { const face = mesh(new THREE.PlaneGeometry(w, h), mat, 0, 0, turn ? -0.012 : 0.012, s); face.rotation.y = turn; face.castShadow = false; }
+  s.position.set(x, y, z); s.rotation.y = rot; scene.add(s);
   return s;
 }
 const bulbSpots = []; // where string-light bulbs hang
@@ -530,7 +532,6 @@ function buildCampLook() {
   // your own corner, if you win it
   campLook.corner = new THREE.Group();
   campLook.corner.add(signBoard('YOUR CORNER', -4.2, 2.1, -64.2, 0, 2.6, 0.6, { bg: '#ffc93c' }));
-  campLook.corner.add(signBoard('YOUR CORNER', -4.2, 2.1, -64.26, Math.PI, 2.6, 0.6, { bg: '#ffc93c' })); // a second face, so it reads the right way round from behind too
   mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.9, 6), lambert(0x6b4a2b), -4.2, 0.95, -64.2, campLook.corner);
   mesh(new THREE.BoxGeometry(1.1, 0.5, 0.6), lambert(0x8a5a2b), -4.2, 0.25, -63.4, campLook.corner); // a crate to sell from
   // and the tank you sell from, with a few filled balloons tied to it

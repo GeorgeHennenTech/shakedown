@@ -944,7 +944,10 @@ export function createLife(ctx) {
   }
 
   // ---- Moonbeam, the neighbour camped next to you: feed him, and he looks out for you
-  const PAL = people.reduce((best, f, i) => { const d = Math.hypot(f.x - CAMP.tent[0], f.z - CAMP.tent[1]); return d < 14 && (best < 0 || d < Math.hypot(people[best].x - CAMP.tent[0], people[best].z - CAMP.tent[1])) ? i : best; }, -1);
+  // Moonbeam is the one person placed at his own spot beside your tent (main.js puts him there, on the moon rug). It used to be
+  // 'whoever stands nearest your tent', which picked a passing camper whenever one was placed closer than he is.
+  const MOON = [CAMP.tent[0] + 5.4, CAMP.tent[1] + 4.6];
+  const PAL = people.reduce((best, f, i) => { const d = Math.hypot(f.x - MOON[0], f.z - MOON[1]); return d < 0.5 && (best < 0 || d < Math.hypot(people[best].x - MOON[0], people[best].z - MOON[1])) ? i : best; }, -1);
   const nearPal = (p) => PAL >= 0 && Math.hypot(people[PAL].x - p.x, people[PAL].z - p.z) < 2.2;
   function palMenu() {
     const pal = state.pal, watching = total() < pal.watch;
