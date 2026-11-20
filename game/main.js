@@ -1046,7 +1046,7 @@ function makeCensor() {
 const keys = {};
 const cam = { yaw: 0, pitch: 0.2, dist: 4.6 };
 const state = { mode: 'load', t: 0, vibes: 0.45, bath: null, village: { elder: false, bath: false, water: false }, zone: '', zonesSeen: new Set(), buckS: 0, buckSpeed: 0, canMove: false, dialogue: null, onDialogueEnd: null };
-let patches, buck, vinny, elder, whip, censor, water;
+let patches, buck, vinny, elder, whip, moonbeam, censor, water;
 const goons = []; // Vinny's men: one model, a different tracksuit colour each
 const hips = new THREE.Vector3(), tmp = new THREE.Vector3();
 
@@ -1412,7 +1412,7 @@ function update(dt) {
     updateInteractions();
     if (state.bath) updateBath(dt);
     if (elder && Math.hypot(p.x - VILLAGE.elder[0], p.z - VILLAGE.elder[1]) < 9) faceTo(elder.root, p.x - VILLAGE.elder[0], p.z - VILLAGE.elder[1], dt, 3);
-    for (const ch of [player, patches, buck, vinny, elder, whip, ...goons]) if (ch && ch.root.visible) ch.mixer.update(dt);
+    for (const ch of [player, patches, buck, vinny, elder, whip, moonbeam, ...goons]) if (ch && ch.root.visible) ch.mixer.update(dt);
     const d = state.dialogue;
     const typing = !!(d && d.text && d.shown < d.text.length);
     if (typing) { d.shown = Math.min(d.text.length, d.shown + dt * 42); $('line').textContent = d.text.slice(0, Math.floor(d.shown)); }
@@ -1500,6 +1500,16 @@ async function boot() {
     whip.root.position.set(WHIP[0], 0, WHIP[1]); whip.root.rotation.y = -1.9;
     play(whip, 'Idle'); scene.add(whip.root); solid(WHIP[0], WHIP[1], 0.45);
   } catch (e) { console.warn('Whip not loaded', e); }
+  try { // Moonbeam's own model. If it will not load, the crowd figure standing on the moon rug stays as it was.
+    moonbeam = await loadCharacter('./assets/moonbeam.glb');
+    addAction(moonbeam, 'Idle', prepClip(idle, 'Idle', true));
+    const mx = CAMP.tent[0] + 5.4, mz = CAMP.tent[1] + 4.6;
+    moonbeam.root.position.set(mx, 0, mz); moonbeam.root.rotation.y = -2.2; // facing your tent
+    play(moonbeam, 'Idle'); moonbeam.mixer.update(1.7); scene.add(moonbeam.root);
+    const stand = people.find((f) => f.x === mx && f.z === mz), inst = stand && instanced[stand.name];
+    if (stand) stand.s = 0.0001; // the stand-in steps aside: the crowd code redraws every figure at its own size, so shrink that
+    if (inst) { inst.mesh.setMatrixAt(stand.n, new THREE.Matrix4().makeScale(0, 0, 0)); inst.mesh.instanceMatrix.needsUpdate = true; }
+  } catch (e) { console.warn('Moonbeam not loaded', e); }
   try {
     const base = await loader.loadAsync('./assets/goon.glb');
     // two flank Vinny, one watches the Street once you are noticed, one collects at your camp after a truce
