@@ -1732,7 +1732,7 @@ export function createLife(ctx) {
     whip: () => state.nos.whipState === 'grateful',
     lostsock: () => state.crate.best >= 90,
     doc: () => state.reckon.path === 'mended',
-    brody: () => state.corner.wavedNarcs >= 5,
+    brody: () => narcsTurned() >= 5, // waved off by you, or sent away by whoever you have on the front
     tiny: () => state.corner.tinyPaid,
     marge: () => (state.crewShifts || 0) >= 5,
     deuce: () => state.corner.sold + state.corner.crewSold >= 20,
@@ -1745,6 +1745,7 @@ export function createLife(ctx) {
   const fullCrew = () => STATIONS.every((st) => seatId(st));
   const crewCount = () => STATIONS.filter((st) => seatId(st)).length;
   const crewCare = () => STATIONS.some((st) => { const m = seat(st); return m && m.care; });
+  const narcsTurned = () => (state.corner.wavedNarcs || 0) + (state.corner.crewWaved || 0) + (state.corner.frontWaved || 0);
   function crewEarnTick() { // somebody new will work for you
     if (!cornerOwned()) return;
     for (const [id, m] of Object.entries(CREW.members)) {
@@ -1762,23 +1763,43 @@ export function createLife(ctx) {
     if (Math.random() < (cash.skim || 0)) { pay = Math.max(0, pay - 1); c.skimmed = (c.skimmed || 0) + 1; }
     c.held = (c.held || 0) + pay; c.heldBy = seatId('cash'); c.heldTold = false; return pay; // kept on them until the shift ends, then you collect it at the crate
   }
-  function crewBust(why) { // the whole crew scatters for the night; whoever was on the front spends a day in the cooler
-    const c = state.corner, v = state.nos, front = seatId('front'), lost = Math.min(v.fills, CREW.rules.bustLoss);
-    v.fills -= lost; c.busts = (c.busts || 0) + 1;
-    if (front) c.jail[front] = total() + CREW.rules.jail;
-    const who = front ? CREW.members[front].name : seatId('fill') ? CREW.members[seatId('fill')].name : 'Your crew';
-    for (const st of STATIONS) if (c.crew[st]) c.crew[st].until = 0;
-    toast(`${why} ${who} sold to one of Officer Dan's. The crew scattered, ${lost} fills went with them${front ? `, and ${who} is in the cooler till tomorrow night` : ''}.`);
+  // What the night came to, said once when it ends (at 4 AM, or early if the crew is run off).
+  function nightSummary() {
+    const c = state.corner;
+    if (!c.nightWage) return;
+    const take = c.crewTake - (c.nightTake0 || 0), sold = c.crewSold - (c.nightSold0 || 0), wages = c.nightWage - (c.nightRefund || 0), gas = c.nightGas || 0, clear = take - wages - gas;
+    toast(`Your corner's night: ${sold} sold for $${take}. Wages $${wages}${c.nightRefund ? ` (after $${c.nightRefund} back for hours not worked)` : ''}, gas $${gas}. You ${clear >= 0 ? `cleared $${clear}` : `are down $${-clear}`}.${(c.held || 0) > 0 ? ` ${holder()} is holding $${c.held} for you at the crate.` : ''}`);
+    c.lastNight = { sold, take, wages, gas, clear };
+    c.nightWage = 0; c.nightRefund = 0; c.nightGas = 0; c.nightBusts = 0; c.nightUntil = 0; c.heldTold = true;
   }
-  // One balloon made and sold by the crew with nobody waiting on you. Returns nothing; every outcome is counted on state.corner.
+  function crewBust(why) { // the first time, the crew scatters and regroups; the second time the night is over and whoever was on the front is taken in
+    const c = state.corner, v = state.nos, R = CREW.rules, front = seatId('front'), lost = Math.min(v.fills, R.bustLoss);
+    v.fills -= lost; c.busts = (c.busts || 0) + 1; c.nightBusts = (c.nightBusts || 0) + 1;
+    const who = front ? CREW.members[front].name : seatId('fill') ? CREW.members[seatId('fill')].name : 'Your crew';
+    if (front && c.nightBusts < R.bustsEndNight) {
+      c.crewNext = total() + R.bustPause;
+      toast(`${why} ${who} all but served one of Officer Dan's. The crew scattered and ${lost} fills went with them. They will be back on your corner in about ${Math.round(R.bustPause * 60)} minutes.`);
+      return;
+    }
+    // the night is over: wages for the hours left come back to you
+    const on = STATIONS.map((st) => c.crew[st]).filter((x) => x && total() < x.until && CREW.members[x.id]);
+    const until = Math.max(0, ...on.map((x) => x.until)), share = Math.max(0, Math.min(8, until - Math.max(total(), until - 8))) / 8;
+    const refund = Math.round(on.reduce((sum, x) => sum + CREW.members[x.id].wage, 0) * share);
+    if (front) c.jail[front] = total() + R.jail;
+    for (const st of STATIONS) if (c.crew[st]) c.crew[st].until = 0;
+    state.cash += refund; c.nightRefund = (c.nightRefund || 0) + refund;
+    toast(`${why} ${who} sold to one of Officer Dan's. The crew is done for the night, ${lost} fills went with them${front ? `, and ${who} is in the cooler till tomorrow night` : ''}.${refund ? ` Nobody is paid for hours they did not work: $${refund} back.` : ''}`);
+    nightSummary();
+  }
   function crewSale() {
     const c = state.corner, v = state.nos, fill = seat('fill'), front = seat('front'), R = CREW.rules;
     if (v.fills < 1) { // the filler sends for more gas, out of the takings
       const night = Math.floor((total() - 6) / 24);
       if (c.refillNight !== night) { c.refillNight = night; c.refills = 0; }
-      if (c.refills >= R.refills || state.stash + state.cash < R.refillCost) return;
-      const fromStash = Math.min(state.stash, R.refillCost); state.stash -= fromStash; state.cash -= R.refillCost - fromStash;
-      c.refills++; v.fills = 30; return;
+      if (c.refills >= R.refills || (c.held || 0) + state.stash + state.cash < R.refillCost) return;
+      let owe = R.refillCost; // out of what the crew has taken tonight first, then your stash, then your pocket
+      for (const [box, key] of [[c, 'held'], [state, 'stash'], [state, 'cash']]) { const pay = Math.min(box[key] || 0, owe); box[key] = (box[key] || 0) - pay; owe -= pay; }
+      c.refills++; c.nightGas = (c.nightGas || 0) + R.refillCost; v.fills = 30; return;
     }
     if (Math.random() < (fill.pop || 0)) { v.fills--; c.popped = (c.popped || 0) + 1; return; }
     if (Math.random() < R.narc) { if (front && Math.random() < (front.spot || 0)) { c.crewWaved = (c.crewWaved || 0) + 1; return; } crewBust('Word from the Street:'); return; } // with nobody on the front, every undercover gets served
@@ -1787,7 +1808,7 @@ export function createLife(ctx) {
     if (seat('cash')) pay = bank(pay);
     else { // nobody on cash: it piles up in a tin on the crate until you come for it, and a tin on a crate gets noticed
       c.pile = (c.pile || 0) + pay;
-      if (Math.random() < R.pileTheft) { toast(`Word from the Street: somebody walked off with the cash tin from your corner. $${c.pile} gone.`); c.stolen = (c.stolen || 0) + c.pile; c.pile = 0; }
+      if (Math.random() < R.pileTheft) { const gone = Math.ceil(c.pile * R.pileGrab); toast(`Word from the Street: somebody had a hand in the cash tin on your corner. $${gone} gone. Somebody on cash would stop that.`); c.stolen = (c.stolen || 0) + gone; c.pile -= gone; }
     }
     v.fills--; v.sold++; c.crewSold++; c.crewTake += pay; casualty();
   }
@@ -1807,7 +1828,8 @@ export function createLife(ctx) {
   }
   function hireCrew(id) {
     const m = CREW.members[id], c = state.corner;
-    c.crew[m.station] = { id, until: crewNight() }; c.crewNext = 0;
+    if (!c.nightWage) { c.nightTake0 = c.crewTake; c.nightSold0 = c.crewSold; c.nightGas = 0; c.nightRefund = 0; c.nightBusts = 0; } // a new night's sums start with the first hire
+    c.crew[m.station] = { id, until: crewNight() }; c.crewNext = 0; c.nightWage = (c.nightWage || 0) + m.wage; c.nightUntil = crewNight();
     const gaps = [!seat('fill') ? 'nobody on the tank, so it only sells while you are here' : '', seat('fill') && !seat('front') ? 'nobody watching for undercovers' : '', seat('fill') && !seat('cash') ? 'the money sits in a tin on the crate' : '', seat('fill') && !seat('run') ? 'half speed with nobody handing out' : ''].filter(Boolean);
     toast(`${m.name}: ${m.hired || '"I am on it."'}${fullCrew() ? ' All four stations are filled: the corner runs itself tonight.' : gaps.length ? ` If you walk away: ${gaps.join('; ')}.` : ''}`);
     if (fullCrew()) { closeCorner(); elderWalk(); }
@@ -1818,8 +1840,8 @@ export function createLife(ctx) {
     const opts = list.map(([id, m]) => {
       if (m.rule === 'later') return { label: `${m.name} <small>${m.blurb} To earn: ${m.earn}</small>`, can: () => 'that story is not in the game yet', act() {} };
       if (c.left[id]) return { label: `${m.name} <small>walked off with the Elder</small>`, can: () => 'gone for good', act() {} };
-      if (!c.earned[id]) return { label: `${m.name} <small>${m.blurb}</small>`, can: () => `not earned yet: ${m.earn.charAt(0).toLowerCase()}${m.earn.slice(1)}`, act() {} };
-      return { label: `${m.name} <small>${m.blurb} Tonight, until 4 AM</small>`, cost: m.wage,
+      if (!c.earned[id]) return { label: `${m.name} <small>${m.blurb}</small>`, can: () => `not earned yet: ${m.earn.charAt(0).toLowerCase()}${m.earn.slice(1)}${id === 'brody' ? ` (${Math.min(5, narcsTurned())} of 5 so far)` : ''}`, act() {} };
+      return { label: `${m.name} <small>${m.blurb} Works the whole balloon rush, 8 PM to 4 AM. If the night is cut short you get the unworked hours back</small>`, cost: m.wage,
         can: () => (on === id ? 'already on tonight' : total() < (c.jail[id] || 0) ? 'in the cooler until tomorrow night' : state.nos.fills < 1 && st === 'fill' ? 'your tank is empty' : true),
         act: () => { hireCrew(id); if (!state.menu && state.canMove) crewMenu(); } };
     });
@@ -2082,6 +2104,7 @@ export function createLife(ctx) {
   function cornerTick() {
     const c = state.corner, v = state.nos, now = total(), R = CORNER_RULES;
     crewEarnTick();
+    if (c.nightWage && c.nightUntil && now >= c.nightUntil) nightSummary(); // 4 AM: say what the night came to
     if (!c.heldTold && (c.held || 0) > 0 && !cashOnShift()) { c.heldTold = true; toast(`The night is over on your corner. ${holder()} is holding $${c.held} for you: collect it at your crate.`); }
     if (seat('fill') && !c.open && late() && now >= c.crewNext) { // somebody is on the tank and you are not posted up: the crew sells without you
       const speeds = ['fill', 'front', 'run'].map((st) => seat(st)).filter(Boolean).map((m) => m.speed || 1);
@@ -2106,7 +2129,7 @@ export function createLife(ctx) {
       if (!people[q.i] || !people[q.i].called) { c.queue = c.queue.filter((x) => x !== q); continue; }
       if (!q.at && crowd.waiting(q.i)) {
         q.at = now; const t = tell(people[q.i]), front = seat('front');
-        if (front && t.narc && Math.random() < (front.spot || 0)) { people[q.i].next = now + 2; leaveCorner(q); toast(`${front.name} sends one away before they reach you: "Not tonight."`); continue; }
+        if (front && t.narc && Math.random() < (front.spot || 0)) { state.corner.frontWaved = (state.corner.frontWaved || 0) + 1; people[q.i].next = now + 2; leaveCorner(q); toast(`${front.name} sends one away before they reach you: "Not tonight."`); continue; }
         if (front && !t.narc && Math.random() < (front.turnaway || 0)) { people[q.i].next = now + 2; leaveCorner(q); toast(`${front.name} turns somebody away. They looked fine to you.`); continue; }
         toast(t.speaks ? `At your corner: ${t.line}` : 'Somebody is at your corner, holding out a five.');
       }

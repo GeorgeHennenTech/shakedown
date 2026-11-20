@@ -1,7 +1,7 @@
 {
   "_about": "The corner crew, as plain data. Four stations; every member is a named person you have to earn, then pay by the night. speed is how fast they work their station (1 is your own pace); the corner moves at the pace of its slowest station. pop: chance a fill is wasted. tip: chance of a perfect balloon and a $1 tip. spot: chance of catching one of Officer Dan's people. turnaway: chance of refusing an honest buyer. skim: chance a dollar goes missing from a sale. care: true halves how many buyers end up needing a healer. rule names the check in life.js (EARN) that earns them; 'later' means the quest that earns them is not in the game yet.",
 
-  "rules": { "gap": [0.05, 0.11], "refills": 3, "refillCost": 25, "narc": 0.09, "bustLoss": 10, "jail": 24, "noRunner": 0.5, "pileTheft": 0.03, "tinyDebt": 150, "whipBack": 80, "runnerQueue": 1 },
+  "rules": { "gap": [0.035, 0.08], "refills": 3, "refillCost": 25, "narc": 0.05, "bustLoss": 6, "bustPause": 0.75, "bustsEndNight": 2, "jail": 24, "noRunner": 0.5, "pileTheft": 0.012, "pileGrab": 0.35, "tinyDebt": 150, "whipBack": 80, "runnerQueue": 1 },
 
   "stations": {
     "fill":  { "name": "Filler",      "does": "fills balloons off the tank" },
@@ -18,11 +18,11 @@
                   "earn": "Play a set at the Open Decks tent that scores 90% or better", "blurb": "Fills in time with the music. Fast, showy, pops a few.",
                   "hired": "\"Four on the floor, one in the hand.\"" },
 
-    "doc":      { "name": "Doc", "station": "front", "wage": 60, "speed": 0.8, "spot": 0.9, "turnaway": 0.08, "care": true, "rule": "doc",
+    "doc":      { "name": "Doc", "station": "front", "wage": 60, "speed": 0.9, "spot": 0.9, "turnaway": 0.08, "care": true, "rule": "doc",
                   "earn": "Make it right with the Village Elder", "blurb": "Reads people. Catches nearly every undercover and cuts off anyone wobbling. Slow.",
                   "hired": "\"I say who gets one. That is the deal.\"" },
     "brody":    { "name": "Brody", "station": "front", "wage": 55, "speed": 1.1, "spot": 0.8, "turnaway": 0, "rule": "brody",
-                  "earn": "Spot an undercover at your corner and wave them off, five times", "blurb": "Was one of Officer Dan's, and no good at it. Knows every tell they have.",
+                  "earn": "Turn five undercovers away from your corner: wave them off yourself, or have whoever is on your front do it", "blurb": "Was one of Officer Dan's, and no good at it. Knows every tell they have.",
                   "hired": "\"I, uh. I know what to look for. Trust me.\"" },
     "ranter":   { "name": "The Conspiracy Circle Guy", "station": "front", "wage": 40, "speed": 1.0, "spot": 1, "turnaway": 0.25, "rule": "later",
                   "earn": "Finish the Conspiracy Circle quest", "blurb": "Sees undercovers everywhere. Never sells to a real one; turns away one honest buyer in four." },
