@@ -62,7 +62,38 @@ export function createDecks({ $, crate, isMuted = () => false }) {
     deck.lowG = ac.createGain(); deck.lowG.connect(deck.out);
     deck.hiG = ac.createGain(); deck.hiG.connect(deck.out);
   }
-  function unchain(deck) { if (deck && deck.out) { const o = deck.out; o.gain.setTargetAtTime(0, ac.currentTime, 0.05); setTimeout(() => o.disconnect(), 600); deck.out = null; } }
+  // ---- recorded music: a track may carry an audio file (crate.json: audio { file, bpm, offset, bars }). It plays as a loop,
+  // sped up or slowed down to the deck's tempo, split into lows and highs so the faders and the bass swap still work.
+  // Until the file has loaded, or if it will not load, the deck falls back to the made-in-code pattern.
+  const buffers = {};
+  function loadClip(deck) {
+    const a = deck.tr.audio;
+    if (!a || !ac) return;
+    deck.clip = { a, buf: null, src: null, t: 0, rate: 1, last: 0 };
+    buffers[a.file] = buffers[a.file] || fetch(a.file).then((r) => r.arrayBuffer()).then((b) => ac.decodeAudioData(b)).catch(() => null);
+    buffers[a.file].then((buf) => { if (deck.clip) deck.clip.buf = buf; });
+  }
+  function stopClip(deck) { const c = deck && deck.clip; if (c && c.src) { try { c.src.stop(ac.currentTime + 0.08); } catch (e) { /* already stopped */ } c.src = null; } }
+  function playClip(deck) { // called every frame for a deck with a loaded file
+    const c = deck.clip, a = c.a, loop = a.bars * 4 * 60 / a.bpm, now = ac.currentTime;
+    const want = ((deck.pos * 60 / a.bpm) % loop + loop) % loop; // where in the loop the deck's beat counter says we should be
+    const rate = deck.bpm / a.bpm;
+    if (!c.src) {
+      const src = ac.createBufferSource(), lo = ac.createBiquadFilter(), hi = ac.createBiquadFilter(), trim = ac.createGain();
+      src.buffer = c.buf; src.loop = true; src.loopStart = a.offset; src.loopEnd = a.offset + loop; src.playbackRate.value = rate;
+      lo.type = 'lowpass'; lo.frequency.value = 190; hi.type = 'highpass'; hi.frequency.value = 190; trim.gain.value = a.gain || 0.85;
+      src.connect(trim); trim.connect(lo).connect(deck.lowG); trim.connect(hi).connect(deck.hiG);
+      src.start(0, a.offset + want);
+      c.src = src; c.t = want; c.rate = rate; c.last = now;
+      return;
+    }
+    c.t = (c.t + (now - c.last) * c.rate) % loop; c.last = now; // where the file actually is
+    let err = want - c.t; if (err > loop / 2) err -= loop; else if (err < -loop / 2) err += loop;
+    if (Math.abs(err) > 0.3) { stopClip(deck); return; } // far out (a jump): start again in the right place next frame
+    c.rate = rate * (1 + Math.max(-0.06, Math.min(0.06, err * 1.2))); // otherwise bend the speed to catch up, the way a nudge sounds on real decks
+    c.src.playbackRate.setTargetAtTime(c.rate, now, 0.02);
+  }
+  function unchain(deck) { stopClip(deck); if (deck && deck.out) { const o = deck.out; o.gain.setTargetAtTime(0, ac.currentTime, 0.05); setTimeout(() => o.disconnect(), 600); deck.out = null; } }
   function tone(dest, freq, at, len, type, vol, endFreq) {
     const o = ac.createOscillator(), g = ac.createGain();
     o.type = type; o.frequency.setValueAtTime(freq, at);
@@ -109,7 +140,7 @@ export function createDecks({ $, crate, isMuted = () => false }) {
   // ---- decks
   function makeDeck(id, pos) {
     const tr = T[id], d = { id, tr, pos, next: Math.ceil(pos * 4), bpm: tr.bpm, vol: 0, low: 1, live: pos, tune: tune(tr) };
-    chain(d);
+    chain(d); loadClip(d);
     return d;
   }
   const phaseErr = () => { const e = frac(S.B.pos - S.A.pos); return e >= 0.5 ? e - 1 : e; }; // how far B's beat sits off A's, in beats
@@ -218,7 +249,8 @@ export function createDecks({ $, crate, isMuted = () => false }) {
         if (ac && d.out) {
           const rate = d.bpm / 60;
           if (d.next / 4 < d.pos - 0.5) d.next = Math.ceil(d.pos * 4);
-          while ((d.next / 4 - d.pos) / rate < 0.12) { fire(d, d.next, ac.currentTime + Math.max(0, (d.next / 4 - d.pos) / rate)); d.next++; }
+          if (d.clip && d.clip.buf) { playClip(d); d.next = Math.ceil(d.pos * 4); } // a recorded track plays its file
+          else while ((d.next / 4 - d.pos) / rate < 0.12) { fire(d, d.next, ac.currentTime + Math.max(0, (d.next / 4 - d.pos) / rate)); d.next++; }
         }
       }
       if (S.phase === 'blend') {

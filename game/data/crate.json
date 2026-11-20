@@ -1,9 +1,11 @@
 {
   "_about": "Every track you can own, and the rules of a set, as plain data. The game reads this file; so can any other engine. Keys are Camelot wheel codes (8A = A minor, 8B = C major): the same code, a neighbouring number or the same number with the other letter mix cleanly. Energy runs 1 (a breather) to 5 (peak).",
 
-  "start": ["sunburn", "lotlizard", "grilled", "portapotty", "river"],
+  "start": ["glitchtest", "sunburn", "lotlizard", "grilled", "portapotty", "river"],
 
   "tracks": {
+    "glitchtest": { "name": "Bit Crusher Stomp", "artist": "Test Pressing", "bpm": 110, "key": "8A", "energy": 3, "tag": "glitch",
+                    "audio": { "file": "./assets/music/glitchhop-test.mp3", "bpm": 110, "offset": 0.06, "bars": 24 } },
     "sunburn":    { "name": "Sunburn Anthem",         "artist": "Dusty Sandals",      "bpm": 128, "key": "8A",  "energy": 3, "tag": "feels" },
     "lotlizard":  { "name": "Lot Lizard Shuffle",     "artist": "The Wook Report",    "bpm": 126, "key": "9A",  "energy": 2, "tag": "groove" },
     "grilled":    { "name": "Grilled Cheese Sunrise", "artist": "Sunset Sermon",      "bpm": 124, "key": "8B",  "energy": 2, "tag": "feels" },

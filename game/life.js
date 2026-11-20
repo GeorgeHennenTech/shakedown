@@ -18,7 +18,7 @@ const LOW = {
 // The bible's model: consumables stack in a slot; the bag has a few slots, the camp stash has many.
 const ITEMS = {
   cheese: { name: 'Grilled cheese', stack: 5, use: 'Eat', desc: 'Eat it, or offer it to people around the festival.' },
-  supplies: { name: 'Bread and cheese', stack: 5, desc: 'Cook it on your camp stove.' },
+  supplies: { name: 'Bread and cheese', stack: 10, desc: 'Cook it on your camp stove. One makes one sandwich.' },
   bottles: { name: 'Water bottle', stack: 3, use: 'Drink', desc: 'Half a bar of Hydration.' },
   wipes: { name: 'Baby wipes', stack: 5, use: 'Wipe down', desc: 'A little Hygiene, anywhere.' },
   salvage: { name: 'Salvage', stack: 4, desc: 'Tape, poles and frames. Build with it at your tent or workbench.' },
@@ -276,6 +276,13 @@ export function createLife(ctx) {
     put('bag');
     if (left && toStash) put('store');
     return left; // how many did not fit anywhere
+  }
+  // Put a harvest away: bag, then camp stash, then the produce cabinet. Returns how many found no room.
+  // Nothing is ever thrown away: what does not fit stays on the plant (or the log) until you make space.
+  function stow(k, amount) {
+    let left = give(k, amount, undefined, true);
+    if (left && pantryKinds().includes(k)) { const n = Math.min(left, pantryRoom(k)); if (n > 0) { state.pantry[k] = (state.pantry[k] || 0) + n; left -= n; } }
+    return left;
   }
   function moveStack(k, from) {
     const to = from === 'bag' ? 'store' : 'bag';
@@ -679,10 +686,14 @@ export function createLife(ctx) {
     const space = room('bag', 'cheese') + room('store', 'cheese');
     if (space < 1) { toast('Your bag and your camp stash are both full. Sell or eat some first.'); return; }
     const per = state.gear.stove >= 6 ? 2 : 1; // the griddle does two to a flip
-    const totalToCook = Math.max(1, Math.min(Math.ceil(have('supplies') / per), pans * 5, Math.floor(space / per)));
+    const bySupplies = Math.ceil(have('supplies') / per), bySpace = Math.floor(space / per), totalToCook = Math.max(1, Math.min(bySupplies, pans * 5, bySpace));
+    // say up front what is holding the session short, so two sandwiches and out is never a mystery
+    const short = totalToCook >= pans * 5 ? '' : bySpace <= bySupplies ? 'space' : 'supplies';
+    if (short === 'space') toast(`Room for only ${Math.max(1, Math.min(space, totalToCook * per))} more sandwiches: your bag and camp stash are nearly full. Sell some, or move ingredients into a produce cabinet (Leather & Burner) to free up stash space.`);
+    else if (short === 'supplies') toast(`Bread and cheese for only ${have('supplies')} sandwiches, so this will be a short one. The General Store sells a case of 20.`);
     state.stashedAtStart = state.store.cheese.length;
     state.canMove = false;
-    state.cooking = { pans, queue: totalToCook, total: totalToCook, made: 0, stations: [], tops: FILLINGS.filter((f) => have(f.item) > 0).map((f) => f.item) };
+    state.cooking = { pans, queue: totalToCook, total: totalToCook, made: 0, short, stations: [], tops: FILLINGS.filter((f) => have(f.item) > 0).map((f) => f.item) };
     ZONES = state.gear.stove >= 5 ? WIDEST : state.gear.stove >= 3 ? WIDE : NARROW;
     const pc = ZONES.map(([edge]) => `${Math.min(edge, 1) * 100}%`);
     const paint = `linear-gradient(90deg,#f6e7c1 0 ${pc[0]},#e8a33d ${pc[0]} ${pc[1]},#ffd23f ${pc[1]} ${pc[2]},#e8a33d ${pc[2]} ${pc[3]},#3b2416 ${pc[3]} 100%)`;
@@ -748,13 +759,13 @@ export function createLife(ctx) {
     drawCount(); drawTops();
   }
   function stopCooking() {
-    const made = state.cooking.made;
+    const made = state.cooking.made, why = state.cooking.queue > 0 || state.cooking.stations.some((s) => s.active) ? '' : { space: ' That is all your bag and stash have room for.', supplies: ' That was the last of your bread and cheese.', '': '' }[state.cooking.short || ''];
     state.cooking = null; state.canMove = true;
     $('cook').classList.add('hidden');
     document.body.classList.remove('cooking');
     cook.stop();
     const stashed = state.store.cheese.length - (state.stashedAtStart || 0);
-    if (made) { toast(stashed >= made ? `You made ${made} grilled cheese. They are in your camp stash, ready for the counter.` : stashed > 0 ? `You made ${made} grilled cheese. Your bag took ${made - stashed}; the other ${stashed} are in your camp stash (I, at camp).` : `You made ${made} grilled cheese.`); state.lot.cook = true; tick('cook'); }
+    if (made) { toast(stashed >= made ? `You made ${made} grilled cheese. They are in your camp stash, ready for the counter.${why}` : stashed > 0 ? `You made ${made} grilled cheese. Your bag took ${made - stashed}; the other ${stashed} are in your camp stash (I, at camp).${why}` : `You made ${made} grilled cheese.${why}`); state.lot.cook = true; tick('cook'); }
   }
   function updateCooking(dt) {
     const c = state.cooking;
@@ -1271,12 +1282,14 @@ export function createLife(ctx) {
       if (s === 'dry') return { label: `Plot ${i + 1}: ${name} <small>needs water</small>`, can: () => (waterOnHand() ? true : 'bring a water bottle, or fill your cooler'), act: () => { takeWater(); wetPlot(p); toast(`Watered. ${name} in about ${Math.ceil(growHours(p.crop))} hours.`); gardenMenu(); } };
       if (s === 'growing') return { label: `Plot ${i + 1}: ${name} <small>about ${Math.ceil(p.ready - total())} h left${have('serum') ? ` · pour grow serum (you have ${have('serum')})` : ''}</small>`, can: () => (have('serum') ? true : 'growing'),
         act: () => { spend('serum', 1); p.ready = total(); sfx('build'); toast(`The ${name.toLowerCase()} shoot up while you watch. Ready to harvest.`); gardenMenu(); } };
-      return { label: `Plot ${i + 1}: harvest the ${name.toLowerCase()}`, act: () => {
-        const c = CROPS[p.crop], left = give(c.item, c.yield, undefined, true);
+      return { label: `Plot ${i + 1}: harvest the ${name.toLowerCase()}${p.left ? ` <small>${p.left} still on the plant</small>` : ''}`, act: () => {
+        const c = CROPS[p.crop], due = p.left || c.yield, left = stow(c.item, due);
+        if (left === due) { toast(`No room for ${ITEMS[c.item].name.toLowerCase()} in your bag, stash or cabinet. They will keep on the plant until you make space.`); gardenMenu(); return; }
+        if (left) { p.left = left; if (FILLINGS.find((f) => f.item === c.item)) state.recipes[c.item] = true; toast(`${due - left} ${ITEMS[c.item].name.toLowerCase()} picked. No room for the other ${left}: they will keep on the plant.`); gardenMenu(); return; }
         if (p.crop === 'herbs') state.chain.stats.herbs++;
-        p.crop = null; p.wet = false;
+        p.crop = null; p.wet = false; p.left = 0;
         const filling = FILLINGS.find((f) => f.item === c.item);
-        toast(`${c.yield - left} ${ITEMS[c.item].name.toLowerCase()}${left ? '; the rest would not fit' : ''}.${filling && !state.recipes[c.item] ? ` New sandwich: ${filling.name}.` : ''}`);
+        toast(`${due} ${ITEMS[c.item].name.toLowerCase()}.${filling && !state.recipes[c.item] ? ` New sandwich: ${filling.name}.` : ''}`);
         if (filling) state.recipes[c.item] = true;
         gain('wellness', 2); gardenMenu();
       } };
@@ -1338,9 +1351,11 @@ export function createLife(ctx) {
         owned.map((k) => ({ label: `${GROWN[k].name} <small>${GROWN[k].hours} hours, on ${GROWN[k].on}</small>`, act: () => { state.shrooms[i] = { k, start: total(), ready: total() + GROWN[k].hours }; toast(`${GROWN[k].name} started. Keep it dark and leave it alone.`); mycoMenu(); } }))) };
       if (total() < s.ready) return { label: `Spot ${i + 1}: ${GROWN[s.k].name} <small>about ${Math.ceil(s.ready - total())} h left</small>`, can: () => 'growing', act() {} };
       return { label: `Spot ${i + 1}: harvest the ${GROWN[s.k].name.toLowerCase()}`, act: () => {
-        const g = GROWN[s.k], left = give(s.k, g.yield, undefined, true);
+        const g = GROWN[s.k], due = s.left || g.yield, left = stow(s.k, due);
+        if (left === due) { toast(`No room for ${g.name.toLowerCase()} in your bag, stash or cabinet. They will keep where they are until you make space.`); mycoMenu(); return; }
+        if (left) { s.left = left; toast(`${due - left} ${g.name.toLowerCase()} picked. No room for the other ${left}: they will keep.`); mycoMenu(); return; }
         state.shrooms[i] = null;
-        toast(`${g.yield - left} ${g.name.toLowerCase()}. ${g.use}`);
+        toast(`${due} ${g.name.toLowerCase()}. ${g.use}`);
         if (s.k === 'oyster') state.recipes.oyster = true;
         note(s.k, 'found', 'at your own camp'); note(s.k, 'tell');
         gain('wellness', 2); mycoMenu();
@@ -1533,9 +1548,12 @@ export function createLife(ctx) {
       if (s === 'dry') { wetPlot(p); did++; }
       else if (s === 'ready') {
         const crop = p.crop, c = CROPS[crop];
-        const shelf = pantryKinds().includes(c.item) ? Math.min(c.yield, pantryRoom(c.item)) : 0; // fillings go on the pantry shelf; the rest, and the overflow, into your camp stash
+        const due = p.left || c.yield, shelf = pantryKinds().includes(c.item) ? Math.min(due, pantryRoom(c.item)) : 0; // fillings go in the produce cabinet; the rest, and the overflow, into your camp stash
+        const stashed = Math.max(0, Math.min(due - shelf, room('store', c.item)));
         if (shelf) state.pantry[c.item] = (state.pantry[c.item] || 0) + shelf;
-        state.store[c.item] += Math.max(0, Math.min(c.yield - shelf, room('store', c.item)));
+        state.store[c.item] += stashed;
+        if (shelf + stashed < due) { p.left = due - shelf - stashed; if (shelf + stashed) did++; continue; } // no room for all of it: the rest stays on the plant, and nothing is replanted over it
+        p.left = 0;
         if (FILLINGS.find((x) => x.item === c.item)) state.recipes[c.item] = true;
         p.crop = null; p.wet = false;
         if (have(c.seed) > 0) { spend(c.seed, 1); p.crop = crop; wetPlot(p); } // replants from your own seeds
@@ -1927,6 +1945,7 @@ export function createLife(ctx) {
       { icon: 'ice', stay: true, label: 'Fill your cooler <small>$1 a bottle</small>', can: () => (state.gear.cooler >= 3 && !state.towing ? 'bring your cooler here' : state.water >= coolerRoom() ? 'cooler is full' : state.cash < coolerRoom() - state.water ? 'not enough cash' : true),
         act: () => { const amount = coolerRoom() - state.water; state.cash -= amount; state.water += amount; toast(`${amount} waters on ice${state.towing ? '' : ' back at camp'}.`); } },
       shelf('Bread and cheese <small>makes 5 sandwiches</small>', 'supplies', 5, 5, () => { state.lot.supplies = true; tick('supplies'); toast('Bread and cheese. Cook it on your camp stove.'); }),
+      shelf('A case of bread and cheese <small>makes 20 sandwiches: a full griddle session</small>', 'supplies', 20, 20, () => { state.lot.supplies = true; tick('supplies'); toast('A case of bread and cheese: enough for 20.'); }),
       shelf('Trail mix <small>a snack for your bag</small>', 'trailmix', 1, 3, () => toast('Trail mix. Eat it from your bag.')),
       shelf('Electrolyte packets <small>2 packets: Energy</small>', 'electro', 2, 4, () => toast('Electrolyte packets. Drink one from your bag when you are flagging.')),
       shelf('Baby wipes <small>5 wipe-downs</small>', 'wipes', 5, 3, () => toast('Baby wipes. Use them from your bag.')),
@@ -2046,6 +2065,7 @@ export function createLife(ctx) {
         if (state[k] && typeof state[k] === 'object' && !Array.isArray(state[k])) Object.assign(state[k], data[k]); else state[k] = data[k];
       }
       state.kitchen.queue = []; // customers do not wait through a reload
+      for (const id of CRATE.start) if (!state.crate.owned.includes(id)) state.crate.owned.unshift(id); // tracks added to the starting crate since this save
       state.corner.queue = []; state.corner.open = false;
       const whole = (list) => list.map((s) => (typeof s === 'number' ? { p: s, f: [] } : { p: s.p, f: s.f || [] })); // sandwiches were once only a price; for a day they could also go stale
       state.cheese = whole(state.cheese); state.store.cheese = whole(state.store.cheese);

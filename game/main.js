@@ -3,12 +3,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=63';
+import { createLife, readSave, saveLabel } from './life.js?v=67';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { createCookView } from './cook.js?v=6';
-import { createDecks } from './decks.js?v=2';
+import { createDecks } from './decks.js?v=4';
 import { createCrowd } from './crowd.js?v=3';
 const BUILD = new URL(import.meta.url).searchParams.get('v') || '?';
 document.title = `SHAKEDOWN · build ${BUILD}`; // in the window's title bar and the top-right corner: check it against the build number you were told
@@ -1513,10 +1513,10 @@ async function boot() {
     mesh(new THREE.BoxGeometry(0.1, 0.34, 0.1), pink, 0, 0, 0, m).castShadow = false;
     m.visible = false; scene.add(m); healMarks.push(m);
   }
-  const DATA = await (await fetch('./data/garden.json')).json(); // crops, mushrooms and recipes live in a plain data file
-  const CROWD = await (await fetch('./data/crowd.json')).json(); // where everybody is through the day
+  const DATA = await (await fetch(`./data/garden.json?v=${BUILD}`)).json(); // crops, mushrooms and recipes live in a plain data file
+  const CROWD = await (await fetch(`./data/crowd.json?v=${BUILD}`)).json(); // where everybody is through the day
   crowd = createCrowd({ THREE, people, instanced, routeSamples, data: CROWD, rand, isFree: (x, z) => !nearRoute(x, z, 2) && !colliders.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 0.8) ** 2) });
-  const CRATE = await (await fetch('./data/crate.json')).json(); // the tracks and the rules of a set
+  const CRATE = await (await fetch(`./data/crate.json?v=${BUILD}`)).json(); // the tracks and the rules of a set
   const decks = createDecks({ $, crate: CRATE, isMuted: () => sound.isMuted() });
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
