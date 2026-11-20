@@ -923,6 +923,7 @@ export function createLife(ctx) {
     if (!give1) { toast(`They need ${what}, and you have none in your bag. Sage would do, too.`); return; }
     state.bag[give1]--;
     state.heal.ids = state.heal.ids.filter((x) => x !== id); state.heal.count++;
+    if (state.reckon.path === 'quit') { state.cash += RECKON.healerPay; toast(`+$${RECKON.healerPay} from the Village bowl.`); } // the Village's healer is paid for it
     people[id].next = total() + 1; // let them catch their breath before you sell them a sandwich
     add('vibes', 0.05); pass(0.1);
     const tip = Math.random() < 0.5 ? 1 + Math.floor(Math.random() * 3) : 0;
@@ -1615,7 +1616,7 @@ export function createLife(ctx) {
   }
   // ---- the Elder and the balloons: sell enough and the people you sold to start filling the cots in the Chill-Out Tent.
   // The Elder asks what you intend to do about it. First-guess numbers, not yet tuned.
-  const RECKON = { first: 12, second: 60, mend: 3, every: 6, careEvery: 12, warnedSale: 0.15, warnedGap: 2 };
+  const RECKON = { first: 12, second: 60, mend: 3, every: 6, careEvery: 12, warnedSale: 0.15, warnedGap: 2, quitCash: 300, quitPoints: 5, healerPay: 8 }; // giving up the tank for good has to be worth a corner's income: a lump sum, skill points, every culture she keeps, and paid healing from then on
   const careful = () => state.reckon.path === 'mended'; // you sell the Elder's way: half as many end up needing a healer
   const shunned = () => state.reckon.stage >= 2 && !['mended', 'quit'].includes(state.reckon.path); // her people are warning buyers off you
   function reckonTick() {
@@ -1643,9 +1644,10 @@ export function createLife(ctx) {
         ['Village Elder', 'I am not security. I will not take your tank. I am asking what you intend to do about it.']];
     talk(lines, () => menu('The Elder is waiting', [
       { label: `Make it right <small>sit with ${RECKON.mend} people who need a healer (the pink crosses), then come back</small>`, act: () => { r.path = 'mending'; r.base = state.heal.count; toast('"Water and herbs. Sit with them until it passes. Then come and tell me."'); } },
-      { label: 'Give it up <small>hand her your tank: no more balloons and no corner. She will not forget it</small>', can: () => (v.tank ? true : 'you have no tank to give'), act: () => {
-        closeCorner(); state.corner.hire.until = 0; loseTank(); r.path = 'quit'; state.points += 2; gain('wellness', 20); add('vibes', 0.25); state.cultures.reishi = true;
-        card('You gave it up', 'The Elder’s people carry the tank down to the river and open the valve. It hisses for a long time. She gives you a reishi culture for your shelf, and two skill points land with it. The cots empty out by the weekend.', 6500); save();
+      { label: `Give it up <small>hand her your tank: no more balloons, no corner, for good. The Village passes the bowl: $${RECKON.quitCash}, ${RECKON.quitPoints} skill points, every culture she keeps, and from now on $${RECKON.healerPay} for each person you heal</small>`, can: () => (v.tank ? true : 'you have no tank to give'), act: () => {
+        closeCorner(); state.corner.hire.until = 0; loseTank(); r.path = 'quit'; state.cash += RECKON.quitCash; state.points += RECKON.quitPoints; gain('wellness', 20); add('vibes', 0.25);
+        for (const [k, c] of Object.entries(GROWN)) if (c.source === 'elder') state.cultures[k] = true;
+        card('You gave it up', `The Elder’s people carry the tank down to the river and open the valve. It hisses for a long time. Then a bowl goes round the whole Village and comes back heavy: $${RECKON.quitCash}. She hands you a jar of every culture she keeps, ${RECKON.quitPoints} skill points land with them, and she names you the Village’s healer: $${RECKON.healerPay} from the bowl for every person you help from now on.`, 9000); save();
       } },
       { label: 'It is only balloons <small>walk away</small>', act: () => { r.path = 'shrugged'; add('vibes', -0.05); toast('"Then there is nothing for you at my fire." She will not trade with you until you make it right.'); } },
     ]));
@@ -1665,9 +1667,77 @@ export function createLife(ctx) {
   const cornerBuyer = (p) => (state.corner.open && atCorner(p) ? state.corner.queue.filter((q) => q.at && people[q.i]).sort((a, b) => a.at - b.at)[0] : undefined);
   function cornerPitch(q) {
     const t = tell(people[q.i]), spotted = t.narc && (t.seen || fx('clear') || lookout());
-    return `${t.speaks ? `${t.line} ` : ''}Sell them a balloon ($${price()})${spotted ? (lookout() && !t.seen && !fx('clear') ? ' · your lookout shakes their head' : ` · you notice ${t.off}`) : ''} · Q waves them off`;
+    return `${t.speaks ? `${t.line} ` : ''}Fill them a balloon ($${price()})${spotted ? (lookout() && !t.seen && !fx('clear') ? ' · your lookout shakes their head' : ` · you notice ${t.off}`) : ''} · Q waves them off`;
   }
-  function sellCorner(q) {
+  window.addEventListener('keyup', (e) => { if (e.code === 'Space') fillHold(false); });
+  $('fillbtn').addEventListener('pointerdown', (e) => { e.preventDefault(); fillHold(true); }); window.addEventListener('pointerup', () => fillHold(false));
+  // ---- filling a balloon for the buyer in front of you: hold to fill, let go in the gold. Too little and they haggle, too much and it pops.
+  // Rules here; the drawing is the #fill panel. Sizes run 0 (empty) to 1 (pops). First-guess numbers.
+  const FILL = { rate: 0.34, surge: 0.62, good: 0.2, perfect: 0.07, shift: 0.06, limp: 2, tip: 1, colours: ['#ff5d8f', '#ffd23f', '#3aa0ff', '#7cf29a', '#b78cff'] };
+  function startFill(q) {
+    const centre = 0.74 + (Math.random() * 2 - 1) * FILL.shift; // every balloon is a little different: read the gold band, do not count
+    q.busy = true; cornerT = state.t;
+    state.filling = { q, size: 0, held: false, started: false, centre, done: 0, colour: FILL.colours[Math.floor(Math.random() * FILL.colours.length)] };
+    state.canMove = false; $('prompt').classList.add('hidden'); $('fill').classList.remove('hidden');
+    const pc = (v) => `${Math.max(0, Math.min(1, v)) * 100}%`, g0 = centre - FILL.good / 2, g1 = centre + FILL.good / 2, p0 = centre - FILL.perfect / 2, p1 = centre + FILL.perfect / 2;
+    $('fillbar').style.background = `linear-gradient(90deg,#f6e7c1 0 ${pc(g0)},#e8a33d ${pc(g0)} ${pc(p0)},#ffd23f ${pc(p0)} ${pc(p1)},#e8a33d ${pc(p1)} ${pc(g1)},#f6e7c1 ${pc(g1)} 93%,#d7263d 93% 100%)`;
+    $('fillmsg').textContent = 'Hold Space to fill. Let go in the gold.';
+    $('fillcount').textContent = `${state.nos.fills} fills in the tank · $${price()} a balloon`;
+    drawFill();
+  }
+  function drawFill() {
+    const f = state.filling, b = $('fillballoon'), d = 26 + f.size * 150;
+    b.style.width = `${d * 0.86}px`; b.style.height = `${d}px`; b.style.background = f.colour; b.style.opacity = f.popped ? 0 : 1;
+    b.style.transform = `translateX(${f.held && f.size > 0.85 ? Math.sin(state.t * 60) * 2 : 0}px)`; // it shudders when it is about to go
+    $('fillmark').style.left = `${Math.min(1, f.size) * 100}%`;
+    $('fillpop').classList.toggle('hidden', !f.popped);
+  }
+  function fillHold(on) {
+    const f = state.filling;
+    if (!f || f.done) return;
+    if (on) { f.held = true; f.started = true; } else if (f.held) { f.held = false; endFill(); }
+  }
+  function updateFilling(dt) {
+    const f = state.filling;
+    if (f.done) { f.done -= dt; if (f.done <= 0) closeFill(); return; }
+    if (f.held) {
+      let rate = FILL.rate + f.size * FILL.surge; // it fills faster the fuller it gets
+      if (total() < state.nos.tingleUntil) rate *= 0.6 + Math.random() * 1.1; // Tingle Fingers: your thumb is not your own
+      if (fx('clear')) rate *= 0.75; // a clear head slows the moment down
+      f.size += rate * dt;
+      if (f.size >= 1) { f.size = 1; f.held = false; endFill(); }
+    }
+    drawFill();
+  }
+  function endFill() {
+    const f = state.filling, v = state.nos, c = state.corner, who = people[f.q.i];
+    const off = Math.abs(f.size - f.centre), popped = f.size >= 1, perfect = !popped && off <= FILL.perfect / 2, good = !popped && off <= FILL.good / 2, over = f.size > f.centre;
+    v.fills--; // the gas is gone whatever happens to the balloon
+    if (popped) {
+      f.popped = true; sfx('pick'); add('vibes', -0.01);
+      $('fillmsg').textContent = v.fills > 0 ? 'POP. One fill wasted. They are still waiting.' : 'POP. And that was the last of the tank.';
+      f.done = 0.9; f.again = v.fills > 0; drawFill(); return;
+    }
+    cornerT = state.t; who.next = total() + 2; f.sold = true;
+    if (tell(who).narc) { f.done = 0.01; f.bust = true; return; }
+    const pay = Math.max(1, price() + (perfect ? FILL.tip : good ? 0 : -FILL.limp));
+    state.cash += pay; v.sold++; c.sold++; c.take += pay;
+    add('buzzkill', CORNER_RULES.buzz * (1 - charmEase(level('charisma')))); casualty();
+    sfx('coin'); gain('hustle', perfect ? 3 : 2);
+    $('fillmsg').textContent = perfect ? `Perfect. +$${pay}, and a dollar of that is a tip.` : good ? `A good one. +$${pay}.` : over ? `Tight as a drum: they take it at arm's length. +$${pay}.` : `Limp. "That is half a balloon." +$${pay}.`;
+    f.done = 0.8; drawFill();
+  }
+  function closeFill(cancel) {
+    const f = state.filling;
+    if (!f) return;
+    if (f.again && !cancel) { const q = f.q; state.filling = null; startFill(q); return; } // it popped: same buyer, another go
+    state.filling = null; state.canMove = true; $('fill').classList.add('hidden');
+    f.q.busy = false;
+    if (f.sold) leaveCorner(f.q);
+    if (f.bust) { closeCorner(); bust(); return; }
+    if (state.nos.fills < 1) closeCorner('The tank is empty. Your corner is closed until you refill.');
+  }
+  function sellCorner(q) { // kept for anything that sells without the minigame
     const v = state.nos, c = state.corner, f = people[q.i];
     leaveCorner(q); cornerT = state.t; f.next = total() + 2;
     if (tell(f).narc) { closeCorner(); bust(); return; }
@@ -1712,6 +1782,7 @@ export function createLife(ctx) {
     for (const q of [...c.queue]) {
       if (!people[q.i] || !people[q.i].called) { c.queue = c.queue.filter((x) => x !== q); continue; }
       if (!q.at && crowd.waiting(q.i)) { q.at = now; const t = tell(people[q.i]); toast(t.speaks ? `At your corner: ${t.line}` : 'Somebody is at your corner, holding out a five.'); }
+      if (q.busy) continue; // you are filling theirs right now
       if (q.at && now - q.at > R.wait) leaveCorner(q);
       else if (!q.at && now - q.born > 2) leaveCorner(q);
     }
@@ -1720,7 +1791,7 @@ export function createLife(ctx) {
     const c = state.corner, v = state.nos;
     menu(`Your corner · tank ${v.fills} of 30 fills · $${price()} a balloon`, [
       c.open ? { label: 'Pack up <small>stop selling here</small>', act: () => closeCorner('You pack up the corner.') }
-        : { label: 'Post up here <small>buyers walk up to you; E sells, Q waves one off. Watch for Officer Dan’s people</small>', can: () => (!late() ? 'nobody wants one before 8 PM' : whipOn() ? 'Whip has the corner tonight' : v.fills < 1 ? 'your tank is empty' : true),
+        : { label: 'Post up here <small>buyers walk up to you; E fills them a balloon, Q waves one off. Watch for Officer Dan’s people</small>', can: () => (!late() ? 'nobody wants one before 8 PM' : whipOn() ? 'Whip has the corner tonight' : v.fills < 1 ? 'your tank is empty' : true),
           act: () => { c.open = true; c.next = total(); toast('You are on your corner. Stay close and they will come to you.'); } },
       { label: `You have sold ${c.sold} here for $${c.take}; Whip has sold ${c.whipSold} for $${c.whipTake} <small>${whipOn() ? 'he is working it tonight; his takings go in your camp stash' : total() < c.jailedUntil ? 'he is in the cooler until tomorrow night' : `hire him behind the Costume Shop, $${CORNER_RULES.wage} a night`}</small>`, can: () => 'for your information', act() {} },
     ]);
@@ -1784,7 +1855,7 @@ export function createLife(ctx) {
   // ---- places you can use
   interactables.push(
     { test: (p) => (state.gear.pantry >= 2 || Object.values(state.pantry).some((v) => v > 0)) && Math.hypot(p.x - CAMP.pantry[0], p.z - CAMP.pantry[1]) < 1.6, label: () => `Your ${GEAR.pantry[1][state.gear.pantry - 1].name.toLowerCase().replace('no cabinet', 'old pantry shelf')}: ${pantryLine()}`, use: pantryMenu },
-    { test: (p) => cornerBuyer(p) !== undefined, label: () => cornerPitch(cornerBuyer(getPlayer().root.position)), use: () => sellCorner(cornerBuyer(getPlayer().root.position)) },
+    { test: (p) => cornerBuyer(p) !== undefined, label: () => cornerPitch(cornerBuyer(getPlayer().root.position)), use: () => startFill(cornerBuyer(getPlayer().root.position)) },
     { test: (p) => atCorner(p) && state.corner.open && (state.corner.queue.length > 0 || state.t - cornerT < 1.5), label: () => (state.corner.queue.length ? 'Somebody is heading for your corner' : 'Your corner (open)'), use() {} },
     { test: (p) => cornerOwned() && Math.hypot(p.x - CORNER[0], p.z - CORNER[1]) < 2.2, label: () => (state.corner.open ? 'Your corner (open)' : 'Your corner'), use: cornerMenu },
     { test: (p) => nearOrder(p) !== undefined, label: () => `Serve: they want ${asks(nearOrder(getPlayer().root.position).want)}`, use: () => { serve(nearOrder(getPlayer().root.position), false); servedT = state.t; } },
@@ -1986,6 +2057,7 @@ export function createLife(ctx) {
     save,
     key(e) {
       if (decks.active) return true; // the Decks have their own hands
+      if (state.filling) { if (e.code === 'Space' && !e.repeat) fillHold(true); else if (e.code === 'Escape' && !state.filling.started) closeFill(true); return true; }
       if (state.cooking) {
         if (e.code === 'Space') cookPress();
         else if (e.code === 'KeyA' || e.code === 'ArrowLeft') cookPress(0);
@@ -2016,12 +2088,13 @@ export function createLife(ctx) {
       return false;
     },
     // A click while cooking: with two pans, the left half of the screen is the left pan.
-    cookTop,
+    cookTop, fillHold,
     cookClick(xFraction) { if (state.cooking) cookPress(state.cooking.pans > 1 ? (xFraction < 0.5 ? 0 : 1) : 0); },
     update(dt) {
       if (['load', 'creator', 'intro'].includes(state.mode)) return;
       if (decks.active) { decks.update(dt); return; } // the world waits while you play
       if (state.cooking) updateCooking(dt);
+      if (state.filling) updateFilling(dt);
       const free = state.mode === 'free', hours = dt / HOUR;
       const busy = !state.canMove; // talking, in a menu, cooking, asleep
       pass(hours);
