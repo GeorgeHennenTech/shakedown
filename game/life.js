@@ -563,7 +563,7 @@ export function createLife(ctx) {
       const b = document.createElement('button');
       const why = o.can ? o.can() : true;
       if (asShelf) b.innerHTML = `${ICONS[o.icon] || ''}<span>${o.label}</span>${why !== true ? `<em>${why}</em>` : `<b>${o.cost ? `$${o.cost}` : ''}</b>`}${i < 9 ? `<kbd>${i + 1}</kbd>` : ''}`;
-      else b.innerHTML = `<kbd>${i + 1}</kbd> ${o.label}${o.cost ? ` <b>$${o.cost}</b>` : ''}${why !== true ? ` <small>${why}</small>` : ''}`;
+      else b.innerHTML = `<kbd>${i + 1}</kbd> ${o.label}${o.cost ? ` <b>$${o.cost}</b>` : ''}${why !== true && why !== 'for your information' ? `<br><em class="why">Not now: ${why}</em>` : ''}`;
       b.disabled = why !== true || (o.cost || 0) > state.cash;
       b.onclick = () => choose(i);
       box.append(b);
@@ -1673,7 +1673,7 @@ export function createLife(ctx) {
   }
   // ---- your corner: once Vinny has backed off, a spot at the far end of the Street is yours. Post up there at night with your
   // tank and buyers come to you; or pay Whip a night's wage to work it. Settings below were first guesses, not yet tuned.
-  const CORNER_RULES = { queue: 3, gap: [0.07, 0.2], wait: 0.6, buzz: 0.08, wage: 50, whipGap: [0.12, 0.28], narc: 0.09, whipMiss: 0.5, whipLoss: 10, jail: 24 };
+  const CORNER_RULES = { queue: 3, gap: [0.07, 0.2], dayGap: 4, wait: 0.6, buzz: 0.08, wage: 50, whipGap: [0.12, 0.28], narc: 0.09, whipMiss: 0.5, whipLoss: 10, jail: 24 };
   const cornerOwned = () => state.nos.arc === 'won' && state.nos.tank && !!CORNER;
   const atCorner = (p) => cornerOwned() && Math.hypot(p.x - CORNER[0], p.z - CORNER[1]) < 2.8;
   const whipOn = () => total() < state.corner.hire.until;
@@ -1786,10 +1786,9 @@ export function createLife(ctx) {
     }
     if (!c.open) return;
     const p = getPlayer().root.position;
-    if (!late()) { closeCorner('The sun is on its way. Your corner is closed.'); return; }
     if (Math.hypot(p.x - CORNER[0], p.z - CORNER[1]) > 14) { closeCorner('You walked away from your corner. It is closed.'); return; }
     if (now >= c.next && c.queue.length < R.queue) {
-      c.next = now + (R.gap[0] + Math.random() * (R.gap[1] - R.gap[0])) * (shunned() ? RECKON.warnedGap : 1); // the Elder's people thin your queue
+      c.next = now + (R.gap[0] + Math.random() * (R.gap[1] - R.gap[0])) * (shunned() ? RECKON.warnedGap : 1) * (late() ? 1 : R.dayGap); // by day it is a trickle // the Elder's people thin your queue
       const near = people.filter((f) => !f.away && !f.fixed && !f.called && f.next <= now && Math.hypot(f.x - CORNER[0], f.z - CORNER[1]) < 60);
       const f = near[Math.floor(Math.random() * near.length)], slot = [0, 1, 2, 3].find((s) => !c.queue.some((q) => q.slot === s));
       if (f && Math.random() < Math.min(1, near.length / 10)) { // a thin crowd means long gaps
@@ -1809,8 +1808,8 @@ export function createLife(ctx) {
     const c = state.corner, v = state.nos;
     menu(`Your corner · tank ${v.fills} of 30 fills · $${price()} a balloon`, [
       c.open ? { label: 'Pack up <small>stop selling here</small>', act: () => closeCorner('You pack up the corner.') }
-        : { label: 'Post up here <small>buyers walk up to you; E fills them a balloon, Q waves one off. Watch for Officer Dan’s people</small>', can: () => (!late() ? 'nobody wants one before 8 PM' : whipOn() ? 'Whip has the corner tonight' : v.fills < 1 ? 'your tank is empty' : true),
-          act: () => { c.open = true; c.next = total(); toast('You are on your corner. Stay close and they will come to you.'); } },
+        : { label: `Post up here <small>buyers walk up to you; E fills them a balloon, Q waves one off. Busiest 8 PM to 4 AM${late() ? '' : ', slow right now'}. Watch for Officer Dan’s people</small>`, can: () => (whipOn() ? 'Whip has the corner tonight' : v.fills < 1 ? 'your tank is empty' : true),
+          act: () => { c.open = true; c.next = total(); toast(late() ? 'You are on your corner. Stay close and they will come to you.' : 'You are on your corner. It is slow before 8 PM: about a quarter of the night-time trade.'); } },
       { label: `You have sold ${c.sold} here for $${c.take}; Whip has sold ${c.whipSold} for $${c.whipTake} <small>${whipOn() ? 'he is working it tonight; his takings go in your camp stash' : total() < c.jailedUntil ? 'he is in the cooler until tomorrow night' : `hire him behind the Costume Shop, $${CORNER_RULES.wage} a night`}</small>`, can: () => 'for your information', act() {} },
     ]);
   }

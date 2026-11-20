@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=67';
+import { createLife, readSave, saveLabel } from './life.js?v=68';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -530,6 +530,7 @@ function buildCampLook() {
   // your own corner, if you win it
   campLook.corner = new THREE.Group();
   campLook.corner.add(signBoard('YOUR CORNER', -4.2, 2.1, -64.2, 0, 2.6, 0.6, { bg: '#ffc93c' }));
+  campLook.corner.add(signBoard('YOUR CORNER', -4.2, 2.1, -64.26, Math.PI, 2.6, 0.6, { bg: '#ffc93c' })); // a second face, so it reads the right way round from behind too
   mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.9, 6), lambert(0x6b4a2b), -4.2, 0.95, -64.2, campLook.corner);
   mesh(new THREE.BoxGeometry(1.1, 0.5, 0.6), lambert(0x8a5a2b), -4.2, 0.25, -63.4, campLook.corner); // a crate to sell from
   // and the tank you sell from, with a few filled balloons tied to it

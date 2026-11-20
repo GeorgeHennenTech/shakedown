@@ -6,3 +6,8 @@
 
 # Session notes, local only
 .claude/HANDOFF.md
+
+# The to-do panel's list (the panel's code is tracked; the list stays local)
+.claude/skills/shakedown-todo/todo.json
+.claude/skills/shakedown-todo/.claude-plugin/types/
+.claude/HANDOFF.prev.md

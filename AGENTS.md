@@ -105,6 +105,10 @@ Good jobs to hand to a second model, because they are already specified: any lad
 - `.claude/HANDOFF.md`: session notes.
 - The Desktop app itself (`~/Desktop/SHAKEDOWN.app`), which is rebuilt from `game/`.
 
+## The to-do panel
+
+`.claude/skills/shakedown-todo/` is a Claude interface mod: a to-do panel beside the chat, in the game's colours, with Seth's tasks and Claude's. Because it sits in the project's skills folder, every new chat in this project loads it and opens it by itself; `/todo` brings it back if it was closed. The list is `.claude/skills/shakedown-todo/todo.json` (not in git). **Keep it current:** when Seth asks for something later, or you finish or discover a task, edit that file (`who` is `seth` or `claude`, ids unique) and the panel follows within a few seconds. Read it at the start of a session along with the handoff. An older, fixed roadmap panel from before the prototype is at `~/.claude/dev-mods/cbee6419-69de-4a90-8c97-223a3a2e99ba/shakedown-roadmap/`; its task list is out of date.
+
 ## Working with Seth
 
 Seth is the designer and plays every build. Explain in plain words what changed and how to see it in the game; say plainly what you tested and what you did not. Ask before anything that costs money or leaves the machine. When a decision is his, give a recommendation and ask once.

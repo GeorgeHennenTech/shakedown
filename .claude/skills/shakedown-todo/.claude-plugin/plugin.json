@@ -1,0 +1,6 @@
+{
+  "name": "shakedown-todo",
+  "version": "0.1.0",
+  "description": "The SHAKEDOWN to-do list as a panel beside the chat, in the game's own style: your tasks and Claude's, kept in the project so every new chat has them.",
+  "types": "./types/index.d.ts"
+}
