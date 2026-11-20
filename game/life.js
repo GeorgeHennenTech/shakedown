@@ -1366,16 +1366,16 @@ export function createLife(ctx) {
     });
     menu(`Your mushroom shelf (${shroomSlots()} spots)`, opts);
   }
-  // The Elder keeps the cultures the General Store does not. Called from her conversation after the first.
+  // The Elder keeps the cultures the General Store does not. Called from his conversation after the first.
   function elderShop() {
     if (elderReckoning()) return;
     const opts = Object.entries(GROWN).filter(([, g]) => g.source === 'elder').map(([k, g]) => ({ label: `${g.name} culture <small>${g.use}</small>`, cost: g.cost, can: () => (state.cultures[k] ? 'you have it' : true), act: () => { state.cultures[k] = true; toast(`${g.name} culture. Grow it on your mushroom shelf at camp.`); } }));
-    opts.push({ label: 'Ask about the golden caps', can: () => (state.cultures.goldcap ? 'she has taught you' : level('wellness') >= 3 ? true : 'she is not sure you are steady enough yet (Wellness 3)'), act: () => talk([
+    opts.push({ label: 'Ask about the golden caps', can: () => (state.cultures.goldcap ? 'he has taught you' : level('wellness') >= 3 ? true : 'he is not sure you are steady enough yet (Wellness 3)'), act: () => talk([
       ['Village Elder', 'Those are not a party. They are a conversation, and you do not get to pick the subject.'],
       ['Village Elder', 'So you choose the room. Somewhere kind: here, or your own camp. Fed. Watered. Feeling well. And somebody you trust within arm’s reach.'],
       ['Village Elder', 'Get that right and they will show you something. Get it wrong on Shakedown Street at midnight and you will want your mother. One handful. Once a day. Here is a start.'],
     ], () => { state.cultures.goldcap = true; toast('Golden cap culture. A tub in the dark of your tent, sixteen hours.'); gain('wellness', 3); }) });
-    if (have('ghostcap') && !state.sets.ghostShown) opts.push({ label: 'Show her the ghost cap', act: () => { state.sets.ghostShown = true; add('vibes', 0.2); toast('"In forty years I have seen three." She holds it up to the light for a long time.'); gain('charisma', 6); } });
+    if (have('ghostcap') && !state.sets.ghostShown) opts.push({ label: 'Show him the ghost cap', act: () => { state.sets.ghostShown = true; add('vibes', 0.2); toast('"In forty years I have seen three." He holds it up to the light for a long time.'); gain('charisma', 6); } });
     menu('The Elder’s jars', opts);
   }
 
@@ -1637,9 +1637,9 @@ export function createLife(ctx) {
   }
   // ---- the Elder and the balloons: sell enough and the people you sold to start filling the cots in the Chill-Out Tent.
   // The Elder asks what you intend to do about it. First-guess numbers, not yet tuned.
-  const RECKON = { first: 12, second: 60, mend: 3, every: 6, careEvery: 12, warnedSale: 0.15, warnedGap: 2, quitCash: 300, quitPoints: 5, healerPay: 8 }; // giving up the tank for good has to be worth a corner's income: a lump sum, skill points, every culture she keeps, and paid healing from then on
+  const RECKON = { first: 12, second: 60, mend: 3, every: 6, careEvery: 12, warnedSale: 0.15, warnedGap: 2, quitCash: 300, quitPoints: 5, healerPay: 8 }; // giving up the tank for good has to be worth a corner's income: a lump sum, skill points, every culture he keeps, and paid healing from then on
   const careful = () => state.reckon.path === 'mended'; // you sell the Elder's way: half as many end up needing a healer
-  const shunned = () => state.reckon.stage >= 2 && !['mended', 'quit'].includes(state.reckon.path); // her people are warning buyers off you
+  const shunned = () => state.reckon.stage >= 2 && !['mended', 'quit'].includes(state.reckon.path); // his people are warning buyers off you
   function reckonTick() {
     const r = state.reckon, v = state.nos;
     if (!state.village.elder) return;
@@ -1647,7 +1647,7 @@ export function createLife(ctx) {
     if (r.path === 'mending' && state.heal.count - r.base >= RECKON.mend) { r.path = 'ready'; toast('That is three people you have sat with. Go and tell the Elder.'); }
     if (r.stage === 1 && v.sold >= RECKON.second && !['mended', 'quit'].includes(r.path)) { r.stage = 2; toast('The Elder’s people are out on the Street tonight, telling anyone who will listen whose balloons put their friends on a cot.'); }
   }
-  // Called when you talk to the Elder. True means the conversation was about this and her shop stays shut.
+  // Called when you talk to the Elder. True means the conversation was about this and his shop stays shut.
   function elderReckoning() {
     const r = state.reckon, v = state.nos;
     if (r.stage === 0 || r.path === 'mended' || r.path === 'quit') return false;
@@ -1656,7 +1656,7 @@ export function createLife(ctx) {
       r.path = 'mended'; state.points++; gain('wellness', 10); add('vibes', 0.15); give('bottles', 2);
       talk([['Village Elder', 'You did not have to. That is the only reason it counts.'],
         ['Village Elder', 'If you are going to keep selling, sell like a healer. A sip of water with every one. Sit the wobbly ones down. Send the bad ones to me before they fall, not after.']],
-      () => card('The Elder’s way', 'From now on half as many of the people you sell to end up needing a healer, the Elder’s people leave your buyers alone, and she will stand with you again. +1 skill point.', 6200));
+      () => card('The Elder’s way', 'From now on half as many of the people you sell to end up needing a healer, the Elder’s people leave your buyers alone, and he will stand with you again. +1 skill point.', 6200));
       save(); return true;
     }
     const lines = r.path === 'shrugged'
@@ -1665,12 +1665,12 @@ export function createLife(ctx) {
         ['Village Elder', 'I am not security. I will not take your tank. I am asking what you intend to do about it.']];
     talk(lines, () => menu('The Elder is waiting', [
       { label: `Make it right <small>sit with ${RECKON.mend} people who need a healer (the pink crosses), then come back</small>`, act: () => { r.path = 'mending'; r.base = state.heal.count; toast('"Water and herbs. Sit with them until it passes. Then come and tell me."'); } },
-      { label: `Give it up <small>hand her your tank: no more balloons, no corner, for good. The Village passes the bowl: $${RECKON.quitCash}, ${RECKON.quitPoints} skill points, every culture she keeps, and from now on $${RECKON.healerPay} for each person you heal</small>`, can: () => (v.tank ? true : 'you have no tank to give'), act: () => {
+      { label: `Give it up <small>hand him your tank: no more balloons, no corner, for good. The Village passes the bowl: $${RECKON.quitCash}, ${RECKON.quitPoints} skill points, every culture he keeps, and from now on $${RECKON.healerPay} for each person you heal</small>`, can: () => (v.tank ? true : 'you have no tank to give'), act: () => {
         closeCorner(); state.corner.hire.until = 0; loseTank(); r.path = 'quit'; state.cash += RECKON.quitCash; state.points += RECKON.quitPoints; gain('wellness', 20); add('vibes', 0.25);
         for (const [k, c] of Object.entries(GROWN)) if (c.source === 'elder') state.cultures[k] = true;
-        card('You gave it up', `The Elder’s people carry the tank down to the river and open the valve. It hisses for a long time. Then a bowl goes round the whole Village and comes back heavy: $${RECKON.quitCash}. She hands you a jar of every culture she keeps, ${RECKON.quitPoints} skill points land with them, and she names you the Village’s healer: $${RECKON.healerPay} from the bowl for every person you help from now on.`, 9000); save();
+        card('You gave it up', `The Elder’s people carry the tank down to the river and open the valve. It hisses for a long time. Then a bowl goes round the whole Village and comes back heavy: $${RECKON.quitCash}. He hands you a jar of every culture he keeps, ${RECKON.quitPoints} skill points land with them, and he names you the Village’s healer: $${RECKON.healerPay} from the bowl for every person you help from now on.`, 9000); save();
       } },
-      { label: 'It is only balloons <small>walk away</small>', act: () => { r.path = 'shrugged'; add('vibes', -0.05); toast('"Then there is nothing for you at my fire." She will not trade with you until you make it right.'); } },
+      { label: 'It is only balloons <small>walk away</small>', act: () => { r.path = 'shrugged'; add('vibes', -0.05); toast('"Then there is nothing for you at my fire." He will not trade with you until you make it right.'); } },
     ]));
     return true;
   }

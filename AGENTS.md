@@ -45,6 +45,7 @@ It needs `art/logo/`, which is on Seth's Mac but not in the repository (see "Wha
 | `design/camp-upgrade-map.md` | **Plan of record** for everything upgradeable at camp: 14 ladders with prices and benefits, what is built, the build order. |
 | `design/decisions.md` | Numbered decisions Seth has made, plus notes on each system as built. Add to it when you build something. |
 | `design/camp-gear.md`, `camp-and-needs.md`, `map-plan.md`, `wardrobe-plan.md`, `future-ideas.md` | Older plans and history. `camp-upgrade-map.md` wins where they disagree. |
+| `design/corner-crew.md` | Brainstorm for a four-person balloon corner crew: stations, named candidates, how each is earned, and the Elder's scene. Nothing built. |
 | `design/food-truck-path.md` | The agreed path from walking vendor to food truck: six steps, wages, the van conversion, prices checked against test runs. |
 | `game/dev/bot.js` | A test player that plays the real rules at high speed and reports income. Use it to check any price or balance change. |
 | `tools/` | Blender and shell scripts for models, and `build_app.sh`. |
