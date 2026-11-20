@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=6';
-import { createLife, readSave, saveLabel } from './life.js?v=95';
+import { createLife, readSave, saveLabel } from './life.js?v=97';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -730,7 +730,7 @@ function person(x, z, rot, amp = 0, kind = 'fixed', look = null) { // look: { mo
 const BOOTH = [-37, -98]; // the Open Decks tent, on the camp side of the Main Stage field
 const VILLAGE = { dome: [-58.5, -149.5], chill: [-28, -143.5], bath: [-24, -159], elder: [-49.5, -152] };
 const inVillage = (x, z) => x < -19 && x > -74 && z < -137;
-const CAMP = { tent: [22, -74.5], stove: [26.6, -77.4], cooler: [24.3, -78.3], bench: [15.4, -75.4], garden: [18.4, -78.6], tank: [20.7, -70.2], myco: [16.3, -72.4], counter: [29.6, -74.9], pantry: [29.4, -78.6] };
+const CAMP = { tent: [22, -74.5], stove: [26.6, -77.4], cooler: [24.3, -78.3], bench: [15.4, -75.4], garden: [18.4, -78.6], tank: [20.7, -70.2], myco: [16.3, -72.4], counter: [29.6, -74.9], pantry: [29.4, -78.6], totem: [24.6, -72.9], shelf: [18.6, -74.9], stash: [19.3, -76.8], line: [21.6, -81.2] };
 // Your camp is yours: nothing is scattered at random inside this patch (x from, x to, z from, z to), so neighbours' tents, fire rings and totems never land on your garden or kitchen.
 const CAMP_PLOT = [12.6, 35.2, -82.2, -66.4];
 const inCamp = (x, z, pad = 0) => x > CAMP_PLOT[0] - pad && x < CAMP_PLOT[1] + pad && z > CAMP_PLOT[2] - pad && z < CAMP_PLOT[3] + pad; // right beside the YOUR CAMP sign, where you cannot miss it
@@ -958,7 +958,7 @@ let RIVER_BENDS = [];
 // of its painted shape once it has loaded. If one fails to load, the painted shape stays.
 const CAMP_MODEL = { // h: how tall to make it, in metres; fit: squeeze it into this box instead; yaw: which way it faces
   tent: { h: 2.05, yaw: 0 }, cooler: { h: 0.95, yaw: 0 }, stove: { h: 1.25, yaw: 0 }, bench: { h: 1.65, yaw: 0 }, planter: { fit: [1.36, 0.36, 0.66], yaw: 0 }, myco: { h: 1.3, yaw: 0 },
-  pantry: { h: 1.35, yaw: 0 }, counter: { h: 2.75, yaw: 0 }, stash: { h: 1.2, yaw: 0 }, tank: { h: 1.65, yaw: 0 }, totem: { h: 3.9, yaw: 0 }, flag: { h: 3.4, yaw: 0 },
+  pantry: { h: 1.35, yaw: 0 }, counter: { h: 2.75, yaw: 0 }, stash: { h: 1.2, yaw: 0 }, tank: { h: 1.65, yaw: 0 }, totem: { h: 3.9, yaw: 0 }, flag: { h: 3.4, yaw: 0 }, wagon: { h: 2.1, yaw: 0 },
 };
 async function loadCampModel(name) {
   const gltf = await loader.loadAsync(`./assets/camp/${name}.glb`), m = gltf.scene, spec = CAMP_MODEL[name];
@@ -985,10 +985,11 @@ async function loadCampModels() {
   await each('myco', (m) => { swapIn(campLook.myco, m, campLook.caps); campLook.caps.forEach((cap, i) => cap.position.set(-0.24 + (i % 2) * 0.48, i < 2 ? 0.7 : 0.26, 0)); });
   await each('pantry', (m) => { swapIn(campLook.pantry[3], m); const big = m.clone(); big.scale.multiplyScalar(1.2); big.scale.x *= 1.35; swapIn(campLook.pantry[4], big); });
   await each('counter', (m) => swapIn(campLook.counter, m));
-  await each('stash', (m) => { m.position.set(CAMP.tent[0] - 2.7, 0, CAMP.tent[1] - 2.3); m.rotation.y = 0.6; scene.add(m); solid(CAMP.tent[0] - 2.7, CAMP.tent[1] - 2.3, 0.6); });
+  await each('stash', (m) => { m.position.set(CAMP.stash[0], 0, CAMP.stash[1]); m.rotation.y = 0.6; scene.add(m); solid(CAMP.stash[0], CAMP.stash[1], 0.6); campSolids.stash = colliders[colliders.length - 1]; });
   await each('tank', (m) => { swapIn(campLook.tank, m); swapIn(campLook.cornerTank, m.clone()); });
   await each('totem', (m) => swapIn(campLook.totem, m));
   await each('flag', (m) => swapIn(campLook.trophy.flag, m));
+  if (carQuestData) await each('wagon', (m) => { const c = carQuestData.car; m.position.set(c.x, 0, c.z); m.rotation.y = c.turn; scene.add(m); carLook.model = m; });
 }
 // ---- taking a balloon. Any character with a two-armed skeleton can do it: startBalloon(character).
 // The hand is steered to the mouth by working out where the elbow has to be, so it lands right whatever the body's proportions.
@@ -1072,11 +1073,11 @@ function buildCarQuest(Q) {
   });
   // your car, out past the last proper row, with a card game on the hood
   const c = Q.car;
-  put('hatchback', c.x, c.z, c.turn, 1, 1.1);
+  solid(c.x, c.z, 1.5); /* your own car is the pink wagon model, loaded with the camp models (loadCampModels) */
   const fx = Math.sin(c.turn), fz = Math.cos(c.turn);
-  mesh(new THREE.BoxGeometry(0.5, 0.02, 0.36), lambert(0xf2efe6), c.x + fx * 1.35, 0.98, c.z + fz * 1.35).rotation.y = c.turn + 0.3; // cards on the hood
+  mesh(new THREE.BoxGeometry(0.5, 0.02, 0.36), lambert(0xf2efe6), c.x + fx * 1.25, 1.07, c.z + fz * 1.25).rotation.y = c.turn + 0.3; // cards on the hood
   for (const side of [-1, 1]) {
-    const lamp = mesh(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshBasicMaterial({ color: 0x3a3320, toneMapped: false }), c.x + fx * 1.92 + fz * side * 0.62, 0.72, c.z + fz * 1.92 - fx * side * 0.62);
+    const lamp = mesh(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshBasicMaterial({ color: 0x3a3320, toneMapped: false }), c.x + fx * 1.8 + fz * side * 0.74, 0.8, c.z + fz * 1.8 - fx * side * 0.74);
     lamp.castShadow = false; carLook.lamps.push(lamp);
   }
   carLook.light = new THREE.PointLight(0xffe2a8, 0, 16, 1.6); carLook.light.position.set(c.x + fx * 2.4, 1.1, c.z + fz * 2.4); scene.add(carLook.light);
@@ -1085,13 +1086,77 @@ function carLights() { // two quick flashes each time the fob is pressed
   const c = state.car;
   if (!c || !carLook.light) return;
   const age = state.t - (c.beepAt ?? -99), on = age >= 0 && age < 1.1 && (age % 0.55) < 0.28;
-  for (const l of carLook.lamps) l.material.color.setHex(on ? 0xfff0b0 : 0x3a3320).multiplyScalar(on ? 3 : 1);
+  for (const l of carLook.lamps) { l.visible = on; l.material.color.setHex(0xfff0b0).multiplyScalar(3); } /* the wagon has its own headlights; these only show while they flash */
   carLook.light.intensity = on ? 30 : 0;
+}
+// ---- moving camp pieces. CAMP holds where each piece is right now; state.campLayout holds where you chose to put it.
+const CAMP_DEFAULT = {}, campSolids = {};
+let campSig = '', campLayoutSeen = null;
+function campInit() { // once the world is built: remember the starting spots and the thing you bump into at each
+  for (const k in CAMP) { CAMP_DEFAULT[k] = CAMP[k].slice(); if (k !== 'tent' && !campSolids[k]) campSolids[k] = colliders.find((c) => Math.abs(c.x - CAMP[k][0]) < 0.02 && Math.abs(c.z - CAMP[k][1]) < 0.02) || null; }
+}
+function campPlace(k) { // stand one piece where CAMP says it is
+  if (!CAMP[k] || !CAMP_DEFAULT[k]) return;
+  const [x, z] = CAMP[k], D = CAMP_DEFAULT[k], set = (o) => { if (o) { o.position.x = x; o.position.z = z; } };
+  if (k === 'stove') { set(campModels.stove); if (campLook.shade) campLook.shade.position.set(x - D[0], 0, z - D[1]); }
+  else if (k === 'cooler') { if (!state.towing) set(campLook.cooler); if (campLook.coolerSolid) campLook.coolerSolid.z = z; }
+  else if (k === 'bench') set(campLook.bench);
+  else if (k === 'garden') campLook.plots.forEach((p, i) => p.planter.position.set(x - (i % 3) * 1.6, 0, z - Math.floor(i / 3) * 1.15));
+  else if (k === 'pantry') { for (const g of campLook.pantry) set(g); if (campLook.pantrySolid) campLook.pantrySolid.z = z; }
+  else if (k === 'counter') { set(campLook.counter); set(campLook.openSign); set(campLook.shutSign); }
+  else if (k === 'myco') set(campLook.myco);
+  else if (k === 'tank') set(campLook.tank);
+  else if (k === 'totem') set(campLook.totem);
+  else if (k === 'shelf') set(campLook.shelfGroup);
+  else if (k === 'stash') set(campModels.stash);
+  else if (k === 'line') { set(tapLook.group); if (tapLook.data) { tapLook.data.line.x = x; tapLook.data.line.z = z; } }
+  const s = campSolids[k];
+  if (s && k !== 'cooler' && k !== 'pantry') { s.x = x; s.z = z; }
+}
+function campLayoutTick() { // called every frame: cheap unless the layout, a loaded save or a newly loaded model changed something
+  if (!CAMP_DEFAULT.tent) return;
+  const sig = `${state.campRev || 0}:${Object.keys(campModels).length}`;
+  if (sig !== campSig || state.campLayout !== campLayoutSeen) {
+    campSig = sig; campLayoutSeen = state.campLayout;
+    for (const k in CAMP_DEFAULT) if (k !== 'tent') { const at = (state.campLayout && state.campLayout[k]) || CAMP_DEFAULT[k]; CAMP[k][0] = at[0]; CAMP[k][1] = at[1]; campPlace(k); }
+  }
+  const pl = state.placing;
+  if (pl && player) { // the piece you are carrying rides a couple of steps in front of you
+    const r = player.root.rotation.y, x = player.root.position.x + Math.sin(r) * 2.0, z = player.root.position.z + Math.cos(r) * 2.0;
+    if (pl.key.startsWith('canopy')) { const c = state.canopies[+pl.key.slice(6)]; if (c) { c.x = x; c.z = z; } }
+    else if (CAMP[pl.key]) { CAMP[pl.key][0] = x; CAMP[pl.key][1] = z; campPlace(pl.key); }
+  }
+  canopyShow();
+}
+// ---- canopies: up to three pop-ups you buy at the General Store and stand anywhere on your plot. Each can carry one tapestry on its back wall.
+const canopyLook = [];
+function buildCanopies() {
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.Group(); g.visible = false; scene.add(g);
+    for (const [x, z] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.4, 8), funk('gold'), x, 1.2, z, g);
+    const roof = mesh(new THREE.ConeGeometry(2.3, 0.85, 4), funk('velvet', 3, 1), 0, 2.82, 0, g); roof.rotation.y = Math.PI / 4;
+    for (const [x, z, ry] of [[0, 1.55, 0], [0, -1.55, 0], [1.55, 0, Math.PI / 2], [-1.55, 0, Math.PI / 2]]) { mesh(new THREE.BoxGeometry(3.14, 0.26, 0.03), funk('velvet', 3, 0.3), x, 2.3, z, g).rotation.y = ry; mesh(new THREE.BoxGeometry(3.14, 0.05, 0.035), funk('gold'), x, 2.16, z, g).rotation.y = ry; }
+    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 340;
+    const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
+    const cloth = mesh(new THREE.PlaneGeometry(2.9, 1.9), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }), 0, 1.2, -1.5, g); cloth.castShadow = true; cloth.visible = false;
+    canopyLook.push({ group: g, cloth, canvas, tex, shown: null });
+  }
+}
+function canopyShow() {
+  const list = state.canopies || [];
+  canopyLook.forEach((L, i) => {
+    const c = list[i], up = !!c && c.x !== null && c.x !== undefined;
+    L.group.visible = up;
+    if (!up) return;
+    L.group.position.set(c.x, 0, c.z);
+    L.group.rotation.y = Math.atan2(CAMP.tent[0] - c.x, CAMP.tent[1] - c.z); // open side to your tent, tapestry wall away from it
+    if (L.shown !== (c.tap || '')) { L.shown = c.tap || ''; const t = tapLook.list.find((q) => q.id === c.tap); L.cloth.visible = !!t; if (t) paintTapestry(t, L); }
+  });
 }
 // ---- the tapestry line at camp: two poles and a rope; whichever tapestry is up hangs from it. Patterns are painted here from data/tapestry.json.
 const tapLook = { group: null, cloth: null, canvas: null, tex: null, shown: null, list: [] };
-function paintTapestry(t) {
-  const c = tapLook.canvas, g = c.getContext('2d'), W = c.width, H = c.height, [a, b, d] = t.colors;
+function paintTapestry(t, target = tapLook) {
+  const c = target.canvas, g = c.getContext('2d'), W = c.width, H = c.height, [a, b, d] = t.colors;
   const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })(); // the same cloth every time
   g.fillStyle = a; g.fillRect(0, 0, W, H);
   if (t.draw === 'leopard') {
@@ -1121,7 +1186,7 @@ function paintTapestry(t) {
     for (let i = 0; i < n; i++) for (let j = 0; j < 6; j++) if ((i + j) % 2) { g.beginPath(); for (let k = 0; k <= 8; k++) { const u = k / 8; g.lineTo(i * w + u * w + Math.sin((j * h) / 40) * 10, j * h + Math.sin((i + u) * 1.6) * 9); } for (let k = 8; k >= 0; k--) { const u = k / 8; g.lineTo(i * w + u * w + Math.sin(((j + 1) * h) / 40) * 10, (j + 1) * h + Math.sin((i + u) * 1.6) * 9); } g.fill(); }
   }
   for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '0,0,0' : '255,255,255'},${rnd() * 0.06})`; g.fillRect(rnd() * W, rnd() * H, 2, 2); } // a little weave
-  tapLook.tex.needsUpdate = true;
+  target.tex.needsUpdate = true;
 }
 function buildTapestryLine(T) {
   const { x, z, width, height } = T.line, grp = new THREE.Group();
@@ -1132,7 +1197,7 @@ function buildTapestryLine(T) {
   tapLook.tex = new THREE.CanvasTexture(tapLook.canvas); tapLook.tex.colorSpace = THREE.SRGBColorSpace;
   tapLook.cloth = mesh(new THREE.PlaneGeometry(width, height - 0.15), new THREE.MeshLambertMaterial({ map: tapLook.tex, side: THREE.DoubleSide }), 0, height / 2 + 0.38, 0, grp);
   tapLook.cloth.castShadow = true;
-  tapLook.group = grp; tapLook.list = T.list; grp.visible = false;
+  tapLook.group = grp; tapLook.list = T.list; tapLook.data = T; grp.visible = false;
 }
 function tapestryShow() { // called every frame: cheap unless what is hanging has changed
   const s = state.tapestry;
@@ -1502,16 +1567,31 @@ function say(lines, onEnd) {
   state.onDialogueEnd = onEnd;
   showLine();
 }
+// Lines that have a recorded voice: the text exactly as written in the dialogue -> the file in game/assets/voice.
+const VOICE = {
+  'Well, well. A new face. Welcome home, family.': 'patches-1', "Name's Patches. Folks call me the Mayor of Shakedown Street. Nobody voted, and nobody's complained yet.": 'patches-2',
+  'So here is how it all works. Through that gate is the Street. Past that, the camps. And past the camps you will find the—': 'patches-3', '...ah. That’s Buck. He does that.': 'patches-4',
+  'Tell you what, family — go after him. Knows these grounds better than anybody, even if he’s got no idea he’s givin’ you the tour. Just don’t lose him.': 'patches-5',
+  'Oh — hey, family. Beautiful day, huh?': 'buck-1', 'You’re drippin’, kid. Drink some water.': 'buck-2',
+};
+let voiceNow = null;
+function speak(text) {
+  if (voiceNow) { voiceNow.pause(); voiceNow = null; }
+  const file = VOICE[text];
+  if (!file) return;
+  voiceNow = new Audio(`./assets/voice/${file}.m4a`); voiceNow.volume = 0.9; voiceNow.play().catch(() => {}); // browsers refuse sound before the first key or click; the line still shows
+}
 function showLine() {
   const d = state.dialogue;
   if (!d) return;
-  if (d.i >= d.lines.length) { state.dialogue = null; portrait.set(null); $('dialogue').classList.add('hidden'); const f = state.onDialogueEnd; state.onDialogueEnd = null; if (f) f(); return; }
+  if (d.i >= d.lines.length) { if (voiceNow) { voiceNow.pause(); voiceNow = null; } state.dialogue = null; portrait.set(null); $('dialogue').classList.add('hidden'); const f = state.onDialogueEnd; state.onDialogueEnd = null; if (f) f(); return; }
   const [who, text] = d.lines[d.i];
   // the speaker's face sits beside the line, and the line types itself out while they talk
   const face = { Vinny: vinny, Whip: whip, Patches: patches, 'Village Elder': elder, '???': buck, 'Free Spirit / Buck': buck }[who] || null;
   portrait.set(face);
   $('dialogue').classList.toggle('hasface', !!face);
   d.text = text; d.shown = 0;
+  speak(text);
   $('who').textContent = who; $('line').textContent = '';
   $('dialogue').classList.remove('hidden');
 }
@@ -1875,6 +1955,7 @@ function update(dt) {
     if (moonbeam) moonbeamShift(dt);
     crewStand(dt);
     carLights();
+    campLayoutTick();
     if (state.act && state.act !== seenAct) { seenAct = state.act; if (state.act.kind === 'balloon') startBalloon(player); }
     balloonTick(dt);
     if (state.towing && campModels.cooler && campLook.cooler.userData.towed && state.mode !== 'creator') { // your hand is on the cooler's handle, behind you
@@ -2042,6 +2123,8 @@ async function boot() {
   buildRiverBends(RIVER);
   const TAPESTRY = await (await fetch(`./data/tapestry.json?v=${BUILD}`)).json(); // tapestries: what the stall sells and where the line stands
   buildTapestryLine(TAPESTRY);
+  buildCanopies();
+  campInit();
   const CREW = await (await fetch(`./data/crew.json?v=${BUILD}`)).json(); // the corner crew: stations, people, how each is earned
   const CRATE = await (await fetch(`./data/crate.json?v=${BUILD}`)).json(); // the tracks and the rules of a set
   const decks = createDecks({ $, crate: CRATE, isMuted: () => sound.isMuted() });
@@ -2056,10 +2139,10 @@ async function boot() {
     }
   })();
   loadCampModels(); // in the background too
-  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, CARQ, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
+  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, CARQ, CAMP_PLOT, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, crewAt, crewProp, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, CAMP, canopyLook, crewAt, crewProp, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });

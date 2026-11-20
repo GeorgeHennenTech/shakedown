@@ -3,6 +3,7 @@
 
   "line": { "x": 21.6, "z": -81.2, "width": 3.0, "height": 2.0 },
   "vibesPerHour": 0.015,
+  "canopy": { "cost": 45, "max": 3, "_about": "Pop-up canopies from the General Store. You stand each one anywhere on your plot (tent menu, Rearrange your camp). One keeps you dry at camp in rain; each can carry one tapestry on its back wall, and every tapestry hanging at camp gives vibesPerHour." },
 
   "list": [
     { "id": "leopard",   "name": "Leopard print",        "cost": 25, "draw": "leopard",   "colors": ["#d9a441", "#7a4a1c", "#17111f"] },

@@ -46,6 +46,7 @@ It needs `art/logo/`, which is on Seth's Mac but not in the repository (see "Wha
 | `game/data/river.json` | The river bends, pans, swirl and sluice numbers for gold panning. |
 | `game/data/fish.json` | Fishing: pools, fish, bait, rods, the fight, sturgeon and curing roe into caviar. |
 | `game/assets/camp/*.glb` | The camp piece models (tent, cooler, stove, bench, planter, myco, pantry, counter, stash, tank, totem, flag). Swapped in by `loadCampModels` in `main.js`; made with `tools/camp_model.sh`. |
+| `game/assets/voice/` | Recorded lines (Patches and Buck in the tutorial). `VOICE` in `game/main.js` maps the exact dialogue text to a file here. |
 | `game/data/car.json` | Where's My Car: the spots in the lot, every line of dialogue, the reward. |
 | `game/data/tapestry.json` | Tapestries sold on the Street and where the line stands at camp. |
 | `game/data/crowd.json` | Where the crowd is at each hour. |

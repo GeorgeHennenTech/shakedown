@@ -92,7 +92,7 @@ export function saveLabel(s) {
 for (const k of ['oyster', 'chanterelle', 'morel', 'lionsmane', 'reishi', 'cordyceps', 'foxfire', 'goldcap', 'chicken', 'puffball', 'turkeytail', 'ghostcap']) ICONS[k] = `<img src="./assets/journal/${k}.jpg" alt="">`;
 
 export function createLife(ctx) {
-  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER, CORNER, CREW = { rules: {}, stations: {}, members: {} }, RIVER = null, PAN = null, TAPESTRY = { list: [], line: { x: 0, z: 0 } }, CARQ = null, FISH = null, FISHING = null } = ctx;
+  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER, CORNER, CREW = { rules: {}, stations: {}, members: {} }, RIVER = null, PAN = null, TAPESTRY = { list: [], line: { x: 0, z: 0 } }, CARQ = null, CAMP_PLOT = [-1e9, 1e9, -1e9, 1e9], FISH = null, FISHING = null } = ctx;
   const sfx = ctx.sfx || (() => {});
   Object.assign(state, {
     hour: 16 + 20 / 60, day: 0, cash: 40, stash: 0, cheese: [], sold: 0, noSprint: false, menu: null, cooking: null, panel: false,
@@ -115,6 +115,8 @@ export function createLife(ctx) {
     weather: { rain: false, until: 0, next: 31 + Math.random() * 8 }, // the first shower comes on Friday
     river: { day: -1, panned: [], sluice: { bend: -1, at: 0 } }, panning: false,
     fishing: { sturgeonBack: 0, cure: [], caught: {}, kept: 0 }, angling: false, // the river's fish; see data/fish.json
+    campLayout: {}, canopies: [], placing: null, campRev: 0, // where you have moved your camp pieces, the pop-up canopies you own, and what you are carrying
+    gardener: { until: 0 }, // Fern, hired for the day at your garden
     car: { stage: 0, checked: {}, beeps: 0, beepAt: -99, hoodie: false }, // Where's My Car: 0 not begun, 1 checking memories, 2 the fob, 3 found
     tapestry: { owned: {}, up: '' }, // bought at the tapestry stall; one hangs on the line at camp
     plots: [], recipes: {}, pantry: {}, pantryCheese: [], shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
@@ -131,7 +133,7 @@ export function createLife(ctx) {
   const pass = (hours) => { state.hour += hours; while (state.hour >= 24) { state.hour -= 24; state.day++; } }; // days keep counting past Monday, so no timer ever runs backwards
   const atCamp = () => { const p = getPlayer().root.position; return Math.hypot(p.x - CAMP.tent[0], p.z - CAMP.tent[1]) < 9.5; };
   let toastTimer = 0;
-  const toast = (text) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600); };
+  const toast = (text) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), Math.max(/\$\d/.test(text) ? 6500 : 2600, Math.min(9000, 1400 + text.length * 55))); }; // long ones stay longer; anything with a dollar figure in it stays six and a half seconds at least
 
   // ---- camp gear you can level up. cost = buy it at the gear stall; salvage = build it at your tent.
   const GEAR = {
@@ -1304,6 +1306,8 @@ export function createLife(ctx) {
     const bits = [c.ready ? `${c.ready} ready to harvest` : '', c.dry ? `${c.dry} need${c.dry === 1 ? 's' : ''} water` : '', c.growing ? `${c.growing} growing` : '', c.empty ? `${c.empty} empty` : ''].filter(Boolean);
     return `Your garden: ${bits.join(', ')}`;
   }
+  const GARDENER = DATA.gardener || { name: 'Fern', wage: 30, blurb: '', hired: '' };
+  const fernOn = () => total() < (state.gardener.until || 0);
   function gardenMenu() {
     const ps = plots(), dry = ps.filter((p) => plotState(p) === 'dry'), need = made('can') ? 1 : dry.length;
     const opts = ps.map((p, i) => {
@@ -1324,7 +1328,7 @@ export function createLife(ctx) {
         if (left === due) { toast(`No room for ${ITEMS[c.item].name.toLowerCase()} in your bag, stash or cabinet. They will keep on the plant until you make space.`); gardenMenu(); return; }
         if (left) { p.left = left; if (FILLINGS.find((f) => f.item === c.item)) state.recipes[c.item] = true; toast(`${due - left} ${ITEMS[c.item].name.toLowerCase()} picked. No room for the other ${left}: they will keep on the plant.`); gardenMenu(); return; }
         if (p.crop === 'herbs') state.chain.stats.herbs++;
-        p.crop = null; p.wet = false; p.left = 0;
+        p.last = p.crop; p.crop = null; p.wet = false; p.left = 0;
         const filling = FILLINGS.find((f) => f.item === c.item);
         toast(`${due} ${ITEMS[c.item].name.toLowerCase()}.${filling && !state.recipes[c.item] ? ` New sandwich: ${filling.name}.` : ''}`);
         if (filling) state.recipes[c.item] = true;
@@ -1333,6 +1337,13 @@ export function createLife(ctx) {
     });
     if (dry.length > 1) opts.push({ label: `Water everything <small>${made('can') ? 'one water, with the watering can' : `${dry.length} waters`}</small>`, can: () => (waterOnHand() >= need ? true : 'not enough water on you'),
       act: () => { for (let i = 0; i < need; i++) takeWater(); dry.forEach(wetPlot); toast('Everything is watered.'); gardenMenu(); } });
+    const again = ps.filter((p) => plotState(p) === 'empty' && p.last && CROPS[p.last]), canAgain = again.filter((p, i) => have(CROPS[p.last].seed) > again.slice(0, i).filter((q) => q.last === p.last).length);
+    if (again.length) opts.push({ label: `Replant <small>${again.length === 1 ? `${CROPS[again[0].last].name.toLowerCase()} again in the empty plot` : `the ${again.length} empty plots with what grew there last`}, from your seeds</small>`,
+      can: () => (canAgain.length ? true : 'no seeds for them: the General Store sells seeds'),
+      act: () => { let n = 0; for (const p of again) { const c = CROPS[p.last]; if (have(c.seed) < 1) continue; spend(c.seed, 1); p.crop = p.last; p.wet = false; if (state.weather.rain) wetPlot(p); n++; } sfx('pick'); toast(`${n} plot${n === 1 ? '' : 's'} replanted${n < again.length ? `; no seeds for the other ${again.length - n}` : ''}. ${state.weather.rain ? 'The rain is watering them.' : 'They need water.'}`); gardenMenu(); } });
+    opts.push(fernOn() ? { label: `${GARDENER.name} is tending your garden <small>until 2 AM: waters, picks into your stash and replants from your seeds</small>`, can: () => 'on the job', act() {} }
+      : { label: `Hire ${GARDENER.name} for the day <small>${GARDENER.blurb} Waters, picks into your stash and replants from your seeds, until 2 AM</small>`, cost: GARDENER.wage, can: () => (hired('garden') ? 'Moonbeam is doing the garden today' : true),
+        act: () => { state.gardener.until = state.hour < 2 ? state.day * 24 + 2 : (state.day + 1) * 24 + 2; state.kitchen.gardenNext = 0; toast(`${GARDENER.name}: ${GARDENER.hired}`); } });
     menu(`Your garden (${ps.length} plot${ps.length > 1 ? 's' : ''})`, opts);
   }
 
@@ -1579,7 +1590,7 @@ export function createLife(ctx) {
     return waiting.find((q) => Math.hypot(people[q.i].x - p.x, people[q.i].z - p.z) < 2.3);
   };
   let servedT = -9; // E serves and E opens the counter menu, so the menu stays shut while anyone is queueing and for a moment after a sale
-  function tendGarden() {
+  function tendGarden(who = 'Moonbeam') {
     let did = 0;
     for (const p of plots()) {
       const s = plotState(p);
@@ -1593,16 +1604,16 @@ export function createLife(ctx) {
         if (shelf + stashed < due) { p.left = due - shelf - stashed; if (shelf + stashed) did++; continue; } // no room for all of it: the rest stays on the plant, and nothing is replanted over it
         p.left = 0;
         if (FILLINGS.find((x) => x.item === c.item)) state.recipes[c.item] = true;
-        p.crop = null; p.wet = false;
+        p.crop = null; p.wet = false; p.last = crop;
         if (have(c.seed) > 0) { spend(c.seed, 1); p.crop = crop; wetPlot(p); } // replants from your own seeds
         did++;
       }
     }
-    if (did && atCamp()) toast('Moonbeam has been at the garden: watered, picked and replanted.');
+    if (did && atCamp()) toast(`${who} has been at the garden: watered, picked and replanted.`);
   }
   function kitchenTick() {
     const k = state.kitchen, now = total(), h = state.hour;
-    if (hired('garden') && now >= k.gardenNext) { k.gardenNext = now + 0.5; tendGarden(); }
+    if ((hired('garden') || fernOn()) && now >= k.gardenNext) { k.gardenNext = now + 0.5; tendGarden(hired('garden') ? 'Moonbeam' : GARDENER.name); }
     if (!state.pal.told && (state.pal.held || 0) > 0 && !hired('front')) { state.pal.told = true; toast(`Moonbeam's shift is over. He is holding $${state.pal.held} for you: go and collect it from him.`); }
     if (!k.open) return;
     if ((h >= 8 || h < 2) && now >= k.next && k.queue.length < KITCHEN.queue && (atCamp() || hired('front'))) {
@@ -1939,6 +1950,50 @@ export function createLife(ctx) {
     return opts;
   }
 
+  // ---- rearranging your camp and setting up canopies. You carry one piece at a time; main.js draws it in front of you.
+  const CAMP_PIECES = [['stove', 'Stove table', () => true], ['cooler', 'Cooler', () => !state.towing], ['bench', 'Workbench', () => true], ['garden', 'Garden', () => true],
+    ['pantry', 'Produce cabinet', () => state.gear.pantry >= 2], ['counter', 'Kitchen counter', () => made('sign')], ['myco', 'Mushroom shelf', () => state.gear.myco >= 2],
+    ['tank', 'Tank', () => state.nos.tank && !state.nos.rig], ['totem', 'Totem', () => made('totem')], ['shelf', 'Trophy shelf', () => Object.values(state.trophies).some(Boolean)],
+    ['stash', 'Stash trunk', () => true], ['line', 'Tapestry line', () => tapsOwned().length > 0]];
+  const onPlot = (x, z) => x > CAMP_PLOT[0] + 0.8 && x < CAMP_PLOT[1] - 0.8 && z > CAMP_PLOT[2] + 0.8 && z < CAMP_PLOT[3] - 0.8;
+  const canopyAt = (p) => state.canopies.findIndex((c) => c.x !== null && Math.hypot(p.x - c.x, p.z - c.z) < 1.9);
+  const pickUp = (key, name, from) => { state.placing = { key, name, from }; toast(`You have your ${name.toLowerCase()}. Walk it to where you want it and press E. Your tent menu puts it back.`); };
+  function putBack() {
+    const pl = state.placing; if (!pl) return;
+    if (pl.key.startsWith('canopy')) { const c = state.canopies[+pl.key.slice(6)]; if (c) { c.x = pl.from[0]; c.z = pl.from[1]; } }
+    state.placing = null; state.campRev++; toast(`Your ${pl.name.toLowerCase()} is back where it was.`);
+  }
+  function setDown() {
+    const pl = state.placing; if (!pl) return;
+    const isCanopy = pl.key.startsWith('canopy'), c = isCanopy ? state.canopies[+pl.key.slice(6)] : null, x = isCanopy ? c.x : CAMP[pl.key][0], z = isCanopy ? c.z : CAMP[pl.key][1];
+    if (!onPlot(x, z)) { toast('That is off your plot. Keep it inside your own camp, between the YOUR CAMP sign and the neighbours.'); return; }
+    if (Math.hypot(x - CAMP.tent[0], z - CAMP.tent[1]) < (isCanopy ? 1.2 : 2.3)) { toast('Too close to your tent. A step or two further out.'); return; }
+    if (!isCanopy) state.campLayout[pl.key] = [x, z];
+    state.placing = null; state.campRev++; sfx('build'); toast(`${pl.name} set down.`); save();
+  }
+  function campArrange() {
+    if (state.placing) { menu(`You are carrying your ${state.placing.name.toLowerCase()}`, [{ label: 'Put it back where it was', act: putBack }, { label: 'Keep carrying it <small>press E where you want it</small>', act() {} }]); return; }
+    menu('Rearrange your camp · your tent stays where it is', [
+      ...CAMP_PIECES.filter(([, , own]) => own()).map(([key, name]) => ({ label: `${name} <small>pick it up</small>`, act: () => pickUp(key, name, CAMP[key].slice()) })),
+      ...state.canopies.map((c, i) => ({ label: `Canopy ${i + 1} <small>${c.x === null ? 'still folded: set it up' : 'pick it up'}</small>`, act: () => pickUp(`canopy${i}`, `Canopy ${i + 1}`, [c.x, c.z]) })),
+      { label: 'Put everything back where it started <small>canopies stay where they are</small>', can: () => (Object.keys(state.campLayout).length ? true : 'nothing has been moved'), act: () => { state.campLayout = {}; state.campRev++; toast('Your camp is back the way it started.'); save(); } },
+    ]);
+  }
+  function canopyMenu(i) {
+    const c = state.canopies[i], cur = c.tap ? tapOf(c.tap) : null;
+    menu(`Canopy ${i + 1} · ${cur ? cur.name : 'bare'} · dry under here when it rains`, [
+      ...tapsOwned().map((t) => ({ label: `${t.name} <small>${c.tap === t.id ? 'hanging here' : state.tapestry.up === t.id || state.canopies.some((o) => o.tap === t.id) ? 'move it here from where it hangs now' : 'hang it on the back wall'}</small>`, can: () => (c.tap === t.id ? 'hanging here' : true),
+        act: () => { if (state.tapestry.up === t.id) state.tapestry.up = ''; for (const o of state.canopies) if (o.tap === t.id) o.tap = ''; c.tap = t.id; sfx('build'); toast(`${t.name} is up on canopy ${i + 1}.`); save(); } })),
+      ...(tapsOwned().length ? [] : [{ label: 'No tapestries yet <small>Tie-Dye & Tapestry on Shakedown Street sells them</small>', can: () => 'buy one on the Street', act() {} }]),
+      { label: 'Take the tapestry down', can: () => (c.tap ? true : 'nothing is up'), act: () => { c.tap = ''; toast('The canopy wall is bare.'); save(); } },
+      { label: 'Move this canopy', act: () => pickUp(`canopy${i}`, `Canopy ${i + 1}`, [c.x, c.z]) },
+    ]);
+  }
+  interactables.unshift(
+    { test: () => !!state.placing, label: () => `Set your ${state.placing.name.toLowerCase()} down here`, use: setDown },
+    { test: (p) => !state.placing && canopyAt(p) >= 0, label: () => { const c = state.canopies[canopyAt(getPlayer().root.position)]; return `Your canopy: ${c.tap ? tapOf(c.tap).name : 'bare'}`; }, use: () => canopyMenu(canopyAt(getPlayer().root.position)) },
+  );
+
   // ---- Where's My Car: three memories of where you parked, all a little wrong, and a key fob you had all along. Text and spots are data/car.json.
   const nearXZ = (p, spot, r) => Math.hypot(p.x - spot.x, p.z - spot.z) < r;
   const carMemoryAt = (p) => CARQ.memories.find((m) => !state.car.checked[m.id] && nearXZ(p, m, 3.2));
@@ -1991,8 +2046,9 @@ export function createLife(ctx) {
     })));
   }
   function tapLine() {
+    const takeFromCanopies = (id) => { for (const c of state.canopies) if (c.tap === id) c.tap = ''; };
     menu(`Your tapestry line · up: ${state.tapestry.up ? tapOf(state.tapestry.up).name : 'nothing'}`, [
-      ...tapsOwned().map((t) => ({ label: `${t.name} <small>${state.tapestry.up === t.id ? 'hanging now' : 'hang this one'}</small>`, can: () => (state.tapestry.up === t.id ? 'hanging now' : true), act: () => { state.tapestry.up = t.id; sfx('build'); toast(`${t.name} is up. Your camp, your colours.`); } })),
+      ...tapsOwned().map((t) => ({ label: `${t.name} <small>${state.tapestry.up === t.id ? 'hanging now' : 'hang this one'}</small>`, can: () => (state.tapestry.up === t.id ? 'hanging now' : true), act: () => { takeFromCanopies(t.id); state.tapestry.up = t.id; sfx('build'); toast(`${t.name} is up. Your camp, your colours.`); } })),
       { label: 'Take it down <small>a bare line</small>', can: () => (state.tapestry.up ? true : 'nothing is up'), act: () => { state.tapestry.up = ''; toast('The line is bare.'); } },
     ]);
   }
@@ -2309,6 +2365,7 @@ export function createLife(ctx) {
       { label: 'Hot shower <small>fully clean</small>', cost: 3, act: () => { n.hygiene = 1; add('vibes', 0.04); pass(0.3); toast('Hot water. You are a new person.'); gain('wellness', 2); } },
     ]) },
     { at: CAMP.tent, r: 3.1, label: 'Your tent', use: () => menu(GEAR.tent[1][state.gear.tent - 1].name, [
+      { label: `Rearrange your camp <small>${state.placing ? `you are carrying your ${state.placing.name.toLowerCase()}` : 'pick a piece up, walk it somewhere else on your plot and set it down'}</small>`, act: campArrange },
       { label: 'Nap for two hours', act: () => rest(false) },
       { label: 'Sleep until morning', can: () => (state.hour >= 20 || state.hour < 5 ? true : 'after 8 PM'), act: () => rest(true) },
       { label: 'Open your bag and stash', act: () => togglePanel(true) },
@@ -2348,6 +2405,9 @@ export function createLife(ctx) {
       shelf('Tomato seeds <small>8 hours: tomato melts</small>', 'seedTomato', 1, 5),
       shelf('Pepper seeds <small>8 hours: jalapeño poppers</small>', 'seedPepper', 1, 5),
       shelf('Sage seeds <small>6 hours: healing herbs</small>', 'seedSage', 1, 6),
+      { label: `Pop-up canopy <small>set it up anywhere on your plot: shelter in the rain, and a wall to hang a tapestry on. You own ${state.canopies.length} of ${TAPESTRY.canopy.max}</small>`, cost: TAPESTRY.canopy.cost, stay: true,
+        can: () => (state.canopies.length >= TAPESTRY.canopy.max ? `${TAPESTRY.canopy.max} is all your plot will hold` : true),
+        act: () => { state.canopies.push({ x: null, z: null, tap: '' }); sfx('coin'); toast('One pop-up canopy, folded. Set it up from your tent: Rearrange your camp.'); save(); } },
       shelf('Grow serum <small>one growing plot is ready at once</small>', 'serum', 1, SERUM.cost, () => toast('Grow serum. Pour it on a growing plot at your garden.')),
       { icon: 'oyster', stay: true, label: 'Oyster spawn <small>grow mushrooms: needs a shelf</small>', cost: 8, can: () => (state.cultures.oyster ? 'you have it' : true), act: () => { state.cultures.oyster = true; toast(shroomSlots() ? 'Oyster spawn. Start it on your mushroom shelf.' : 'Oyster spawn. Build a mushroom shelf at your workbench first.'); } },
       { icon: 'usb', stay: true, label: 'Dusty USB stick <small>one mystery track for your crate</small>', cost: 12, can: () => (missing(false).length ? true : 'nothing on these you do not have'),
@@ -2382,7 +2442,7 @@ export function createLife(ctx) {
   interactables.unshift(interactables.splice(interactables.findIndex((i) => i.label === 'Your tank'), 1)[0]);
 
   // ---- saving. The game saves itself once you are free to roam; the opening is short enough to replay.
-  const KEEP = ['tapestry', 'fishing', 'car', 'hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry', 'pantryCheese', 'corner', 'reckon', 'crewShifts', 'river'];
+  const KEEP = ['tapestry', 'fishing', 'car', 'gardener', 'campLayout', 'canopies', 'hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry', 'pantryCheese', 'corner', 'reckon', 'crewShifts', 'river'];
   let saveClock = 0;
   function save() {
     if (state.mode !== 'free') return;
@@ -2529,13 +2589,13 @@ export function createLife(ctx) {
       const w = state.weather, now = total();
       if (!w.rain && state.day >= 1 && now >= w.next) { w.rain = true; w.until = now + 1.5 + Math.random() * 1.5; if (free) toast('Rain rolling in. Get under something.'); }
       else if (w.rain && now >= w.until) { w.rain = false; state.rainedAt = now; w.next = now + 8 + Math.random() * 10; if (free) toast('The rain has passed.'); }
-      const dry = camp && (state.gear.tent >= 3 || made('shade')); // a rainfly or the tarp shade rig keeps you dry at camp
+      const dry = camp && (state.gear.tent >= 3 || made('shade') || state.canopies.some((c) => c.x !== null)); // a rainfly or the tarp shade rig keeps you dry at camp
       if (w.rain) {
         for (const pl of plots()) if (pl.crop && !pl.wet) wetPlot(pl);
         if (dry) { state.chain.stats.rainCamp += hours; add('vibes', hours * 0.04); } else if (!state.poncho && !fx('broth')) { add('vibes', -hours * 0.08); add('hygiene', hours * 0.05); }
       }
       if (camp && state.trophies.flag) add('vibes', hours * 0.03);
-      if (camp && state.tapestry.up) add('vibes', hours * TAPESTRY.vibesPerHour); // your own colours on the line
+      if (camp) add('vibes', hours * TAPESTRY.vibesPerHour * ((state.tapestry.up ? 1 : 0) + state.canopies.filter((c) => c.x !== null && c.tap).length)); // every tapestry hanging at camp, on the line or a canopy
       const cold = state.hour >= 1 && state.hour < 6 && !made('vest') && !fx('broth') && !state.car.hoodie; // the hoodie from your car does it too
       if (cold && !warned.cold && free) { warned.cold = true; toast('It got cold. A warm layer would help.'); } else if (!cold) warned.cold = false;
       const chill = (w.rain && !dry && !state.poncho && !fx('broth') ? 1.2 : 1) * (cold ? 1.25 : 1);

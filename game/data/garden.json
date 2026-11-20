@@ -10,6 +10,8 @@
 
   "serum": { "cost": 10, "perJob": 1, "_about": "Grow serum: one bottle brings one watered, growing plot to harvest at once. Bought at the General Store; one is also given for each job of the day." },
 
+  "gardener": { "name": "Fern", "wage": 30, "blurb": "A quiet volunteer from the Healing Village who grows the Elder's herbs.", "hired": "\"I'll talk to them while I work. They like that.\"", "_about": "A gardener you can hire by the day at your own garden, whatever Moonbeam is doing. Same work as Moonbeam's garden job: every half hour waters dry plots, picks what is ready into your stash or cabinet, and replants from your seeds. Until 2 AM." },
+
   "fillings": [
     { "item": "caviar",      "bonus": 14, "name": "Caviar melt" },
     { "item": "goldflake",   "bonus": 12, "name": "Gold-leaf melt" },
