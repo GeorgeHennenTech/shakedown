@@ -122,3 +122,4 @@ Seth is the designer and plays every build. Explain in plain words what changed 
 - Never put a `//` comment in the middle of a one-line block: it swallows the rest of the line, and `node --check` on a `.js` file only catches it if the file is checked as a module (copy to `.mjs`). `pan.js` broke the whole page this way once.
 - The cook panel lives inside `#hud`, which is hidden in the character creator. When testing cooking from a cleared save, un-hide `#hud` and hide `#creator` or nothing measures.
 - The Browser pane often runs the game at a few frames a second when it is in the background. For minigame tests, call the game's own `update(1/60)` (for example `__game.fishing.update`) or `__game.step` in a loop instead of waiting on real time.
+- A `//` comment in the middle of a one-line statement swallows everything after it on that line. It has broken the game twice (`pan.js`, then the creator backdrop in `main.js`). Put notes on their own line or use `/* */`.

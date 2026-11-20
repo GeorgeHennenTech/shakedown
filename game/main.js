@@ -7,7 +7,7 @@ import { createLife, readSave, saveLabel } from './life.js?v=92';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { createCookView } from './cook.js?v=8';
+import { createCookView } from './cook.js?v=9';
 import { createPan } from './pan.js?v=5';
 import { createFishing } from './fish.js?v=2';
 import { createDecks } from './decks.js?v=5';
@@ -1344,8 +1344,18 @@ function zoneAt(x, z) {
   return 'The Parking Lot';
 }
 
+let creatorPlate = null;
+function creatorBackdrop(on) { // a big out-of-focus photograph behind the character, only while the creator is up
+  if (on && !creatorPlate) {
+    const tex = new THREE.TextureLoader().load('./assets/shots/creator-lot.jpg'); tex.colorSpace = THREE.SRGBColorSpace;
+    creatorPlate = new THREE.Mesh(new THREE.PlaneGeometry(13.6, 7.6), new THREE.MeshBasicMaterial({ map: tex, fog: false, toneMapped: false }));
+    creatorPlate.position.set(-0.55, 1.05, 5.2); /* its horizon sits at your eye level, a few steps behind you */ creatorPlate.rotation.y = Math.PI; scene.add(creatorPlate);
+  }
+  if (creatorPlate) creatorPlate.visible = on;
+}
 function startCreator() {
   state.mode = 'creator';
+  creatorBackdrop(true);
   $('loading').classList.add('hidden');
   $('creator').classList.remove('hidden'); $('spinhint').classList.remove('hidden');
   player.root.position.set(0, 0, 1.5);
@@ -1358,6 +1368,7 @@ function continueGame(saved) {
   for (const id of ['age', 'height', 'build']) $(id).value = look[id];
   $('pname').value = look.name;
   sync();
+  creatorBackdrop(false);
   $('creator').classList.add('hidden'); $('spinhint').classList.add('hidden');
   $('hud').classList.remove('hidden');
   state.mode = 'free'; state.canMove = true;
@@ -1370,6 +1381,7 @@ function continueGame(saved) {
   banner('Welcome back');
 }
 function startGame() {
+  creatorBackdrop(false);
   $('creator').classList.add('hidden'); $('spinhint').classList.add('hidden');
   state.mode = 'intro';
   card('Thursday, 4:20 PM', `${look.name}'s first festival. $40 in your pocket.`, 2600, () => {

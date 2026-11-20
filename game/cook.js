@@ -44,9 +44,11 @@ export function createCookView({ renderer }) {
     for (let i = 0; i < 900; i++) { g.strokeStyle = `rgba(40,24,12,${Math.random() * 0.25})`; g.beginPath(); const y = Math.random() * n; g.moveTo(Math.random() * n, y); g.lineTo(Math.random() * n, y + (Math.random() - 0.5) * 6); g.stroke(); }
     for (let i = 0; i < 14; i++) { g.fillStyle = 'rgba(30,18,8,0.35)'; g.beginPath(); g.ellipse(Math.random() * n, Math.random() * n, 5 + Math.random() * 14, 3 + Math.random() * 6, Math.random(), 0, 7); g.fill(); }
   });
-  add(new THREE.BoxGeometry(2.2, 0.03, 1.0), new THREE.MeshStandardMaterial({ map: wood, roughness: 0.85 }), 0, -0.125, 0.02);
-  const grassTex = new THREE.TextureLoader().load('./assets/ground-grass.jpg');
-  grassTex.colorSpace = THREE.SRGBColorSpace; grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping; grassTex.repeat.set(3, 3);
+  const tableMat = new THREE.MeshStandardMaterial({ map: wood, roughness: 0.85 });
+  new THREE.TextureLoader().load('./assets/shots/cook-table.jpg', (t) => { t.colorSpace = THREE.SRGBColorSpace; tableMat.map = t; tableMat.needsUpdate = true; }); // a photograph of a camp table; the painted planks stay if it does not load
+  add(new THREE.BoxGeometry(2.2, 0.03, 1.0), tableMat, 0, -0.125, 0.02);
+  const grassTex = new THREE.TextureLoader().load('./assets/shots/cook-ground.jpg');
+  grassTex.colorSpace = THREE.SRGBColorSpace; grassTex.wrapS = grassTex.wrapT = THREE.MirroredRepeatWrapping; grassTex.repeat.set(2, 2);
   const lawn = add(new THREE.PlaneGeometry(9, 9), new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }), 0, -0.85, -1.5);
   lawn.rotation.x = -Math.PI / 2; lawn.castShadow = false;
 
