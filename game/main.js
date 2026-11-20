@@ -358,6 +358,7 @@ function funk(kind, rx = 1, ry = 1, extra = {}) {
 const campLook = {};
 function buildCampLook() {
   const tent = new THREE.Group();
+  campLook.tentGroup = tent;
   tent.position.set(CAMP.tent[0], 0, CAMP.tent[1]); tent.rotation.y = 2.5;
   scene.add(tent);
   // the ridge tent's sloping sides: half-width, height, and the outward normal of each slope
@@ -415,6 +416,7 @@ function buildCampLook() {
   mesh(new THREE.BoxGeometry(0.34, 0.03, 0.05), funk('gold'), 0.5, 0.71, 0.12, bench).rotation.y = -0.1;
   mesh(new THREE.ConeGeometry(0.1, 0.14, 10, 1, true), lambert(0xff3d9a, { side: THREE.DoubleSide }), 0.72, 0.98, -0.22, bench); mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.26, 5), funk('gold'), 0.72, 0.82, -0.22, bench); // a pink lamp
   scene.add(bench);
+  campLook.bench = bench;
   solid(CAMP.bench[0], CAMP.bench[1], 0.7);
 
   // things you craft that show up at camp
@@ -595,9 +597,10 @@ function buildCampLook() {
   mesh(new THREE.BoxGeometry(1.1, 0.5, 0.6), funk('black'), -4.2, 0.25, -63.4, campLook.corner); // a crate to sell from
   mesh(new THREE.BoxGeometry(1.12, 0.2, 0.62), funk('leopard', 3, 0.5), -4.2, 0.25, -63.4, campLook.corner);
   // and the tank you sell from, with a few filled balloons tied to it
-  mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.1, 12), funk('tiger', 2, 2), -3.25, 0.55, -63.5, campLook.corner);
-  mesh(new THREE.SphereGeometry(0.18, 12, 8), lambert(0xff3d9a), -3.25, 1.1, -63.5, campLook.corner);
-  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 8), funk('gold'), -3.25, 1.32, -63.5, campLook.corner);
+  campLook.cornerTank = new THREE.Group(); campLook.cornerTank.position.set(-3.25, 0, -63.5); campLook.corner.add(campLook.cornerTank);
+  mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.1, 12), funk('tiger', 2, 2), 0, 0.55, 0, campLook.cornerTank);
+  mesh(new THREE.SphereGeometry(0.18, 12, 8), lambert(0xff3d9a), 0, 1.1, 0, campLook.cornerTank);
+  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 8), funk('gold'), 0, 1.32, 0, campLook.cornerTank);
   for (const [x, y, c] of [[-3.4, 1.75, 0xff5d8f], [-3.05, 1.9, 0xffd23f], [-3.2, 2.1, 0x3aa0ff]]) mesh(new THREE.SphereGeometry(0.14, 10, 8), new THREE.MeshLambertMaterial({ color: c }), x, y, -63.5, campLook.corner);
   campLook.corner.visible = false;
   scene.add(campLook.corner);
@@ -772,8 +775,7 @@ function buildWorld() {
   mesh(new THREE.BoxGeometry(0.08, 1.5, 0.08), lambert(0x6b4a2b), -8.4, 0.75, -68.2);
   for (let i = 0; i < 26; i++) { const side = Math.random() < 0.5 ? -1 : 1; person(side * rand(4.4, 5.6), rand(-60, -20), side * -Math.PI / 2 + rand(-0.6, 0.6), 0.02, 'street'); }
   // your camp goes in first so the neighbours pitch around it
-  put('ridgetent', CAMP.tent[0], CAMP.tent[1], 2.5);
-  put('campset', CAMP.stove[0], CAMP.stove[1], 0);
+  solid(CAMP.tent[0], CAMP.tent[1], 1.5); solid(CAMP.stove[0], CAMP.stove[1], 0.7); // your own tent and stove are camp models now (loadCampModels), not the shared lot props
   signBoard('YOUR CAMP', CAMP.tent[0] - 2.4, 2.0, CAMP.tent[1] + 2.4, 0.5, 2.3, 0.56, { bg: '#ffc93c' });
   mesh(new THREE.BoxGeometry(0.08, 1.75, 0.08), lambert(0x6b4a2b), CAMP.tent[0] - 2.4, 0.87, CAMP.tent[1] + 2.4);
   // the Campgrounds
@@ -943,6 +945,42 @@ function moonbeamShift(dt) {
 // The slow bends of the river where gold settles: a gravel bar, a few stones and a stake with a yellow rag, so you can find them.
 // Your sluice box shows in whichever bend you set it.
 let RIVER_BENDS = [];
+// ---- camp models: a made model for each camp piece (game/assets/camp/*.glb, from the pictures in art/camp/funky) takes the place
+// of its painted shape once it has loaded. If one fails to load, the painted shape stays.
+const CAMP_MODEL = { // h: how tall to make it, in metres; fit: squeeze it into this box instead; yaw: which way it faces
+  tent: { h: 2.05, yaw: 0 }, cooler: { h: 0.95, yaw: 0 }, stove: { h: 1.25, yaw: 0 }, bench: { h: 1.65, yaw: 0 }, planter: { fit: [1.36, 0.36, 0.66], yaw: 0 }, myco: { h: 1.3, yaw: 0 },
+  pantry: { h: 1.35, yaw: 0 }, counter: { h: 2.75, yaw: 0 }, stash: { h: 1.2, yaw: 0 }, tank: { h: 1.65, yaw: 0 }, totem: { h: 3.9, yaw: 0 }, flag: { h: 3.4, yaw: 0 },
+};
+async function loadCampModel(name) {
+  const gltf = await loader.loadAsync(`./assets/camp/${name}.glb`), m = gltf.scene, spec = CAMP_MODEL[name];
+  m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.material.metalness = 0; o.material.metalnessMap = null; o.material.roughness = 0.82; o.material.roughnessMap = null; } });
+  m.rotation.y = spec.yaw || 0; m.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3()), mid = box.getCenter(new THREE.Vector3());
+  const wrap = new THREE.Group(); m.position.x -= mid.x; m.position.y -= box.min.y; m.position.z -= mid.z; wrap.add(m); // stands on the ground, centred
+  if (spec.fit) wrap.scale.set(spec.fit[0] / size.x, spec.fit[1] / size.y, spec.fit[2] / size.z); else wrap.scale.setScalar(spec.h / size.y);
+  return wrap;
+}
+function swapIn(group, model, keep = []) { // the painted pieces step aside; anything the game still moves (plants, mushroom caps) stays
+  const old = new THREE.Group(); old.visible = false;
+  for (const ch of [...group.children]) if (!keep.includes(ch)) old.add(ch);
+  group.add(old, model);
+}
+const campModels = {};
+async function loadCampModels() {
+  const each = async (name, fn) => { try { const m = await loadCampModel(name); campModels[name] = m; fn(m); } catch (e) { console.warn(`Camp model ${name} not loaded`, e); } };
+  await each('tent', (m) => swapIn(campLook.tentGroup, m));
+  await each('cooler', (m) => swapIn(campLook.cooler, m));
+  await each('stove', (m) => { m.position.set(CAMP.stove[0], 0, CAMP.stove[1]); scene.add(m); });
+  await each('bench', (m) => swapIn(campLook.bench, m));
+  await each('planter', (m) => campLook.plots.forEach((p, i) => swapIn(p.planter, i ? m.clone() : m, [p.soil, p.sprouts])));
+  await each('myco', (m) => { swapIn(campLook.myco, m, campLook.caps); campLook.caps.forEach((cap, i) => cap.position.set(-0.24 + (i % 2) * 0.48, i < 2 ? 0.7 : 0.26, 0)); });
+  await each('pantry', (m) => { swapIn(campLook.pantry[3], m); const big = m.clone(); big.scale.multiplyScalar(1.2); big.scale.x *= 1.35; swapIn(campLook.pantry[4], big); });
+  await each('counter', (m) => swapIn(campLook.counter, m));
+  await each('stash', (m) => { m.position.set(CAMP.tent[0] - 2.7, 0, CAMP.tent[1] - 2.3); m.rotation.y = 0.6; scene.add(m); solid(CAMP.tent[0] - 2.7, CAMP.tent[1] - 2.3, 0.6); });
+  await each('tank', (m) => { swapIn(campLook.tank, m); swapIn(campLook.cornerTank, m.clone()); });
+  await each('totem', (m) => swapIn(campLook.totem, m));
+  await each('flag', (m) => swapIn(campLook.trophy.flag, m));
+}
 // ---- the tapestry line at camp: two poles and a rope; whichever tapestry is up hangs from it. Patterns are painted here from data/tapestry.json.
 const tapLook = { group: null, cloth: null, canvas: null, tex: null, shown: null, list: [] };
 function paintTapestry(t) {
@@ -1839,10 +1877,11 @@ async function boot() {
       } catch (e) { console.warn(`Crew model ${id} not loaded`, e); }
     }
   })();
+  loadCampModels(); // in the background too
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });
