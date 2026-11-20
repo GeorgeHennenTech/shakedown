@@ -312,7 +312,49 @@ function bunting(x1, x2, z, y = 4.6) {
   }
   for (const x of [x1, x2]) mesh(new THREE.CylinderGeometry(0.06, 0.08, y + 0.2, 6), lambert(0x6b4a2b), x, (y + 0.2) / 2, z);
 }
-// What your camp upgrades look like. Simple shapes for now; each will get a painted model.
+// ---- the funky camp (Seth's look, design/decisions.md "The camp look is locked"): leopard, pink tiger, purple zebra,
+// patchwork velvet, quilted pink, shag, glossy black, walnut and gold, painted here in code and wrapped on the plain shapes.
+// Loud heroes get the patterns; working pieces are black or walnut with one pattern and gold hardware.
+const FUNK = { leopard: ['#e3b452', '#8a5a26', '#17111f'], tiger: ['#ff3d9a', '#17111f'], zebra: ['#8a3fd1', '#fff3d6'], patch: ['#6b2d8f', '#c2255c', '#e8a33d', '#1f8a8a', '#7a2331', '#3b2416'],
+  quilt: ['#ff3d9a', '#c2187a', '#ffd23f'], shag: ['#ff3d9a', '#ff7fc0', '#d91c7c'], velvet: ['#5b2a86', '#7a3fb0'], black: 0x1b1622, walnut: 0x4a2f1c, gold: 0xe0aa2a };
+const funkCache = {};
+function funkTex(kind) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'), N = 256, col = FUNK[kind];
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  g.fillStyle = col[0]; g.fillRect(0, 0, N, N);
+  if (kind === 'leopard') {
+    for (let i = 0; i < 32; i++) { const x = rnd() * N, y = rnd() * N, r = 8 + rnd() * 8, a = rnd() * 3;
+      for (const [ox, oy] of [[0, 0], [N, 0], [-N, 0], [0, N], [0, -N]]) { g.fillStyle = col[1]; g.beginPath(); g.ellipse(x + ox, y + oy, r, r * 0.8, a, 0, 7); g.fill(); g.strokeStyle = col[2]; g.lineWidth = 5; g.beginPath(); g.ellipse(x + ox, y + oy, r + 3, r * 0.8 + 3, a, 0.4, 2.5); g.stroke(); g.beginPath(); g.ellipse(x + ox, y + oy, r + 3, r * 0.8 + 3, a, 3.5, 5.7); g.stroke(); } }
+  } else if (kind === 'tiger' || kind === 'zebra') {
+    g.strokeStyle = col[1]; g.lineCap = 'round';
+    for (let y = 0; y < N; y += 32) for (const yy of [y, y + N, y - N]) for (const side of [0, 1]) { g.lineWidth = 9 + ((y * 7) % 8); g.beginPath(); const x0 = side ? N + 10 : -10, x1 = N / 2 + ((y * 13) % 60) - 30; g.moveTo(x0, yy + 4); g.quadraticCurveTo((x0 + x1) / 2, yy + ((y * 5) % 24) - 6, x1, yy + 20); g.stroke(); }
+  } else if (kind === 'patch') {
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = col[(i * 5 + j * 3 + ((i * j) % 2)) % col.length]; g.fillRect(i * 64, j * 64, 64, 64); g.strokeStyle = 'rgba(255,243,214,.75)'; g.lineWidth = 2; g.setLineDash([6, 5]); g.strokeRect(i * 64 + 4, j * 64 + 4, 56, 56); }
+    g.setLineDash([]);
+  } else if (kind === 'quilt') {
+    g.strokeStyle = col[1]; g.lineWidth = 5;
+    for (let k = -N; k <= N * 2; k += 64) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + N, N); g.stroke(); g.beginPath(); g.moveTo(k, 0); g.lineTo(k - N, N); g.stroke(); }
+    g.fillStyle = col[2]; for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) { g.beginPath(); g.arc(i * 64, j * 64, 5, 0, 7); g.fill(); g.beginPath(); g.arc(i * 64 + 32, j * 64 + 32, 5, 0, 7); g.fill(); }
+  } else if (kind === 'shag') {
+    for (let i = 0; i < 2600; i++) { g.strokeStyle = col[1 + (i % 2)]; g.lineWidth = 2; const x = rnd() * N, y = rnd() * N, a = rnd() * 6.3; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 9, y + Math.sin(a) * 9); g.stroke(); }
+  } else if (kind === 'velvet') {
+    for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '0,0,0'},${rnd() * 0.07})`; g.fillRect(rnd() * N, rnd() * N, 3, 14); }
+    const sh = g.createLinearGradient(0, 0, N, 0); sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(0.5, 'rgba(255,255,255,.12)'); sh.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = sh; g.fillRect(0, 0, N, N);
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+// A material in one of the camp's finishes. rx, ry: how many times the pattern repeats across a face.
+function funk(kind, rx = 1, ry = 1, extra = {}) {
+  const key = `${kind}|${rx}|${ry}|${JSON.stringify(extra)}`;
+  if (funkCache[key]) return funkCache[key];
+  let m;
+  if (kind === 'gold') m = new THREE.MeshLambertMaterial({ color: FUNK.gold, emissive: 0x5a3d00, ...extra });
+  else if (kind === 'black' || kind === 'walnut') m = new THREE.MeshLambertMaterial({ color: FUNK[kind], ...extra });
+  else { const map = funkTex(kind); map.repeat.set(rx, ry); m = new THREE.MeshLambertMaterial({ map, ...extra }); }
+  return (funkCache[key] = m);
+}
 const campLook = {};
 function buildCampLook() {
   const tent = new THREE.Group();
@@ -334,23 +376,27 @@ function buildCampLook() {
   });
   campLook.fly = new THREE.Group();
   for (const s of [1, -1]) {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(2.95, 2.0), new THREE.MeshLambertMaterial({ color: 0x8fa3ad, side: THREE.DoubleSide }));
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(2.95, 2.0), funk('leopard', 2, 1.4, { side: THREE.DoubleSide }));
     m.position.copy(onSlope(s, 0.5, 0, 0.09)); facing(m, s); m.castShadow = true;
     campLook.fly.add(m);
+    const skin = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 1.86), funk('tiger', 2, 1.4, { side: THREE.DoubleSide })); // your colours over the old canvas, whatever tent you own
+    skin.position.copy(onSlope(s, 0.5, 0, 0.05)); facing(skin, s); tent.add(skin);
   }
-  campLook.porch = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.3), new THREE.MeshLambertMaterial({ color: 0x8fa3ad, side: THREE.DoubleSide }));
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(1.05, 24), funk('shag', 2, 2)); rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.025, 2.05); rug.receiveShadow = true; tent.add(rug); // the shag rug at the door
+  campLook.porch = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.3), funk('velvet', 2, 1, { side: THREE.DoubleSide }));
   campLook.porch.position.set(0, 1.25, 2.1); campLook.porch.rotation.x = -1.15;
   tent.add(campLook.patches, campLook.fly, campLook.porch);
 
   const cooler = new THREE.Group();
   cooler.position.set(CAMP.cooler[0], 0, CAMP.cooler[1]); cooler.rotation.y = 0;
-  mesh(new THREE.BoxGeometry(0.72, 0.4, 0.42), lambert(0x2f6fb0), 0, 0.26, 0, cooler);
-  mesh(new THREE.BoxGeometry(0.75, 0.08, 0.45), lambert(0xf2efe6), 0, 0.5, 0, cooler);
+  mesh(new THREE.BoxGeometry(0.72, 0.4, 0.42), funk('black'), 0, 0.26, 0, cooler);
+  mesh(new THREE.BoxGeometry(0.75, 0.08, 0.45), funk('leopard'), 0, 0.5, 0, cooler);
+  for (const x of [-0.2, 0.2]) mesh(new THREE.BoxGeometry(0.08, 0.1, 0.03), funk('gold'), x, 0.42, 0.22, cooler); // latches
   campLook.tape = new THREE.Group();
-  for (const x of [-0.2, 0.05, 0.24]) mesh(new THREE.BoxGeometry(0.07, 0.085, 0.47), lambert(0x9aa0a6), x, 0.5, 0, campLook.tape).rotation.y = x;
+  for (const x of [-0.2, 0.05, 0.24]) mesh(new THREE.BoxGeometry(0.07, 0.085, 0.47), funk('gold'), x, 0.5, 0, campLook.tape).rotation.y = x;
   campLook.wheels = new THREE.Group();
   for (const z of [-0.23, 0.23]) { const w = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 12), lambert(0x1c1c1c), -0.3, 0.1, z, campLook.wheels); w.rotation.x = Math.PI / 2; }
-  const pull = mesh(new THREE.BoxGeometry(0.04, 0.6, 0.04), lambert(0x9aa0a6), 0.42, 0.55, 0, campLook.wheels); pull.rotation.z = -0.5;
+  const pull = mesh(new THREE.BoxGeometry(0.04, 0.6, 0.04), lambert(0xff3d9a), 0.42, 0.55, 0, campLook.wheels); pull.rotation.z = -0.5;
   cooler.add(campLook.tape, campLook.wheels);
   campLook.cooler = cooler;
   scene.add(cooler);
@@ -360,30 +406,32 @@ function buildCampLook() {
   // the workbench: a door on two milk crates, with scrap and tools on it
   const bench = new THREE.Group();
   bench.position.set(CAMP.bench[0], 0, CAMP.bench[1]); bench.rotation.y = Math.PI / 2; // square to the camp, along its left edge
-  for (const x of [-0.55, 0.55]) mesh(new THREE.BoxGeometry(0.42, 0.62, 0.42), lambert(x < 0 ? 0xd7263d : 0x2f6fb0), x, 0.31, 0, bench);
-  mesh(new THREE.BoxGeometry(1.7, 0.07, 0.72), lambert(0xa9824f), 0, 0.66, 0, bench);
-  mesh(new THREE.BoxGeometry(0.34, 0.1, 0.26), lambert(0xff5d8f), -0.5, 0.75, 0.1, bench).rotation.y = 0.4; // folded fabric
-  mesh(new THREE.BoxGeometry(0.3, 0.06, 0.22), lambert(0x2ec4b6), -0.46, 0.83, 0.08, bench).rotation.y = -0.2;
-  mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.07, 12), lambert(0x9aa0a6), 0.1, 0.73, -0.12, bench); // duct tape
-  mesh(new THREE.BoxGeometry(0.34, 0.03, 0.05), lambert(0x444a52), 0.5, 0.71, 0.12, bench).rotation.y = 0.5; // scissors
-  mesh(new THREE.BoxGeometry(0.34, 0.03, 0.05), lambert(0x444a52), 0.5, 0.71, 0.12, bench).rotation.y = -0.1;
+  for (const x of [-0.55, 0.55]) mesh(new THREE.BoxGeometry(0.42, 0.62, 0.42), funk('black'), x, 0.31, 0, bench);
+  mesh(new THREE.BoxGeometry(1.7, 0.07, 0.72), funk('walnut'), 0, 0.66, 0, bench);
+  mesh(new THREE.BoxGeometry(0.34, 0.1, 0.26), funk('patch', 0.5, 0.5), -0.5, 0.75, 0.1, bench).rotation.y = 0.4; // folded velvet scraps
+  mesh(new THREE.BoxGeometry(0.3, 0.06, 0.22), funk('patch', 0.5, 0.5), -0.46, 0.83, 0.08, bench).rotation.y = -0.2;
+  mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.07, 12), funk('gold'), 0.1, 0.73, -0.12, bench); // gold thread
+  mesh(new THREE.BoxGeometry(0.34, 0.03, 0.05), funk('gold'), 0.5, 0.71, 0.12, bench).rotation.y = 0.5; // scissors
+  mesh(new THREE.BoxGeometry(0.34, 0.03, 0.05), funk('gold'), 0.5, 0.71, 0.12, bench).rotation.y = -0.1;
+  mesh(new THREE.ConeGeometry(0.1, 0.14, 10, 1, true), lambert(0xff3d9a, { side: THREE.DoubleSide }), 0.72, 0.98, -0.22, bench); mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.26, 5), funk('gold'), 0.72, 0.82, -0.22, bench); // a pink lamp
   scene.add(bench);
   solid(CAMP.bench[0], CAMP.bench[1], 0.7);
 
   // things you craft that show up at camp
   campLook.shade = new THREE.Group();
   const sx = (CAMP.stove[0] + CAMP.cooler[0]) / 2, sz = (CAMP.stove[1] + CAMP.cooler[1]) / 2;
-  for (const [dx, dz, h] of [[-1.7, -1.3, 2.3], [1.7, -1.3, 2.3], [-1.7, 1.3, 1.9], [1.7, 1.3, 1.9]]) mesh(new THREE.CylinderGeometry(0.03, 0.03, h, 6), lambert(0xb9c2c9), sx + dx, h / 2, sz + dz, campLook.shade);
-  const tarp = mesh(new THREE.PlaneGeometry(3.5, 2.7), new THREE.MeshLambertMaterial({ color: 0x3d7bd9, side: THREE.DoubleSide }), sx, 2.12, sz, campLook.shade);
+  for (const [dx, dz, h] of [[-1.7, -1.3, 2.3], [1.7, -1.3, 2.3], [-1.7, 1.3, 1.9], [1.7, 1.3, 1.9]]) mesh(new THREE.CylinderGeometry(0.03, 0.03, h, 6), funk('gold'), sx + dx, h / 2, sz + dz, campLook.shade);
+  const tarp = mesh(new THREE.PlaneGeometry(3.5, 2.7), funk('zebra', 2, 1.5, { side: THREE.DoubleSide }), sx, 2.12, sz, campLook.shade);
   tarp.rotation.x = -Math.PI / 2 + 0.15; tarp.castShadow = true;
   campLook.totem = new THREE.Group();
   campLook.totem.position.set(CAMP.tent[0] + 2.6, 0, CAMP.tent[1] + 1.6);
-  mesh(new THREE.CylinderGeometry(0.035, 0.045, 3.4, 6), lambert(0x6b4a2b), 0, 1.7, 0, campLook.totem);
+  mesh(new THREE.CylinderGeometry(0.045, 0.055, 3.4, 8), funk('leopard', 1, 6), 0, 1.7, 0, campLook.totem);
   [0xff5d8f, 0xffc93c, 0x2ec4b6, 0x8f6aff, 0xff7b54, 0x7cf29a].forEach((col, i) => {
     const a = i * 1.9, y = 1.5 + i * 0.36;
     mesh(new THREE.SphereGeometry(0.075, 10, 8), new THREE.MeshBasicMaterial({ color: col }), Math.cos(a) * 0.1, y, Math.sin(a) * 0.1, campLook.totem).castShadow = false;
   });
-  mesh(new THREE.OctahedronGeometry(0.2), new THREE.MeshBasicMaterial({ color: 0xfff3a0 }), 0, 3.55, 0, campLook.totem).castShadow = false;
+  mesh(new THREE.IcosahedronGeometry(0.24, 1), new THREE.MeshLambertMaterial({ color: 0xdfe8f2, emissive: 0x6a7a90, flatShading: true }), 0, 3.6, 0, campLook.totem).castShadow = false; // a mirror ball
+  mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.03, 16), funk('velvet'), 0, 3.82, 0, campLook.totem); mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.16, 12), funk('velvet'), 0, 3.9, 0, campLook.totem); // in a velvet hat
   scene.add(campLook.shade, campLook.totem);
 
   // the garden: up to six planters in two rows; the sprouts in each grow with its crop
@@ -391,7 +439,9 @@ function buildCampLook() {
   for (let i = 0; i < 6; i++) {
     const planter = new THREE.Group();
     planter.position.set(CAMP.garden[0] - (i % 3) * 1.6, 0, CAMP.garden[1] - Math.floor(i / 3) * 1.15); // two straight rows of three
-    mesh(new THREE.BoxGeometry(1.3, 0.34, 0.6), lambert(i < 2 ? 0x8a5a2b : i < 4 ? 0x4a5670 : 0xa9824f), 0, 0.17, 0, planter);
+    mesh(new THREE.BoxGeometry(1.3, 0.34, 0.6), funk('black'), 0, 0.17, 0, planter);
+    mesh(new THREE.BoxGeometry(1.32, 0.14, 0.62), funk('leopard', 3, 0.4), 0, 0.17, 0, planter);
+    for (const [cx, cz] of [[-0.62, -0.27], [0.62, -0.27], [-0.62, 0.27], [0.62, 0.27]]) mesh(new THREE.BoxGeometry(0.09, 0.36, 0.09), funk('gold'), cx, 0.17, cz, planter);
     const soil = mesh(new THREE.BoxGeometry(1.18, 0.05, 0.48), new THREE.MeshLambertMaterial({ color: 0x6b5238 }), 0, 0.35, 0, planter);
     const sprouts = new THREE.Group(); sprouts.position.y = 0.37;
     const leaf = new THREE.MeshLambertMaterial({ color: 0x5cb85c, flatShading: true }), fruit = new THREE.MeshLambertMaterial({ color: 0xe0392b });
@@ -432,26 +482,29 @@ function buildCampLook() {
   campLook.pantry = [null, null];
   { const [px, pz] = CAMP.pantry;
     const crate = new THREE.Group();
-    mesh(new THREE.BoxGeometry(0.8, 0.5, 0.55), lambert(0xa9824f), 0, 0.25, 0, crate);
-    for (const y of [0.14, 0.36]) mesh(new THREE.BoxGeometry(0.84, 0.06, 0.59), lambert(0x8a6a3c), 0, y, 0, crate);
+    mesh(new THREE.BoxGeometry(0.8, 0.5, 0.55), funk('black'), 0, 0.25, 0, crate);
+    for (const y of [0.14, 0.36]) mesh(new THREE.BoxGeometry(0.84, 0.06, 0.59), funk('gold'), 0, y, 0, crate);
     for (const [x, c] of [[-0.2, 0xe0392b], [0.02, 0x4fbf4a], [0.22, 0xe0392b]]) mesh(new THREE.SphereGeometry(0.09, 7, 6), lambert(c), x, 0.54, 0.05, crate);
     const cabinet = new THREE.Group();
-    mesh(new THREE.BoxGeometry(0.9, 1.3, 0.5), lambert(0x7a5632), 0, 0.65, 0, cabinet);
-    for (const x of [-0.22, 0.22]) mesh(new THREE.BoxGeometry(0.4, 1.14, 0.04), lambert(0x9a7445), x, 0.67, 0.26, cabinet);
+    mesh(new THREE.BoxGeometry(0.9, 1.3, 0.5), funk('black'), 0, 0.65, 0, cabinet);
+    for (const x of [-0.22, 0.22]) mesh(new THREE.BoxGeometry(0.4, 1.14, 0.04), funk('quilt', 1, 2.5), x, 0.67, 0.26, cabinet);
     for (const x of [-0.05, 0.05]) mesh(new THREE.SphereGeometry(0.03, 6, 5), lambert(0xffd23f), x, 0.7, 0.3, cabinet);
     const larder = new THREE.Group();
-    mesh(new THREE.BoxGeometry(1.7, 1.6, 0.55), lambert(0x5d6f58), 0, 0.8, 0, larder);
-    for (const x of [-0.63, -0.21, 0.21, 0.63]) mesh(new THREE.BoxGeometry(0.38, 1.42, 0.04), lambert(0x7d927a), x, 0.82, 0.29, larder);
-    mesh(new THREE.BoxGeometry(1.8, 0.07, 0.65), lambert(0x8a6a3c), 0, 1.63, 0, larder);
+    mesh(new THREE.BoxGeometry(1.7, 1.6, 0.55), funk('black'), 0, 0.8, 0, larder);
+    for (const x of [-0.63, -0.21, 0.21, 0.63]) mesh(new THREE.BoxGeometry(0.38, 1.42, 0.04), funk('zebra', 1, 3), x, 0.82, 0.29, larder);
+    mesh(new THREE.BoxGeometry(1.8, 0.07, 0.65), funk('gold'), 0, 1.63, 0, larder);
     for (const [x, c] of [[-0.5, 0xe0392b], [-0.3, 0xe0392b], [0.1, 0x4fbf4a], [0.45, 0xe8a33d]]) mesh(new THREE.SphereGeometry(0.1, 7, 6), lambert(c), x, 1.76, 0, larder);
     for (const g of [crate, cabinet, larder]) { g.position.set(px, 0, pz); g.rotation.y = -0.5; g.visible = false; scene.add(g); campLook.pantry.push(g); }
   }
   // the kitchen counter: a plank on two crates, with a sign that goes up when you are open
   campLook.counter = new THREE.Group();
   campLook.counter.position.set(CAMP.counter[0], 0, CAMP.counter[1]); campLook.counter.rotation.y = Math.PI / 2; // side-on to the kitchen, facing the open ground where the queue forms
-  mesh(new THREE.BoxGeometry(1.9, 0.07, 0.6), lambert(0xa9824f), 0, 0.95, 0, campLook.counter);
-  for (const x of [-0.7, 0.7]) mesh(new THREE.BoxGeometry(0.45, 0.92, 0.5), lambert(0x6b4a2b), x, 0.46, 0, campLook.counter);
-  for (const x of [-0.92, 0.92]) mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.9, 6), lambert(0x6b4a2b), x, 1.9, 0, campLook.counter); // posts that carry the sign above head height, so whoever is serving can be seen
+  mesh(new THREE.BoxGeometry(1.9, 0.07, 0.6), funk('walnut'), 0, 0.95, 0, campLook.counter);
+  for (const x of [-0.7, 0.7]) mesh(new THREE.BoxGeometry(0.45, 0.92, 0.5), funk('black'), x, 0.46, 0, campLook.counter);
+  for (const z of [-0.27, 0.27]) mesh(new THREE.PlaneGeometry(1.9, 0.9), funk('leopard', 3, 1.4, { side: THREE.DoubleSide }), 0, 0.47, z, campLook.counter); // a leopard skirt, front and back
+  mesh(new THREE.BoxGeometry(1.9, 0.09, 0.05), funk('patch', 3, 0.15), 0, 0.9, 0.3, campLook.counter); mesh(new THREE.BoxGeometry(1.9, 0.09, 0.05), funk('patch', 3, 0.15), 0, 0.9, -0.3, campLook.counter); // a patchwork runner along each edge
+  { const awn = mesh(new THREE.PlaneGeometry(2.1, 0.9), funk('tiger', 2, 0.8, { side: THREE.DoubleSide }), 0, 3.02, 0, campLook.counter); awn.rotation.x = -Math.PI / 2; awn.castShadow = true; for (const z of [-0.45, 0.45]) mesh(new THREE.BoxGeometry(2.1, 0.1, 0.02), funk('gold'), 0, 2.98, z, campLook.counter); } // the awning and its gold fringe
+  for (const x of [-0.92, 0.92]) mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.9, 6), funk('gold'), x, 1.9, 0, campLook.counter); // posts that carry the sign above head height, so whoever is serving can be seen
   campLook.counter.visible = false; scene.add(campLook.counter);
   campLook.openSign = signBoard('KITCHEN OPEN', CAMP.counter[0], 2.62, CAMP.counter[1], Math.PI / 2, 1.7, 0.42, { bg: '#7cf29a' }); campLook.openSign.visible = false;
   campLook.shutSign = signBoard('CLOSED', CAMP.counter[0], 2.62, CAMP.counter[1], Math.PI / 2, 1.2, 0.42, { bg: '#fff3d6' }); campLook.shutSign.visible = false;
@@ -460,8 +513,9 @@ function buildCampLook() {
   campLook.myco.position.set(CAMP.myco[0], 0, CAMP.myco[1]); campLook.myco.rotation.y = Math.PI / 2;
   mesh(new THREE.CylinderGeometry(0.2, 0.22, 1.2, 10), lambert(0x6b4a2b), -0.5, 0.2, 0, campLook.myco).rotation.z = Math.PI / 2;
   mesh(new THREE.BoxGeometry(0.5, 0.6, 0.4), lambert(0xe2c98a), 0.55, 0.3, 0, campLook.myco);
-  mesh(new THREE.BoxGeometry(1.5, 0.05, 0.35), lambert(0xa9824f), 0, 0.85, -0.3, campLook.myco);
-  for (const x of [-0.65, 0.65]) mesh(new THREE.BoxGeometry(0.06, 0.85, 0.06), lambert(0x6b4a2b), x, 0.42, -0.3, campLook.myco);
+  mesh(new THREE.BoxGeometry(1.5, 0.05, 0.35), funk('black'), 0, 0.85, -0.3, campLook.myco);
+  for (const x of [-0.65, 0.65]) mesh(new THREE.BoxGeometry(0.06, 0.85, 0.06), funk('gold'), x, 0.42, -0.3, campLook.myco);
+  for (let k = 0; k < 9; k++) mesh(new THREE.SphereGeometry(0.03, 6, 5), lambert(k % 2 ? 0xff3d9a : 0xffd23f), -0.72, 0.8 - k * 0.085, -0.12, campLook.myco); // a string of beads down one side
   campLook.caps = [];
   for (let i = 0; i < 4; i++) { // one little cluster per growing spot
     const cap = mesh(new THREE.SphereGeometry(0.12, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xe8dcc6 }), -0.5 + i * 0.34, i < 2 ? 0.4 : 0.9, i < 2 ? 0 : -0.3, campLook.myco);
@@ -489,8 +543,8 @@ function buildCampLook() {
   const shelf = new THREE.Group(), gold = new THREE.MeshLambertMaterial({ color: 0xffc93c, emissive: 0x6b4a00 });
   shelf.position.set(CAMP.tent[0] - 3.4, 0, CAMP.tent[1] - 0.4); shelf.rotation.y = 0.9;
   campLook.trophy = { grabber: new THREE.Group(), spatula: new THREE.Group(), flag: new THREE.Group(), disco: new THREE.Group() };
-  campLook.shelf = mesh(new THREE.BoxGeometry(1.5, 0.06, 0.34), lambert(0xa9824f), 0, 0.7, 0, shelf);
-  for (const x of [-0.6, 0.6]) mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), lambert(0x6b4a2b), x, 0.35, 0, shelf);
+  campLook.shelf = mesh(new THREE.BoxGeometry(1.5, 0.06, 0.34), funk('black'), 0, 0.7, 0, shelf);
+  for (const x of [-0.6, 0.6]) mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), funk('gold'), x, 0.35, 0, shelf);
   const gr = campLook.trophy.grabber; // a litter grabber: a stick with a claw
   mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.8, 6), gold, 0, 0.4, 0, gr).rotation.z = 0.25;
   for (const s of [-1, 1]) mesh(new THREE.BoxGeometry(0.03, 0.16, 0.03), gold, 0.1 + s * 0.05, 0.84, 0, gr).rotation.z = s * 0.5;
@@ -500,8 +554,9 @@ function buildCampLook() {
   mesh(new THREE.BoxGeometry(0.2, 0.26, 0.02), gold, 0, 0.6, 0, sp);
   sp.position.set(0, 0.73, 0);
   const fl = campLook.trophy.flag;
-  mesh(new THREE.CylinderGeometry(0.03, 0.035, 3.2, 6), lambert(0x6b4a2b), 0, 1.6, 0, fl);
-  const cloth = mesh(new THREE.PlaneGeometry(0.9, 0.55), new THREE.MeshLambertMaterial({ color: 0xff5d8f, side: THREE.DoubleSide }), 0.48, 2.85, 0, fl); cloth.castShadow = true;
+  mesh(new THREE.CylinderGeometry(0.03, 0.035, 3.2, 6), funk('gold'), 0, 1.6, 0, fl);
+  const cloth = mesh(new THREE.PlaneGeometry(0.9, 0.55), funk('velvet', 1, 1, { side: THREE.DoubleSide }), 0.48, 2.85, 0, fl); cloth.castShadow = true;
+  mesh(new THREE.PlaneGeometry(0.9, 0.09), funk('leopard', 3, 0.3, { side: THREE.DoubleSide }), 0.48, 2.53, 0, fl); mesh(new THREE.PlaneGeometry(0.9, 0.05), funk('gold', 1, 1, { side: THREE.DoubleSide }), 0.48, 2.47, 0, fl); // a leopard border and a gold fringe
   mesh(new THREE.CircleGeometry(0.15, 12), new THREE.MeshBasicMaterial({ color: 0xffc93c, side: THREE.DoubleSide }), 0.48, 2.85, 0.01, fl);
   fl.position.set(0.72, 0, 0);
   const db = campLook.trophy.disco; // a mirror ball on a little stand
@@ -524,10 +579,11 @@ function buildCampLook() {
   // the tank Whip leaves at your camp
   campLook.tank = new THREE.Group();
   campLook.tank.position.set(CAMP.tank[0], 0, CAMP.tank[1]);
-  mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.15, 14), lambert(0x3d7bd9), 0, 0.6, 0, campLook.tank);
-  mesh(new THREE.SphereGeometry(0.2, 14, 8), lambert(0x3d7bd9), 0, 1.17, 0, campLook.tank);
-  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.16, 8), lambert(0xb9c2c9), 0, 1.42, 0, campLook.tank);
-  mesh(new THREE.BoxGeometry(0.22, 0.05, 0.05), lambert(0xd7263d), 0, 1.5, 0, campLook.tank);
+  mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.15, 14), funk('tiger', 2, 2), 0, 0.6, 0, campLook.tank);
+  mesh(new THREE.SphereGeometry(0.2, 14, 8), lambert(0xff3d9a), 0, 1.17, 0, campLook.tank);
+  mesh(new THREE.CylinderGeometry(0.212, 0.212, 0.36, 14), funk('leopard', 3, 0.8), 0, 0.62, 0, campLook.tank);
+  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.16, 8), funk('gold'), 0, 1.42, 0, campLook.tank);
+  mesh(new THREE.BoxGeometry(0.22, 0.05, 0.05), funk('gold'), 0, 1.5, 0, campLook.tank);
   mesh(new THREE.SphereGeometry(0.13, 10, 8), new THREE.MeshLambertMaterial({ color: 0xff5d8f }), 0.3, 1.2, 0.1, campLook.tank); // one filled balloon tied to it
   campLook.tank.visible = false;
   scene.add(campLook.tank);
@@ -536,11 +592,12 @@ function buildCampLook() {
   campLook.corner = new THREE.Group();
   campLook.corner.add(signBoard('YOUR CORNER', -4.2, 2.1, -64.2, 0, 2.6, 0.6, { bg: '#ffc93c' }));
   mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.9, 6), lambert(0x6b4a2b), -4.2, 0.95, -64.2, campLook.corner);
-  mesh(new THREE.BoxGeometry(1.1, 0.5, 0.6), lambert(0x8a5a2b), -4.2, 0.25, -63.4, campLook.corner); // a crate to sell from
+  mesh(new THREE.BoxGeometry(1.1, 0.5, 0.6), funk('black'), -4.2, 0.25, -63.4, campLook.corner); // a crate to sell from
+  mesh(new THREE.BoxGeometry(1.12, 0.2, 0.62), funk('leopard', 3, 0.5), -4.2, 0.25, -63.4, campLook.corner);
   // and the tank you sell from, with a few filled balloons tied to it
-  mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.1, 12), lambert(0x3d7bd9), -3.25, 0.55, -63.5, campLook.corner);
-  mesh(new THREE.SphereGeometry(0.18, 12, 8), lambert(0x3d7bd9), -3.25, 1.1, -63.5, campLook.corner);
-  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 8), lambert(0xb9c2c9), -3.25, 1.32, -63.5, campLook.corner);
+  mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.1, 12), funk('tiger', 2, 2), -3.25, 0.55, -63.5, campLook.corner);
+  mesh(new THREE.SphereGeometry(0.18, 12, 8), lambert(0xff3d9a), -3.25, 1.1, -63.5, campLook.corner);
+  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 8), funk('gold'), -3.25, 1.32, -63.5, campLook.corner);
   for (const [x, y, c] of [[-3.4, 1.75, 0xff5d8f], [-3.05, 1.9, 0xffd23f], [-3.2, 2.1, 0x3aa0ff]]) mesh(new THREE.SphereGeometry(0.14, 10, 8), new THREE.MeshLambertMaterial({ color: c }), x, y, -63.5, campLook.corner);
   campLook.corner.visible = false;
   scene.add(campLook.corner);
@@ -1741,7 +1798,7 @@ async function boot() {
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });
