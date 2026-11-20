@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=78';
+import { createLife, readSave, saveLabel } from './life.js?v=80';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -341,7 +341,7 @@ function buildCampLook() {
   tent.add(campLook.patches, campLook.fly, campLook.porch);
 
   const cooler = new THREE.Group();
-  cooler.position.set(CAMP.cooler[0], 0, CAMP.cooler[1]); cooler.rotation.y = 0.5;
+  cooler.position.set(CAMP.cooler[0], 0, CAMP.cooler[1]); cooler.rotation.y = 0;
   mesh(new THREE.BoxGeometry(0.72, 0.4, 0.42), lambert(0x2f6fb0), 0, 0.26, 0, cooler);
   mesh(new THREE.BoxGeometry(0.75, 0.08, 0.45), lambert(0xf2efe6), 0, 0.5, 0, cooler);
   campLook.tape = new THREE.Group();
@@ -357,7 +357,7 @@ function buildCampLook() {
 
   // the workbench: a door on two milk crates, with scrap and tools on it
   const bench = new THREE.Group();
-  bench.position.set(CAMP.bench[0], 0, CAMP.bench[1]); bench.rotation.y = -0.35;
+  bench.position.set(CAMP.bench[0], 0, CAMP.bench[1]); bench.rotation.y = Math.PI / 2; // square to the camp, along its left edge
   for (const x of [-0.55, 0.55]) mesh(new THREE.BoxGeometry(0.42, 0.62, 0.42), lambert(x < 0 ? 0xd7263d : 0x2f6fb0), x, 0.31, 0, bench);
   mesh(new THREE.BoxGeometry(1.7, 0.07, 0.72), lambert(0xa9824f), 0, 0.66, 0, bench);
   mesh(new THREE.BoxGeometry(0.34, 0.1, 0.26), lambert(0xff5d8f), -0.5, 0.75, 0.1, bench).rotation.y = 0.4; // folded fabric
@@ -388,7 +388,7 @@ function buildCampLook() {
   campLook.plots = [];
   for (let i = 0; i < 6; i++) {
     const planter = new THREE.Group();
-    planter.position.set(CAMP.garden[0] - (i % 3) * 1.55, 0, CAMP.garden[1] - Math.floor(i / 3) * 1.0); planter.rotation.y = 0.3;
+    planter.position.set(CAMP.garden[0] - (i % 3) * 1.6, 0, CAMP.garden[1] - Math.floor(i / 3) * 1.15); // two straight rows of three
     mesh(new THREE.BoxGeometry(1.3, 0.34, 0.6), lambert(i < 2 ? 0x8a5a2b : i < 4 ? 0x4a5670 : 0xa9824f), 0, 0.17, 0, planter);
     const soil = mesh(new THREE.BoxGeometry(1.18, 0.05, 0.48), new THREE.MeshLambertMaterial({ color: 0x6b5238 }), 0, 0.35, 0, planter);
     const sprouts = new THREE.Group(); sprouts.position.y = 0.37;
@@ -446,15 +446,16 @@ function buildCampLook() {
   }
   // the kitchen counter: a plank on two crates, with a sign that goes up when you are open
   campLook.counter = new THREE.Group();
-  campLook.counter.position.set(CAMP.counter[0], 0, CAMP.counter[1]); campLook.counter.rotation.y = -0.35;
+  campLook.counter.position.set(CAMP.counter[0], 0, CAMP.counter[1]); campLook.counter.rotation.y = Math.PI / 2; // side-on to the kitchen, facing the open ground where the queue forms
   mesh(new THREE.BoxGeometry(1.9, 0.07, 0.6), lambert(0xa9824f), 0, 0.95, 0, campLook.counter);
   for (const x of [-0.7, 0.7]) mesh(new THREE.BoxGeometry(0.45, 0.92, 0.5), lambert(0x6b4a2b), x, 0.46, 0, campLook.counter);
+  for (const x of [-0.92, 0.92]) mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.9, 6), lambert(0x6b4a2b), x, 1.9, 0, campLook.counter); // posts that carry the sign above head height, so whoever is serving can be seen
   campLook.counter.visible = false; scene.add(campLook.counter);
-  campLook.openSign = signBoard('KITCHEN OPEN', CAMP.counter[0], 1.75, CAMP.counter[1], -0.35, 1.7, 0.42, { bg: '#7cf29a' }); campLook.openSign.visible = false;
-  campLook.shutSign = signBoard('CLOSED', CAMP.counter[0], 1.75, CAMP.counter[1], -0.35, 1.2, 0.42, { bg: '#fff3d6' }); campLook.shutSign.visible = false;
+  campLook.openSign = signBoard('KITCHEN OPEN', CAMP.counter[0], 2.62, CAMP.counter[1], Math.PI / 2, 1.7, 0.42, { bg: '#7cf29a' }); campLook.openSign.visible = false;
+  campLook.shutSign = signBoard('CLOSED', CAMP.counter[0], 2.62, CAMP.counter[1], Math.PI / 2, 1.2, 0.42, { bg: '#fff3d6' }); campLook.shutSign.visible = false;
   // the mushroom shelf: a log, a bag of straw and a plank of jars
   campLook.myco = new THREE.Group();
-  campLook.myco.position.set(CAMP.myco[0], 0, CAMP.myco[1]); campLook.myco.rotation.y = 0.7;
+  campLook.myco.position.set(CAMP.myco[0], 0, CAMP.myco[1]); campLook.myco.rotation.y = Math.PI / 2;
   mesh(new THREE.CylinderGeometry(0.2, 0.22, 1.2, 10), lambert(0x6b4a2b), -0.5, 0.2, 0, campLook.myco).rotation.z = Math.PI / 2;
   mesh(new THREE.BoxGeometry(0.5, 0.6, 0.4), lambert(0xe2c98a), 0.55, 0.3, 0, campLook.myco);
   mesh(new THREE.BoxGeometry(1.5, 0.05, 0.35), lambert(0xa9824f), 0, 0.85, -0.3, campLook.myco);
@@ -584,7 +585,7 @@ function updateCooler() {
   if (!c) return;
   campLook.coolerSolid.x = state.towing ? 1e6 : CAMP.cooler[0]; // nothing to bump into at camp while the cooler is with you
   if (!state.towing) {
-    if (c.userData.towed) { c.userData.towed = false; c.position.set(CAMP.cooler[0], 0, CAMP.cooler[1]); c.rotation.set(0, 0.5, 0); }
+    if (c.userData.towed) { c.userData.towed = false; c.position.set(CAMP.cooler[0], 0, CAMP.cooler[1]); c.rotation.set(0, 0, 0); }
     return;
   }
   const p = player.root.position, reach = 0.95;
@@ -659,7 +660,10 @@ function person(x, z, rot, amp = 0, kind = 'fixed', look = null) { // look: { mo
 const BOOTH = [-37, -98]; // the Open Decks tent, on the camp side of the Main Stage field
 const VILLAGE = { dome: [-58.5, -149.5], chill: [-28, -143.5], bath: [-24, -159], elder: [-49.5, -152] };
 const inVillage = (x, z) => x < -19 && x > -74 && z < -137;
-const CAMP = { tent: [22, -74.5], stove: [25.8, -76.8], cooler: [23.9, -77.6], bench: [20.4, -78.6], garden: [18.0, -77.3], tank: [19.3, -70.7], myco: [16.9, -72.4], counter: [28.2, -75.2], pantry: [27.9, -78.2] }; // right beside the YOUR CAMP sign, where you cannot miss it
+const CAMP = { tent: [22, -74.5], stove: [26.6, -77.4], cooler: [24.3, -78.3], bench: [15.4, -75.4], garden: [18.4, -78.6], tank: [20.7, -70.2], myco: [16.3, -72.4], counter: [29.6, -74.9], pantry: [29.4, -78.6] };
+// Your camp is yours: nothing is scattered at random inside this patch (x from, x to, z from, z to), so neighbours' tents, fire rings and totems never land on your garden or kitchen.
+const CAMP_PLOT = [12.6, 35.2, -82.2, -66.4];
+const inCamp = (x, z, pad = 0) => x > CAMP_PLOT[0] - pad && x < CAMP_PLOT[1] + pad && z > CAMP_PLOT[2] - pad && z < CAMP_PLOT[3] + pad; // right beside the YOUR CAMP sign, where you cannot miss it
 const CORNER = [-4.2, -63.4]; // the crate under the YOUR CORNER sign, which goes up when Vinny backs off
 const WHIP = [12.4, -52.6]; // the twitchy guy behind the Costume Shop
 const PERMIT = [4.4, -15.6]; // the lot office sign at the top of Shakedown Street // your ratty tent, near the gate end of the Campgrounds
@@ -710,17 +714,17 @@ function buildWorld() {
   for (let i = 0; i < 26; i++) { const side = Math.random() < 0.5 ? -1 : 1; person(side * rand(4.4, 5.6), rand(-60, -20), side * -Math.PI / 2 + rand(-0.6, 0.6), 0.02, 'street'); }
   // your camp goes in first so the neighbours pitch around it
   put('ridgetent', CAMP.tent[0], CAMP.tent[1], 2.5);
-  put('campset', CAMP.stove[0], CAMP.stove[1], 0.7);
+  put('campset', CAMP.stove[0], CAMP.stove[1], 0);
   signBoard('YOUR CAMP', CAMP.tent[0] - 2.4, 2.0, CAMP.tent[1] + 2.4, 0.5, 2.3, 0.56, { bg: '#ffc93c' });
   mesh(new THREE.BoxGeometry(0.08, 1.75, 0.08), lambert(0x6b4a2b), CAMP.tent[0] - 2.4, 0.87, CAMP.tent[1] + 2.4);
   // the Campgrounds
   solid(1e6, CORNER[1], 0.6); campLook.cornerSolid = colliders[colliders.length - 1]; // the crate is only in the way once the corner is yours
   solid(1e6, CAMP.pantry[1], 0.6); campLook.pantrySolid = colliders[colliders.length - 1]; // moved into place once you own a cabinet
-  solid(CAMP.counter[0], CAMP.counter[1], 0.75); solid(CAMP.counter[0] + 2.4, CAMP.counter[1] + 1.3, 0.3); // your kitchen counter and its queue: keeps the neighbours' tents off them
+  solid(CAMP.counter[0], CAMP.counter[1], 0.75); // your kitchen counter and its queue: keeps the neighbours' tents off them
   let n = 0, tries = 0;
   while (n < 76 && tries++ < 1200) {
     const x = rand(-22, 48), z = rand(-120, -72);
-    if (nearRoute(x, z, 4) || colliders.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 2.6) ** 2)) continue;
+    if (inCamp(x, z, 1.6) || nearRoute(x, z, 4) || colliders.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 2.6) ** 2)) continue;
     const r = Math.random();
     if (r < 0.36) put('dometent', x, z, rand(0, tau), rand(0.85, 1.15), hue());
     else if (r < 0.66) put('ridgetent', x, z, rand(0, tau), rand(0.85, 1.15), hue());
@@ -741,7 +745,7 @@ function buildWorld() {
   mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.2, 14), lambert(0x3d7bd9), 46.1, 2.95, -65.7).rotation.z = Math.PI / 2;
   signBoard('SHOWERS $3', 46.1, 2.65, -66.75, Math.PI, 2.4, 0.56, { bg: '#fff3d6' });
   for (let i = 0; i < 6; i++) put('potty', 34 + i * 1.45, -66, Math.PI + rand(-0.05, 0.05), 1, 0);
-  for (let i = 0; i < 16; i++) { const x = rand(-20, 46), z = rand(-118, -74); if (!nearRoute(x, z, 2)) put('totem', x, z, rand(0, tau), rand(0.8, 1.1), hue()); }
+  for (let i = 0; i < 16; i++) { const x = rand(-20, 46), z = rand(-118, -74); if (!nearRoute(x, z, 2) && !inCamp(x, z, 0.5)) put('totem', x, z, rand(0, tau), rand(0.8, 1.1), hue()); }
   // Moonbeam, your neighbour, always camped beside you. Moonbeam has a model of his own now (see the loader below); he is also picked out by
   // everything around him: a name over his head, and a little moon camp
   // (a crescent on a pole, stars on a string, an indigo rug, a lantern) that nobody else on the grounds has.
@@ -771,8 +775,9 @@ function buildWorld() {
     // the name, floating where a nameplate would be; it always faces you
     const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('MOONBEAM', { w: 384, h: 96, bg: '#2b2350', fg: '#ffe9a8', border: '#ffe9a8', size: 58 }), depthWrite: false }));
     tag.scale.set(1.5, 0.375, 1); tag.position.set(0, 2.45, 0); camp.add(tag);
+    campLook.moonTag = tag; campLook.moonCamp = camp;
   }
-  for (let i = 0; i < 20; i++) { const x = rand(-20, 46), z = rand(-118, -74); if (!nearRoute(x, z, 2) && !colliders.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 0.8) ** 2)) person(x, z, rand(0, tau), 0.015, 'camp'); }
+  for (let i = 0; i < 20; i++) { const x = rand(-20, 46), z = rand(-118, -74); if (!inCamp(x, z) && !nearRoute(x, z, 2) && !colliders.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 0.8) ** 2)) person(x, z, rand(0, tau), 0.015, 'camp'); }
   // Main Stage Field
   put('stage', -70, -121, Math.PI / 2);
   { // the Open Decks tent: a canopy, a table with a controller on it, and two speakers
@@ -832,6 +837,49 @@ function prepClip(clip, name, stripPosition = false) {
     return true;
   });
   return c;
+}
+// ---- Moonbeam at work. Hired on the counter, he walks over and stands behind it facing the queue; off shift he goes home to his
+// rug. What he is doing shows in how he moves: he waves a customer in, reaches across to hand a sandwich over, shrugs when
+// there is nothing to give them, and looks up and down the line while he waits. The rules tell us what happened through
+// state.pal.act = { kind, at }; this only draws it. Each pose is extra rotation laid over the idle animation, bone by bone.
+const MOON_POSE = {
+  // kind: seconds it lasts, and for each bone [x, y, z] in radians at full strength (plus an optional wobble). Axes found by eye on
+  // this rig: RightArm z- lifts it up and out, both arms x- bring the hands forward at waist height.
+  greet: { secs: 1.6, bones: { RightArm: [0, 0, -1.3], RightForeArm: [0, 0, -0.7], Head: [0.1, 0, 0] }, wobble: { bone: 'RightForeArm', axis: 2, amount: 0.4, speed: 14 } }, // a wave as a customer reaches the counter
+  wave: { secs: 1.4, bones: { RightArm: [0, 0, -1.3], RightForeArm: [0, 0, -0.7] }, wobble: { bone: 'RightForeArm', axis: 2, amount: 0.4, speed: 14 } }, // the same wave, for you
+  serve: { secs: 1.2, bones: { RightArm: [-1.1, 0, 0], LeftArm: [-1.1, 0, 0], Spine01: [0.16, 0, 0] } }, // both hands out across the counter
+  sorry: { secs: 1.7, bones: { RightArm: [0, 0, -0.45], LeftArm: [0, 0, 0.45], RightForeArm: [-0.8, 0, 0], LeftForeArm: [-0.8, 0, 0] }, wobble: { bone: 'Head', axis: 1, amount: 0.35, speed: 8 } }, // open hands and a shake of the head: nothing to give them
+  waiting: { secs: 0, bones: {}, wobble: { bone: 'Head', axis: 1, amount: 0.4, speed: 0.9 } }, // on shift with nobody at the counter: he looks up and down the line
+};
+function moonbeamShift(dt) {
+  const m = moonbeam, k = state.kitchen, now = (state.day || 0) * 24 + (state.hour || 0);
+  const working = !!k && k.hire && k.hire.job === 'front' && now < k.hire.until && !!state.craft.made.sign;
+  const post = working ? [CAMP.counter[0] - 0.95, CAMP.counter[1], Math.PI / 2] : m.home; // behind the counter, facing the queue
+  const P = m.root.position, dx = post[0] - P.x, dz = post[1] - P.z, d = Math.hypot(dx, dz);
+  if (d > 0.06) { // walking between his rug and the counter
+    if (d > 30) P.set(post[0], 0, post[1]); // the clock jumped: he is simply there
+    else { const stepLen = Math.min(d, 1.5 * dt); P.x += dx / d * stepLen; P.z += dz / d * stepLen; m.root.rotation.y = Math.atan2(dx, dz); play(m, 'Walk'); }
+  } else {
+    play(m, 'Idle');
+    let turn = post[2] - m.root.rotation.y; turn = Math.atan2(Math.sin(turn), Math.cos(turn)); m.root.rotation.y += turn * Math.min(1, dt * 6);
+  }
+  // the person the rules call Moonbeam, the name over his head and the thing you bump into all go where he goes
+  if (m.stand) { m.stand.x = P.x; m.stand.z = P.z; if (m.stand.col) { m.stand.col.x = P.x; m.stand.col.z = P.z; } }
+  if (campLook.moonTag) campLook.moonTag.position.set(P.x - campLook.moonCamp.position.x, 2.45, P.z - campLook.moonCamp.position.z);
+  // a wave when you walk up to him, on or off shift
+  if (player) { const near = Math.hypot(player.root.position.x - P.x, player.root.position.z - P.z) < 3.6; if (near && !m.sawYou && d <= 0.06 && state.mode === 'free') state.pal.act = { kind: 'wave', at: state.t }; m.sawYou = near; }
+  if (d > 0.06) return; // no gestures mid-stride
+  if (working && m.bones.Hips) { // the idle he was given swings his whole body round to look about; behind a counter he keeps facing the customers
+    if (!m.hipsRest) { const t = m.actions.Idle.getClip().tracks.find((x) => x.name === 'Hips.quaternion'); m.hipsRest = t ? new THREE.Quaternion().fromArray(t.values, 0) : m.bones.Hips.quaternion.clone(); }
+    m.bones.Hips.quaternion.slerp(m.hipsRest, 0.85);
+  }
+  const act = state.pal && state.pal.act, pose = act && MOON_POSE[act.kind], age = act ? state.t - act.at : 99;
+  let use = null, w = 0;
+  if (pose && age >= 0 && age < pose.secs) { use = pose; const u = age / pose.secs; w = Math.sin(Math.PI * Math.min(1, u * 1.15)) ** 0.6; } // ease in, hold, ease out
+  else if (working) { use = MOON_POSE.waiting; w = 1; }
+  if (!use) return;
+  for (const [name, r] of Object.entries(use.bones)) { const b = m.bones[name]; if (b) { b.rotation.x += r[0] * w; b.rotation.y += r[1] * w; b.rotation.z += r[2] * w; } }
+  if (use.wobble) { const b = m.bones[use.wobble.bone]; if (b) b.rotation['xyz'[use.wobble.axis]] += Math.sin(state.t * use.wobble.speed) * use.wobble.amount * w; }
 }
 async function loadCharacter(url) {
   const gltf = await loader.loadAsync(url);
@@ -1414,6 +1462,7 @@ function update(dt) {
     if (state.bath) updateBath(dt);
     if (elder && Math.hypot(p.x - VILLAGE.elder[0], p.z - VILLAGE.elder[1]) < 9) faceTo(elder.root, p.x - VILLAGE.elder[0], p.z - VILLAGE.elder[1], dt, 3);
     for (const ch of [player, patches, buck, vinny, elder, whip, moonbeam, ...goons]) if (ch && ch.root.visible) ch.mixer.update(dt);
+    if (moonbeam) moonbeamShift(dt);
     const d = state.dialogue;
     const typing = !!(d && d.text && d.shown < d.text.length);
     if (typing) { d.shown = Math.min(d.text.length, d.shown + dt * 42); $('line').textContent = d.text.slice(0, Math.floor(d.shown)); }
@@ -1504,17 +1553,19 @@ async function boot() {
   try { // Moonbeam's own model. If it will not load, the crowd figure standing on the moon rug stays as it was.
     moonbeam = await loadCharacter('./assets/moonbeam.glb');
     addAction(moonbeam, 'Idle', prepClip(idle, 'Idle', true));
+    addAction(moonbeam, 'Walk', prepClip(player.clips[0], 'Walk', true), 1.05);
     const mx = CAMP.tent[0] + 5.4, mz = CAMP.tent[1] + 4.6;
     moonbeam.root.position.set(mx, 0, mz); moonbeam.root.rotation.y = -2.2; // facing your tent
     play(moonbeam, 'Idle'); moonbeam.mixer.update(1.7); scene.add(moonbeam.root);
     const stand = people.find((f) => f.x === mx && f.z === mz), inst = stand && instanced[stand.name];
+    moonbeam.stand = stand; moonbeam.home = [mx, mz, -2.2];
     if (stand) stand.s = 0.0001; // the stand-in steps aside: the crowd code redraws every figure at its own size, so shrink that
     if (inst) { inst.mesh.setMatrixAt(stand.n, new THREE.Matrix4().makeScale(0, 0, 0)); inst.mesh.instanceMatrix.needsUpdate = true; }
   } catch (e) { console.warn('Moonbeam not loaded', e); }
   try {
     const base = await loader.loadAsync('./assets/goon.glb');
     // two flank Vinny, one watches the Street once you are noticed, one collects at your camp after a truce
-    const posts = [[4.9, -63.6, -Math.PI / 2 + 0.25, 0xe04a4a, 'flank'], [4.9, -57.4, -Math.PI / 2 - 0.25, 0x3f63c9, 'flank'], [3.6, -34, 1.5, 0x3aa35f, 'watch'], [CAMP.tent[0] + 7, CAMP.tent[1] + 5, -2.4, 0x9a6cf0, 'collect']];
+    const posts = [[4.9, -63.6, -Math.PI / 2 + 0.25, 0xe04a4a, 'flank'], [4.9, -57.4, -Math.PI / 2 - 0.25, 0x3f63c9, 'flank'], [3.6, -34, 1.5, 0x3aa35f, 'watch'], [CAMP.tent[0] + 1.2, CAMP.tent[1] + 6.6, -2.9, 0x9a6cf0, 'collect']];
     for (const [x, z, rot, tint, role] of posts) {
       const model = cloneSkinned(base.scene), root = new THREE.Group(), bones = {};
       model.traverse((o) => {
@@ -1563,7 +1614,7 @@ async function boot() {
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, MOON_POSE, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });

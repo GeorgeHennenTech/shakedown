@@ -1519,7 +1519,7 @@ export function createLife(ctx) {
   const kitchenReady = () => (!made('sign') ? 'build a hand-painted sign at your workbench' : state.gear.stove < 6 ? 'needs the flat-top griddle' : state.gear.land < 3 ? 'needs four garden plots' : true);
   const hired = (job) => state.kitchen.hire.job === job && total() < state.kitchen.hire.until;
   const working = () => total() < state.kitchen.hire.until;
-  const queueSpot = (i) => [COUNTER[0] + 1.3 + i * 0.95, COUNTER[1] + 0.9 + i * 0.35];
+  const queueSpot = (i) => [COUNTER[0] + 1.25 + i * 0.95, COUNTER[1] + (i % 2 ? 0.25 : -0.1)]; // a line straight out from the front of the counter
   function leaveQueue(q) { crowd.release(q.i); state.kitchen.queue = state.kitchen.queue.filter((x) => x !== q); }
   function closeKitchen(quiet) { const k = state.kitchen; k.open = false; for (const q of [...k.queue]) leaveQueue(q); if (!quiet) toast('Sign down. The kitchen is closed.'); }
   function serve(q, byPal) {
@@ -1532,13 +1532,13 @@ export function createLife(ctx) {
       const ok = meets(s, q.want), rank = ok ? s.f.length * 100 + s.p : s.f.length ? 100 + s.p : -s.p;
       if (!best || (ok && !best.ok) || (ok === best.ok && rank < best.rank)) best = { pool, idx, price: s.p, ok, rank, f: s.f };
     });
-    if (!best) { if (!byPal) toast('You have nothing cooked to give them. They wander off.'); k.walked++; leaveQueue(q); return; }
+    if (!best) { if (!byPal) toast('You have nothing cooked to give them. They wander off.'); else state.pal.act = { kind: 'sorry', at: state.t }; k.walked++; leaveQueue(q); return; }
     if (!best.ok && Math.random() < 0.5) { if (!byPal) toast(`"I wanted ${asks(q.want)}." They wander off.`); k.walked++; leaveQueue(q); return; }
     best.pool.splice(best.idx, 1);
     if (!best.ok) k.wrong = (k.wrong || 0) + 1;
     const named = best.ok && q.want !== 'any' && q.want !== 'plain';
     const pay = best.price + (byPal ? 0 : KITCHEN.premium) + (named ? KITCHEN.tip : 0); // served by you, at your own counter: a dollar more than on foot. A named order met: a tip, whoever serves it
-    if (byPal) { state.pal.held = (state.pal.held || 0) + pay; state.pal.told = false; k.palSold++; k.palTake += pay; } // Moonbeam keeps the takings in his apron until you come and collect
+    if (byPal) { state.pal.act = { kind: 'serve', at: state.t }; state.pal.held = (state.pal.held || 0) + pay; state.pal.told = false; k.palSold++; k.palTake += pay; } // Moonbeam keeps the takings in his apron until you come and collect
     else { state.cash += pay; gain('hustle', 2); add('vibes', 0.015); sfx('coin'); toast(`+$${pay} for a ${sandwichName(best.f[0])}. ${named ? `Just what they ordered: $${KITCHEN.tip} tip.` : best.ok ? 'Just what they ordered.' : 'Not what they asked for, but they took it.'}`); }
     state.sold++; k.served++; if (f) { f.next = total() + 3; f.appetite = Math.random() * 0.4; }
     leaveQueue(q);
@@ -1591,8 +1591,8 @@ export function createLife(ctx) {
     }
     for (const q of [...k.queue]) {
       if (!people[q.i] || !people[q.i].called) { k.queue = k.queue.filter((x) => x !== q); continue; }
-      if (!q.at && crowd.waiting(q.i)) { q.at = now; if (atCamp() && !hired('front')) toast(`A customer at your counter wants ${asks(q.want)}.`); }
-      if (q.at && hired('front') && now - q.at > 0.08) serve(q, true);
+      if (!q.at && crowd.waiting(q.i)) { q.at = now; if (hired('front')) state.pal.act = { kind: 'greet', at: state.t }; else if (atCamp()) toast(`A customer at your counter wants ${asks(q.want)}.`); }
+      if (q.at && hired('front') && now - q.at > 0.08) serve(q, true); // about four seconds after his wave
       else if (q.at && now - q.at > 0.9) { if (atCamp()) toast('A customer got tired of waiting and wandered off.'); k.walked++; leaveQueue(q); }
       else if (!q.at && now - q.born > 2) leaveQueue(q);
     }
