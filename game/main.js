@@ -1348,6 +1348,21 @@ function crewAct(ch, st) { // call after the mixer has moved the bones for this 
   if (pose && age >= 0 && age < pose.secs) poseOn(ch, pose, Math.sin(Math.PI * Math.min(1, age / pose.secs * 1.15)) ** 0.6); // ease in, hold, ease out
   else poseOn(ch, CREW_POSE.groove, 1);
 } // metres from the crate, and which way they face
+// ---- Fern, the gardener you hire by the day: she is at your garden while she is on, working her way along the plots.
+let fern = null;
+function fernStand(dt) {
+  if (!fern) return;
+  const on = (state.day || 0) * 24 + (state.hour || 0) < ((state.gardener && state.gardener.until) || 0) && state.mode !== 'creator';
+  fern.root.visible = on;
+  if (!on) return;
+  const n = Math.max(1, Math.min(3, (state.plots || []).length || 1)), i = Math.floor(state.t / 9) % n; /* a few seconds at each plot in the front row */
+  const tx = CAMP.garden[0] - i * 1.6, tz = CAMP.garden[1] + 0.95, p = fern.root.position, dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
+  if (d > 6) p.set(tx, 0, tz); /* just hired, or the garden was moved */
+  else if (d > 0.05) { const step = Math.min(d, dt * 1.1); p.x += dx / d * step; p.z += dz / d * step; }
+  const want = d > 0.15 ? Math.atan2(dx, dz) : Math.PI; /* walking: face where she is going; at a plot: face it */
+  let turn = want - fern.root.rotation.y; turn = Math.atan2(Math.sin(turn), Math.cos(turn)); fern.root.rotation.y += turn * Math.min(1, dt * 6);
+  fern.mixer.update(dt);
+}
 function crewStand(dt) {
   const c = state.corner;
   if (!c) return;
@@ -1983,6 +1998,7 @@ function update(dt) {
     for (const ch of [player, patches, buck, vinny, elder, whip, moonbeam, ...goons]) if (ch && ch.root.visible) ch.mixer.update(dt);
     if (moonbeam) moonbeamShift(dt);
     crewStand(dt);
+    fernStand(dt);
     carLights();
     campLayoutTick();
     clothWind();
@@ -2168,11 +2184,12 @@ async function boot() {
       } catch (e) { console.warn(`Crew model ${id} not loaded`, e); }
     }
   })();
+  (async () => { try { const ch = await loadCharacter('./assets/fern.glb'); addAction(ch, 'Idle', prepClip(idle, 'Idle', true)); play(ch, 'Idle'); ch.root.visible = false; scene.add(ch.root); fern = ch; } catch (e) { console.warn('Fern not loaded', e); } })();
   loadCampModels(); // in the background too
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, CARQ, CAMP_PLOT, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, CAMP, canopyLook, windCloths, crewAt, crewProp, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, get fern() { return fern; }, crewModels, tapLook, showGear, CAMP, canopyLook, windCloths, crewAt, crewProp, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });
