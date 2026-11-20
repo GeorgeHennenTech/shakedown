@@ -31,6 +31,11 @@ export function createFishing({ $, rules, sfx = () => {} }) {
   const root = $('fish'), canvas = $('fishview'), g = canvas.getContext('2d');
   let S = null;
   const held = {};
+  // photographs of the river (art/river, made with Higgsfield); the game's own marks are drawn over them
+  const photo = (src) => { const i = new Image(); i.src = src; return i; };
+  const ready = (i) => i.complete && i.naturalWidth > 0;
+  function cover(i, w, h) { const k = Math.max(w / i.naturalWidth, h / i.naturalHeight), iw = i.naturalWidth * k, ih = i.naturalHeight * k; g.drawImage(i, (w - iw) / 2, (h - ih) / 2, iw, ih); }
+  const SHOT = { dusk: photo('./assets/river/fish-dusk.jpg'), day: photo('./assets/river/fish-day.jpg') };
   let mouseDown = false;
 
   function start(opts) { // { rod, fish, bite, where, bait, clearHead, onDone }
@@ -110,20 +115,31 @@ export function createFishing({ $, rules, sfx = () => {} }) {
   }
   function draw() {
     const [w, h] = fit(), dusk = S.bite > 1.2;
+    const shot = SHOT[dusk ? 'dusk' : 'day'];
+    if (ready(shot)) {
+      cover(shot, w, h);
+      g.strokeStyle = dusk ? 'rgba(255,214,160,.10)' : 'rgba(255,255,255,.10)'; g.lineWidth = 1.5; // the water moves a little
+      for (let i = 0; i < 9; i++) { const y = h * 0.46 + ((i * 47 + S.t * 7) % (h * 0.4)), x = ((i * 173) % w); g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + 40, y + 3, x + 90, y - 3, x + 150 + (i % 3) * 40, y + 1); g.stroke(); }
+    } else {
     const sky = g.createLinearGradient(0, 0, 0, h * 0.34); sky.addColorStop(0, dusk ? '#f08a4b' : '#8fc7e8'); sky.addColorStop(1, dusk ? '#f7c97a' : '#d6eef7');
     g.fillStyle = sky; g.fillRect(0, 0, w, h * 0.34);
     g.fillStyle = '#2f5f3a'; g.beginPath(); g.moveTo(0, h * 0.34); for (let x = 0; x <= w; x += 40) g.lineTo(x, h * 0.34 - 14 - Math.sin(x * 0.02) * 10 - ((x * 7) % 13)); g.lineTo(w, h * 0.34); g.fill(); // the far bank
     g.fillStyle = '#2f6f86'; g.fillRect(0, h * 0.34, w, h);
     g.strokeStyle = 'rgba(255,255,255,.13)'; g.lineWidth = 2;
     for (let i = 0; i < 6; i++) { const y = h * 0.4 + ((i * 53 + S.t * 9) % (h * 0.6)); g.beginPath(); g.moveTo(0, y); g.bezierCurveTo(w * 0.3, y + 8, w * 0.6, y - 8, w, y + 3); g.stroke(); }
-    const waterY = (u) => h * (0.86 - u * 0.44), rodTip = [w * 0.16, h * 0.3];
+    }
+    const waterY = (u) => h * (0.74 - u * 0.28), rodTip = [w * 0.2, h * 0.24];
     // the ripple rings you are aiming for
     if (S.phase === 'cast' || S.phase === 'wait') {
       const ty = waterY(S.target);
       for (let k = 0; k < 3; k++) { const r = 10 + ((S.t * 22 + k * 16) % 48); g.strokeStyle = `rgba(255,243,214,${0.5 - r / 110})`; g.beginPath(); g.ellipse(w * 0.56, ty, r * 1.6, r * 0.5, 0, 0, 7); g.stroke(); }
     }
     // the rod
-    g.strokeStyle = '#6b4a2b'; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath(); g.moveTo(w * 0.02, h * 0.98); g.quadraticCurveTo(w * 0.08, h * 0.5, rodTip[0], rodTip[1] + (S.phase === 'fight' ? S.strain * 26 : 0)); g.stroke();
+    { const tipY = rodTip[1] + (S.phase === 'fight' ? S.strain * 34 : 0); g.lineCap = 'round'; // the rod in your hands: thick at the grip, thin at the tip, a cork handle
+      g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 9; g.beginPath(); g.moveTo(w * 0.035, h * 1.02); g.quadraticCurveTo(w * 0.1, h * 0.52, rodTip[0], tipY + 3); g.stroke();
+      g.strokeStyle = '#2b2019'; g.lineWidth = 7; g.beginPath(); g.moveTo(w * 0.03, h * 1.02); g.quadraticCurveTo(w * 0.095, h * 0.52, rodTip[0], tipY); g.stroke();
+      g.strokeStyle = '#5a4634'; g.lineWidth = 2; g.beginPath(); g.moveTo(w * 0.028, h * 1.02); g.quadraticCurveTo(w * 0.092, h * 0.52, rodTip[0], tipY); g.stroke();
+      g.strokeStyle = '#c9a26b'; g.lineWidth = 13; g.beginPath(); g.moveTo(w * 0.03, h * 1.02); g.lineTo(w * 0.052, h * 0.86); g.stroke(); }
     if (S.phase === 'cast') {
       const my = waterY(S.marker);
       g.fillStyle = '#ffd23f'; g.beginPath(); g.moveTo(w * 0.56 - 60, my); g.lineTo(w * 0.56 - 78, my - 9); g.lineTo(w * 0.56 - 78, my + 9); g.fill();

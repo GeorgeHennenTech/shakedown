@@ -25,6 +25,11 @@ export function swirlStep(rules, pan, speed, dt) {
 export function createPan({ $, rules, sfx = () => {} }) {
   const root = $('pan'), canvas = $('panview'), g = canvas.getContext('2d');
   let S = null; // the pan in progress
+  // photographs of the river (art/river, made with Higgsfield); the game's own marks are drawn over them
+  const photo = (src) => { const i = new Image(); i.src = src; return i; };
+  const ready = (i) => i.complete && i.naturalWidth > 0;
+  function cover(i, w, h) { const k = Math.max(w / i.naturalWidth, h / i.naturalHeight), iw = i.naturalWidth * k, ih = i.naturalHeight * k; g.drawImage(i, (w - iw) / 2, (h - ih) / 2, iw, ih); }
+  const SHOT = { bed: photo('./assets/river/pan-bed.jpg'), ridged: photo('./assets/river/pan-ridged.jpg'), tin: photo('./assets/river/pan-tin.jpg') };
   const mouse = { x: 0, y: 0, down: false, shade: false }, held = {};
 
   function start(opts) { // { pan: 'tin' | 'ridged', rich, where, clearHead, onDone }
@@ -95,8 +100,8 @@ export function createPan({ $, rules, sfx = () => {} }) {
   const panAt = () => { const w = canvas.clientWidth || 720, h = canvas.clientHeight || 380; return [w / 2, h / 2 + 6, Math.min(w, h) * 0.4]; };
   const patchAt = (i) => { const w = canvas.clientWidth || 720, h = canvas.clientHeight || 380; return [w * (0.22 + i * 0.28), h * 0.55, Math.min(w * 0.11, h * 0.3)]; };
   function water(w, h) {
-    g.fillStyle = '#2f6f86'; g.fillRect(0, 0, w, h);
-    g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
+    if (ready(SHOT.bed)) { cover(SHOT.bed, w, h); g.fillStyle = 'rgba(30,70,80,.18)'; g.fillRect(0, 0, w, h); } else { g.fillStyle = '#2f6f86'; g.fillRect(0, 0, w, h); }
+    g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 2;
     for (let i = 0; i < 7; i++) { const y = (i * 61 + S.t * 14) % (h + 40) - 20; g.beginPath(); g.moveTo(0, y); g.bezierCurveTo(w * 0.3, y + 10, w * 0.6, y - 10, w, y + 4); g.stroke(); }
   }
   function draw() {
@@ -105,8 +110,8 @@ export function createPan({ $, rules, sfx = () => {} }) {
     if (S.phase === 'scoop') {
       S.patches.forEach((p, i) => {
         const [x, y, r] = patchAt(i), over = Math.hypot(mouse.x - x, mouse.y - y) < r;
-        g.fillStyle = '#b89f77'; g.beginPath(); g.ellipse(x, y, r, r * 0.72, 0, 0, 7); g.fill();
-        g.fillStyle = 'rgba(120,96,66,.8)'; for (let k = 0; k < 26; k++) { const a = k * 2.4, rr = r * (0.2 + ((k * 37) % 70) / 100); g.beginPath(); g.arc(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.7, 2.2 + (k % 3), 0, 7); g.fill(); }
+        g.fillStyle = ready(SHOT.bed) ? 'rgba(210,190,150,.22)' : '#b89f77'; g.beginPath(); g.ellipse(x, y, r, r * 0.72, 0, 0, 7); g.fill();
+        g.fillStyle = ready(SHOT.bed) ? 'rgba(120,96,66,.25)' : 'rgba(120,96,66,.8)'; for (let k = 0; k < 26; k++) { const a = k * 2.4, rr = r * (0.2 + ((k * 37) % 70) / 100); g.beginPath(); g.arc(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.7, 2.2 + (k % 3), 0, 7); g.fill(); }
         if (p.tell !== 'plain') { g.fillStyle = 'rgba(28,24,30,.7)'; g.beginPath(); g.ellipse(x + r * 0.2, y + r * 0.1, r * 0.42, r * 0.13, 0.5, 0, 7); g.fill(); } // black sand settles where the current slows
         if (p.tell === 'glint') { const tw = (Math.sin(S.t * 5) + 1) / 2; g.fillStyle = `rgba(255,224,120,${0.25 + tw * 0.75})`; g.beginPath(); g.arc(x + r * 0.28, y + r * 0.08, 2.4, 0, 7); g.fill(); }
         g.strokeStyle = over ? '#ffd23f' : 'rgba(255,243,214,.5)'; g.lineWidth = over ? 4 : 2; g.beginPath(); g.ellipse(x, y, r + 6, r * 0.72 + 6, 0, 0, 7); g.stroke();
@@ -118,7 +123,9 @@ export function createPan({ $, rules, sfx = () => {} }) {
       g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(6, 12, R * 1.06, R * 0.96, 0, 0, 7); g.fill();
       g.fillStyle = S.pan === 'ridged' ? '#2c5a3f' : '#9aa3ab'; g.beginPath(); g.ellipse(0, 0, R * 1.05, R * 0.95, 0, 0, 7); g.fill(); // the rim
       g.fillStyle = S.pan === 'ridged' ? '#1e3f2c' : '#7c858d'; g.beginPath(); g.ellipse(0, 0, R * 0.9, R * 0.82, 0, 0, 7); g.fill();
-      if (S.pan === 'ridged') { g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 3; for (const k of [0.62, 0.74, 0.86]) { g.beginPath(); g.ellipse(0, 0, R * k, R * k * 0.91, 0, 2.2, 4.1); g.stroke(); } } // the riffles that catch the heavy stuff
+      const panShot = SHOT[S.pan];
+      if (ready(panShot)) { g.save(); g.beginPath(); g.ellipse(0, 0, R * 1.05, R * 0.95, 0, 0, 7); g.clip(); g.drawImage(panShot, -R * 1.07, -R * 0.97, R * 2.14, R * 1.94); g.fillStyle = 'rgba(60,110,120,.16)'; g.fillRect(-R * 1.1, -R, R * 2.2, R * 2); g.restore(); } // a film of river water in it
+      if (S.pan === 'ridged' && !ready(panShot)) { g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 3; for (const k of [0.62, 0.74, 0.86]) { g.beginPath(); g.ellipse(0, 0, R * k, R * k * 0.91, 0, 2.2, 4.1); g.stroke(); } } // the riffles that catch the heavy stuff
       // sand: the light grains go as you wash, the black sand stays
       const keep = 1 - S.wash;
       S.sand.forEach((p, i) => {
