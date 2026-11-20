@@ -2,7 +2,7 @@
 // Character creator -> the parking lot -> Patches' welcome -> Buck streaks past -> chase him to the river.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { createGraphics } from './gfx.js?v=4';
+import { createGraphics } from './gfx.js?v=6';
 import { createLife, readSave, saveLabel } from './life.js?v=92';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
@@ -58,6 +58,7 @@ Object.assign(sun.shadow.camera, { left: -28, right: 28, top: 28, bottom: -28, n
 sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.035; sun.shadow.radius = 2.5;
 scene.add(sun, sun.target);
 
+const groundWet = { value: 0 }; // 0 dry, 1 soaked: the ground shader and the light pools read it
 // ---------------------------------------------------------------- world helpers
 const colliders = []; // circles the player cannot walk through
 const solid = (x, z, r) => colliders.push({ x, z, r });
@@ -147,10 +148,11 @@ function buildGround(grass, dirt) {
   grass.repeat.set(110, 110);
   const mat = new THREE.MeshLambertMaterial({ map: grass });
   mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uWet = groundWet;
     shader.uniforms.tDirt = { value: dirt };
     shader.uniforms.tMask = { value: mask };
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D tDirt; uniform sampler2D tMask;')
+      .replace('#include <common>', '#include <common>\nuniform sampler2D tDirt; uniform sampler2D tMask; uniform float uWet;')
       .replace('#include <map_fragment>', `
         { vec2 uvWorld = vMapUv / 110.0;
           vec4 k = texture2D(tMask, uvWorld);
@@ -162,6 +164,7 @@ function buildGround(grass, dirt) {
           float d = smoothstep(0.32, 0.62, k.r + edge * 0.35);
           vec3 c = mix(grassC, dirtC, d);
           c = mix(c, sandC, smoothstep(0.3, 0.7, k.g + edge * 0.3));
+          c = mix(c, c * vec3(0.56, 0.62, 0.72), uWet * (0.55 + 0.45 * d)); // rain darkens the ground, the bare dirt most of all
           diffuseColor.rgb *= c; }`);
   };
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(GROUND.size, GROUND.size), mat);
@@ -1735,7 +1738,11 @@ function update(dt) {
     });
   }
   if (crowd && life && !['load', 'creator'].includes(state.mode)) crowd.update(dt, state.t, { hour: state.hour, day: state.day, total: state.day * 24 + state.hour, rain: !!state.weather.rain, heal: state.heal.ids, px: player.root.position.x, pz: player.root.position.z });
-  if (gfx && player) gfx.update(dt, state.t, player.root.position);
+  if (gfx && player) {
+    const now = (state.day || 0) * 24 + (state.hour || 0), wetWant = state.weather && state.weather.rain ? 1 : state.rainedAt !== undefined && now - state.rainedAt < 2 ? 0.45 : 0;
+    groundWet.value += (wetWant - groundWet.value) * Math.min(1, dt * 0.4); gfx.wet = groundWet.value; // the ground soaks and dries slowly
+    gfx.update(dt, state.t, player.root.position);
+  }
 }
 
 // ---------------------------------------------------------------- boot

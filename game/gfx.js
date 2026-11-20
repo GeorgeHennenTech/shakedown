@@ -14,9 +14,9 @@ const LEVELS = ['Low', 'Medium', 'High'];
 
 // Final look: a touch more contrast and colour, warm highlights, darker corners.
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uVignette: { value: 0.38 }, uSaturation: { value: 1.14 }, uContrast: { value: 1.06 } },
+  uniforms: { tDiffuse: { value: null }, uVignette: { value: 0.38 }, uSaturation: { value: 1.14 }, uContrast: { value: 1.06 }, uGrain: { value: 0.02 }, uTime: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uVignette, uSaturation, uContrast; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uVignette, uSaturation, uContrast, uGrain, uTime; varying vec2 vUv;
     void main(){
       vec4 c = texture2D(tDiffuse, vUv);
       float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -25,6 +25,7 @@ const GradeShader = {
       c.rgb *= mix(vec3(0.96, 0.99, 1.06), vec3(1.06, 1.0, 0.92), smoothstep(0.05, 0.9, l)); // cool shadows, warm lights
       vec2 d = vUv - 0.5;
       c.rgb *= 1.0 - uVignette * smoothstep(0.25, 0.95, dot(d, d) * 2.2);
+      c.rgb += (fract(sin(dot(vUv * vec2(1733.0, 977.0) + uTime, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * uGrain; // a little film grain: it hides banding in dark skies
       gl_FragColor = vec4(max(c.rgb, 0.0), c.a);
     }`,
 };
@@ -70,6 +71,9 @@ export function createGraphics({ renderer, scene, camera, sky, ground, maskCanva
   const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: new THREE.Color(2.2, 2.2, 2.6), size: 1.7, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false, toneMapped: false }));
   stars.frustumCulled = false; stars.renderOrder = -0.5;
   scene.add(stars);
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(11, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 2.6, 2.3), transparent: true, opacity: 0, fog: false, depthWrite: false, toneMapped: false }));
+  moon.position.set(sky.position.x + 0.45 * 380, 0.6 * 380, sky.position.z + 0.5 * 380); moon.lookAt(sky.position.x, 0, sky.position.z); moon.renderOrder = -0.4; // where the moonlight comes from
+  scene.add(moon);
 
   // ---- sky light: bake the current sky into a reflection map so every surface picks up its colours
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -97,7 +101,7 @@ export function createGraphics({ renderer, scene, camera, sky, ground, maskCanva
     const wS = sunset * (1 - night), wN = night, wD = Math.max(0, 1 - wS - wN);
     sky.material.opacity = Math.min(1, sunset * 1.2);
     nightSky.material.opacity = night;
-    stars.material.opacity = night * 0.9;
+    stars.material.opacity = night * 0.9; moon.material.opacity = night;
     // where the sun is: up in the east, high at midday, down into the painted sunset
     const t = Math.min(1, Math.max(0, (hour - 5.5) / 14.7));
     const az = t * 4.17, el = Math.max(0.13, Math.sin(Math.PI * t) * 1.08);
@@ -108,7 +112,10 @@ export function createGraphics({ renderer, scene, camera, sky, ground, maskCanva
     lights.hemi.intensity = 1.1 * wD + 0.95 * wS + 0.34 * wN;
     lights.hemi.color.setRGB(...mix3([0.85, 0.93, 1], [1, 0.88, 0.77], [0.4, 0.5, 0.85], wD, wS, wN));
     lights.ambient.intensity = 0.24 * wD + 0.22 * wS + 0.16 * wN;
-    const fog = mix3([0.72, 0.84, 0.93], [0.95, 0.63, 0.42], [0.03, 0.045, 0.11], wD, wS, wN);
+    const fog = mix3([0.72, 0.84, 0.93], [0.95, 0.63, 0.42], [0.035, 0.055, 0.13], wD, wS, wN);
+    scene.fog.near = 70 * wD + 58 * wS + 34 * wN; scene.fog.far = 330 * wD + 300 * wS + 215 * wN; // the dark closes in a little
+    bloom.strength = 0.3 * wD + 0.4 * wS + 0.5 * wN; bloom.threshold = 0.93 * wD + 0.9 * wS + 0.87 * wN; bloom.radius = 0.75 + 0.15 * wN; // lights bleed at night
+    grade.uniforms.uSaturation.value = 1.14 * wD + 1.2 * wS + 1.24 * wN; grade.uniforms.uContrast.value = 1.06 * wD + 1.07 * wS + 1.12 * wN; grade.uniforms.uVignette.value = 0.38 + 0.14 * wN;
     scene.fog.color.setRGB(...fog); scene.background.setRGB(...fog);
     renderer.toneMappingExposure = 1.0 * wD + 1.05 * wS + 1.0 * wN;
     gfx.light = mix3([1.08, 1.06, 0.96], [1.12, 1.0, 0.82], [0.13, 0.17, 0.3], wD, wS, wN);
@@ -129,7 +136,8 @@ export function createGraphics({ renderer, scene, camera, sky, ground, maskCanva
   composer.addPass(ao);
   const bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.3, 0.75, 0.93);
   composer.addPass(bloom);
-  composer.addPass(new ShaderPass(GradeShader));
+  const grade = new ShaderPass(GradeShader);
+  composer.addPass(grade);
   composer.addPass(new OutputPass());
 
   gfx.resize = () => {
@@ -223,7 +231,23 @@ export function createGraphics({ renderer, scene, camera, sky, ground, maskCanva
     const m = new THREE.Matrix4(), col = new THREE.Color(), warm = [[3.2, 2.3, 1.0], [3.0, 1.2, 1.6], [1.2, 2.6, 2.6], [3.0, 2.8, 1.6]];
     spots.forEach((p, i) => { m.makeTranslation(p[0], p[1], p[2]); bulbs.setMatrixAt(i, m); bulbs.setColorAt(i, col.setRGB(...warm[i % warm.length])); });
     scene.add(bulbs); noAO.push(bulbs);
+    bulbList = spots.map((p, i) => ({ p, c: warm[i % warm.length] }));
+    const pc = document.createElement('canvas'); pc.width = pc.height = 64;
+    const pg = pc.getContext('2d'), rg = pg.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.4, 'rgba(255,255,255,0.42)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+    pg.fillStyle = rg; pg.fillRect(0, 0, 64, 64);
+    const flat = new THREE.PlaneGeometry(1, 1); flat.rotateX(-Math.PI / 2);
+    pools = new THREE.InstancedMesh(flat, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(pc), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), spots.length);
+    spots.forEach((p, i) => { m.makeScale(4.6, 1, 4.6); m.setPosition(p[0], 0.045, p[2]); pools.setMatrixAt(i, m); pools.setColorAt(i, col.setRGB(...warm[i % warm.length]).multiplyScalar(0.03)); });
+    pools.frustumCulled = false; pools.renderOrder = 1;
+    scene.add(pools); noAO.push(pools); fancy.push(pools);
+    for (let k = 0; k < 4; k++) { const L = new THREE.PointLight(0xffc27a, 0, 12, 1.7); scene.add(L); nearLights.push(L); }
   };
+  let bulbList = [], pools = null, lightClock = 0;
+  const nearLights = []; // four real lights that hop to whichever bulbs are closest to you
+  const lantern = new THREE.PointLight(0xffd9a8, 0, 9, 1.6); // enough to see your own feet by
+  scene.add(lantern);
+  gfx.wet = 0; // 0 dry, 1 raining: set by main.js
 
   // ---- stage light beams
   const beams = [];
@@ -274,6 +298,18 @@ export function createGraphics({ renderer, scene, camera, sky, ground, maskCanva
     grassMat.uniforms.uLight.value.set(...gfx.light);
     flies.material.opacity = 0.15 + 0.7 * Math.max(gfx.night || 0, sky.material.opacity * 0.6);
     if (ripples) ripples.offset.set(t * 0.006, t * 0.014);
+    grade.uniforms.uTime.value = t % 100;
+    const dark = gfx.night || 0, lit = gfx.level > 0 ? dark : 0;
+    lantern.position.set(focus.x, 2.5, focus.z); lantern.intensity = 1.1 * lit;
+    if (pools) pools.material.opacity = dark * (0.6 + 0.4 * gfx.wet); // wet ground throws the light back harder
+    lightClock -= dt;
+    if (lightClock <= 0 && bulbList.length && lit > 0) {
+      lightClock = 0.3;
+      const best = [];
+      for (const b of bulbList) { const d = (b.p[0] - focus.x) ** 2 + (b.p[2] - focus.z) ** 2; if (best.length < 4 || d < best[3].d) { best.push({ b, d }); best.sort((x, y) => x.d - y.d); if (best.length > 4) best.pop(); } }
+      best.forEach(({ b }, k) => { nearLights[k].position.set(b.p[0], b.p[1] - 0.2, b.p[2]); nearLights[k].color.setRGB(b.c[0] / 3.2, b.c[1] / 3.2, b.c[2] / 3.2); });
+    }
+    for (const L of nearLights) L.intensity = 5 * lit;
     for (const b of beams) { b.material.opacity = 0.07 + 0.2 * (gfx.night || 0); b.rotation.x = Math.sin(t * 0.7 + b.userData.ph) * 0.5; b.rotation.z = 0.5 + Math.cos(t * 0.5 + b.userData.ph) * 0.35; }
     if (gfx.level > 0) {
       for (let i = 0; i < FLIES; i++) {
