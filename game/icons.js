@@ -2,6 +2,9 @@
 const svg = (body) => `<svg viewBox="0 0 48 48" aria-hidden="true"><g stroke="#17111f" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">${body}</g></svg>`;
 
 export const ICONS = {
+  pietin: svg(`<ellipse cx="24" cy="28" rx="19" ry="11" fill="#b9c2c9"/><ellipse cx="24" cy="26" rx="14" ry="7" fill="#8d979f"/><path d="M12 22l3 3M34 21l-2 3" fill="none"/>`),
+  goldflake: svg(`<path d="M12 20h24l-3 22H15z" fill="#8a5a2b"/><path d="M14 20c0-6 4-9 10-9s10 3 10 9" fill="#a9824f"/><path d="M19 12l5-7 5 7" fill="none"/><g fill="#ffd23f"><circle cx="20" cy="29" r="2.6"/><circle cx="27" cy="33" r="2.2"/><circle cx="24" cy="26" r="1.8"/></g>`),
+  nugget: svg(`<path d="M10 30l5-12 10-5 11 6 3 11-8 9-13 1z" fill="#ffd23f"/><path d="M16 21l6-3M27 30l6 2" stroke="#fff" fill="none"/><path d="M15 18l10 8 14 4M25 26l-7 15" fill="none"/>`),
   // seed packets: each shows the plant it grows
   seeds: svg(`<path d="M9 12h30l-3 32H12z" fill="#e2b877"/><path d="M9 12l4-8h22l4 8z" fill="#c9a05c"/><path d="M13 8h22" fill="none"/><g transform="translate(11.5 16.5) scale(0.52)"><path d="M24 44V20" fill="none"/><path d="M24 22C12 22 8 14 8 6c10 0 16 6 16 16zM24 26c11 0 16-7 16-16-10 0-16 6-16 16zM24 34c-8 0-12-4-12-9 7 0 12 3 12 9z" fill="#5cb85c"/>
     <path d="M17 40h14" stroke="#c9822b" fill="none"/></g>`),

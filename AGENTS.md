@@ -36,11 +36,13 @@ It needs `art/logo/`, which is on Seth's Mac but not in the repository (see "Wha
 | `game/life.js` | Nearly all game rules: needs, bag and stash, gear ladders, skills and perks, cooking rules, selling, theft and raids, weather, quests, Moonbeam, the nitrous storyline, garden, mushrooms, journal, save and load, the HUD. |
 | `game/cook.js` | First-person grilled cheese view (drawing only; rules are in `life.js`). |
 | `game/decks.js` | The DJ mixing minigame. Top half is rules, bottom half is drawing and sound. |
+| `game/pan.js` | The gold panning minigame (scoop, swirl, tilt and pick). Rules come from `game/data/river.json`. |
 | `game/crowd.js` | The crowd's daily routine and walking. |
 | `game/gfx.js`, `portrait.js`, `sound.js`, `icons.js` | Graphics quality levels, talking-head portraits, synthesised sound, inventory icons. |
 | `game/data/garden.json` | Crops, sandwich fillings, grown and wild mushrooms. |
 | `game/data/crate.json` | DJ tracks and the scoring rules of a set. |
 | `game/data/crew.json` | The corner crew: stations, people, wages, how each is earned. |
+| `game/data/river.json` | The river bends, pans, swirl and sluice numbers for gold panning. |
 | `game/data/crowd.json` | Where the crowd is at each hour. |
 | `game/assets/` | Slimmed character models, props, textures, journal illustrations. |
 | `design/camp-upgrade-map.md` | **Plan of record** for everything upgradeable at camp: 14 ladders with prices and benefits, what is built, the build order. |
@@ -114,3 +116,5 @@ Good jobs to hand to a second model, because they are already specified: any lad
 ## Working with Seth
 
 Seth is the designer and plays every build. Explain in plain words what changed and how to see it in the game; say plainly what you tested and what you did not. Ask before anything that costs money or leaves the machine. When a decision is his, give a recommendation and ask once.
+- Never put a `//` comment in the middle of a one-line block: it swallows the rest of the line, and `node --check` on a `.js` file only catches it if the file is checked as a module (copy to `.mjs`). `pan.js` broke the whole page this way once.
+- The cook panel lives inside `#hud`, which is hidden in the character creator. When testing cooking from a cleared save, un-hide `#hud` and hide `#creator` or nothing measures.

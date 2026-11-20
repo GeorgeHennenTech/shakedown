@@ -10,7 +10,10 @@
 
   "serum": { "cost": 10, "perJob": 1, "_about": "Grow serum: one bottle brings one watered, growing plot to harvest at once. Bought at the General Store; one is also given for each job of the day." },
 
+  "board": { "pieces": 4, "evenTip": 1, "lopsidedAt": 0.5, "lopsided": 0.5, "handful": [[0.3, 0.3], [0.42, 0.64], [0.68, 0.4], [0.36, 0.44]], "_about": "The cooking board. A topping is 4 pieces, laid on the open sandwich by hand. Spread is how many quarters of the bread have a piece: all four is worth evenTip dollars more; two or fewer (lopsidedAt) multiplies the topping's bonus by lopsided. handful is where the pieces land when you use the number key instead: three quarters, so never the tip." },
+
   "fillings": [
+    { "item": "goldflake",   "bonus": 12, "name": "Gold-leaf melt" },
     { "item": "morel",       "bonus": 5, "name": "Morel melt" },
     { "item": "chanterelle", "bonus": 4, "name": "Chanterelle melt" },
     { "item": "oyster",      "bonus": 3, "name": "Mushroom melt" },

@@ -3,11 +3,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=80';
+import { createLife, readSave, saveLabel } from './life.js?v=84';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { createCookView } from './cook.js?v=6';
+import { createCookView } from './cook.js?v=7';
+import { createPan } from './pan.js?v=4';
 import { createDecks } from './decks.js?v=5';
 import { createCrowd } from './crowd.js?v=3';
 const BUILD = new URL(import.meta.url).searchParams.get('v') || '?';
@@ -881,6 +882,23 @@ function moonbeamShift(dt) {
   for (const [name, r] of Object.entries(use.bones)) { const b = m.bones[name]; if (b) { b.rotation.x += r[0] * w; b.rotation.y += r[1] * w; b.rotation.z += r[2] * w; } }
   if (use.wobble) { const b = m.bones[use.wobble.bone]; if (b) b.rotation['xyz'[use.wobble.axis]] += Math.sin(state.t * use.wobble.speed) * use.wobble.amount * w; }
 }
+// The slow bends of the river where gold settles: a gravel bar, a few stones and a stake with a yellow rag, so you can find them.
+// Your sluice box shows in whichever bend you set it.
+let RIVER_BENDS = [];
+function buildRiverBends(RIVER) {
+  RIVER_BENDS = RIVER.bends;
+  for (const b of RIVER.bends) {
+    const bar = mesh(new THREE.CircleGeometry(2.1, 20), lambert(0xb89f77), b.x, 0.03, b.z - 0.6); bar.rotation.x = -Math.PI / 2; bar.scale.set(1.5, 1, 1); bar.castShadow = false;
+    for (const [dx, dz, r] of [[-1.6, -0.3, 0.28], [1.4, -0.7, 0.36], [0.3, -1.3, 0.22], [-0.7, -1.1, 0.18]]) mesh(new THREE.SphereGeometry(r, 7, 5), lambert(0x8d8a84), b.x + dx, r * 0.5, b.z + dz).scale.y = 0.6;
+    mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.5, 6), lambert(0x6b4a2b), b.x + 1.9, 0.75, b.z + 0.5);
+    mesh(new THREE.BoxGeometry(0.36, 0.2, 0.02), new THREE.MeshBasicMaterial({ color: 0xffd23f }), b.x + 2.08, 1.36, b.z + 0.5).castShadow = false;
+  }
+  const s = campLook.sluice = new THREE.Group();
+  mesh(new THREE.BoxGeometry(0.5, 0.08, 1.5), lambert(0xa9824f), 0, 0.14, 0, s);
+  for (const x of [-0.25, 0.25]) mesh(new THREE.BoxGeometry(0.05, 0.2, 1.5), lambert(0x8a6a3c), x, 0.2, 0, s);
+  for (const z of [-0.5, -0.2, 0.1, 0.4]) mesh(new THREE.BoxGeometry(0.46, 0.05, 0.04), lambert(0x6b4a2b), 0, 0.2, z, s);
+  s.rotation.x = 0.12; s.visible = false; scene.add(s);
+}
 async function loadCharacter(url) {
   const gltf = await loader.loadAsync(url);
   gltf.scene.traverse((o) => {
@@ -1463,6 +1481,7 @@ function update(dt) {
     if (elder && Math.hypot(p.x - VILLAGE.elder[0], p.z - VILLAGE.elder[1]) < 9) faceTo(elder.root, p.x - VILLAGE.elder[0], p.z - VILLAGE.elder[1], dt, 3);
     for (const ch of [player, patches, buck, vinny, elder, whip, moonbeam, ...goons]) if (ch && ch.root.visible) ch.mixer.update(dt);
     if (moonbeam) moonbeamShift(dt);
+    if (campLook.sluice && state.river) { const sl = state.river.sluice, b = sl && sl.bend >= 0 ? RIVER_BENDS[sl.bend] : null; campLook.sluice.visible = !!b; if (b) campLook.sluice.position.set(b.x - 0.6, 0, b.z - 1.5); }
     const d = state.dialogue;
     const typing = !!(d && d.text && d.shown < d.text.length);
     if (typing) { d.shown = Math.min(d.text.length, d.shown + dt * 42); $('line').textContent = d.text.slice(0, Math.floor(d.shown)); }
@@ -1608,13 +1627,16 @@ async function boot() {
   const DATA = await (await fetch(`./data/garden.json?v=${BUILD}`)).json(); // crops, mushrooms and recipes live in a plain data file
   const CROWD = await (await fetch(`./data/crowd.json?v=${BUILD}`)).json(); // where everybody is through the day
   crowd = createCrowd({ THREE, people, instanced, routeSamples, data: CROWD, rand, isFree: (x, z) => !nearRoute(x, z, 2) && !colliders.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 0.8) ** 2) });
+  const RIVER = await (await fetch(`./data/river.json?v=${BUILD}`)).json(); // gold panning: the bends, the pans, the odds
+  const panGame = createPan({ $, rules: RIVER, sfx: (name) => sound.play(name) });
+  buildRiverBends(RIVER);
   const CREW = await (await fetch(`./data/crew.json?v=${BUILD}`)).json(); // the corner crew: stations, people, how each is earned
   const CRATE = await (await fetch(`./data/crate.json?v=${BUILD}`)).json(); // the tracks and the rules of a set
   const decks = createDecks({ $, crate: CRATE, isMuted: () => sound.isMuted() });
-  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
+  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, MOON_POSE, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });

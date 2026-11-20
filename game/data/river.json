@@ -1,0 +1,32 @@
+{
+  "_about": "Gold panning on the river, as plain data. Three slow bends; one is the hot one each day, and all of them are better the morning after rain and worse each time they are panned that day. A pan of gravel is worked in three beats: scoop (choose a patch), swirl (wash the light sand off without sloshing), tilt and pick (take the glints; shade one to tell gold from fool's gold).",
+
+  "bends": [
+    { "name": "the upper bend",  "x": 4,  "z": -160.7 },
+    { "name": "the middle bend", "x": 28, "z": -160.7 },
+    { "name": "the lower bend",  "x": 52, "z": -160.7 }
+  ],
+
+  "richness": { "hot": 0.7, "other": 0.38, "afterRain": 0.25, "rainHours": 18, "morning": 0.1, "morningUntil": 11, "perPan": 0.17, "floor": 0.06 },
+
+  "pans": {
+    "tin":    { "name": "Pie tin",         "wash": 0.8, "slosh": 1.45, "glints": 3.2, "nugget": 0.03 },
+    "ridged": { "name": "Ridged gold pan", "wash": 1.0, "slosh": 1.0,  "glints": 5.5, "nugget": 0.1 }
+  },
+
+  "swirl": { "slow": 2.4, "fast": 9.5, "washPerSecond": 0.19, "sloshPerSecond": 0.55, "sloshFade": 0.22, "spill": 0.22, "mostLost": 0.7, "spillWash": 0.08,"spaceSpeed": 0.55 },
+
+  "patches": [
+    { "q": 1.0,  "tell": "glint" },
+    { "q": 0.65, "tell": "dark" },
+    { "q": 0.3,  "tell": "plain" }
+  ],
+
+  "pyrite": { "least": 1, "most": 3 },
+
+  "panHours": 0.4,
+
+  "sluice": { "hoursPerFlake": 3, "holds": 6, "pyriteChance": 0.2 },
+
+  "worth": { "flake": 6, "nugget": 60 }
+}

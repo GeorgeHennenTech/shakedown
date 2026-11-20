@@ -118,9 +118,34 @@ body.cooking #quest,body.cooking #help,body.cooking #zone,body.cooking #gfx{disp
 body.cooking #cook{bottom:18px;background:rgba(255,243,214,.93)}
 .cookbar{flex:1;position:relative;height:30px;margin:10px 0;border:3px solid var(--ink);border-radius:9px;overflow:hidden;background:linear-gradient(90deg,#f6e7c1 0 52%,#e8a33d 52% 60%,#ffd23f 60% 70%,#e8a33d 70% 80%,#3b2416 80% 100%)}
 .cookbar i{position:absolute;top:-3px;bottom:-3px;width:5px;margin-left:-2px;background:var(--hot);border:1px solid var(--ink)}
-#cookmsg{min-height:22px;font-weight:600}
+#cookmsg{min-height:44px;font-weight:600}
+body.cooking #cook{width:min(700px,calc(100vw - 32px))}
+.cookcols{display:flex;gap:16px;align-items:flex-start}.cookside{flex:1;min-width:0}
+#cookboard{flex:none;width:176px;padding:8px;border:3px solid var(--ink);border-radius:12px;background:#b98a55 repeating-linear-gradient(90deg,rgba(60,35,15,.16) 0 2px,transparent 2px 22px)}
+#cookboard.done{opacity:.45}
+#bread{position:relative;width:154px;height:154px;border:3px solid #8a5a2b;border-radius:26px 26px 12px 12px;background:#f4e6c3;touch-action:none}
+#bread .cheese{position:absolute;inset:9px;border-radius:8px;background:#ffb52e;border:2px solid #d98a14}
+#bread .bit{position:absolute;width:34px;height:34px;margin:-17px 0 0 -17px;pointer-events:none;animation:bitdrop .18s ease-out}
+#bread .bit svg{width:100%;height:100%}
+@keyframes bitdrop{from{transform:translateY(-14px) scale(1.25);opacity:.4}to{transform:none;opacity:1}}
+#boardnote{margin:6px 0;min-height:16px;font:600 12px/1.3 inherit;color:#fff3d6;text-shadow:0 1px 0 #3c230f}
+.boardbtns{display:flex;gap:6px}.boardbtns button{padding:4px 8px;border:2px solid var(--ink);border-radius:8px;background:#ffd23f;font:700 13px/1.2 inherit;cursor:pointer}
+#cooksend{flex:1}#cooksend kbd{padding:0 5px;border:2px solid var(--ink);border-radius:5px;background:#fff;font:700 12px/16px ui-monospace,Menlo,monospace}#cookscrape{background:#fff}
+#cookrail{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}#cookrail:empty{display:none}
+.ticket{display:flex;align-items:center;gap:4px;padding:3px 9px 3px 6px;border:2px solid var(--ink);border-radius:3px 3px 9px 9px;background:#fff;font:700 12px/1.2 inherit;transform:rotate(-1.5deg)}
+.ticket:nth-child(even){transform:rotate(1.5deg)}.ticket svg{width:18px;height:18px}.ticket.got{background:#c9efc0}.ticket.got::after{content:"✓ cooked";font-weight:600;color:#2f7d3a;margin-left:3px}
+#cookghost{position:fixed;z-index:50;width:44px;height:44px;margin:-22px 0 0 -22px;pointer-events:none}#cookghost svg{width:100%;height:100%;filter:drop-shadow(0 4px 3px rgba(0,0,0,.35))}
+#cooktops button{touch-action:none;cursor:grab}
 #decks{position:fixed;inset:0;z-index:25;display:grid;place-items:center;background:rgba(23,17,31,.88);color:var(--paper);pointer-events:auto}
 #decks.hidden{display:none}
+#pan{position:fixed;inset:0;z-index:25;display:grid;place-items:center;background:rgba(23,17,31,.88);color:var(--paper);pointer-events:auto}
+#pan.hidden{display:none}
+#pan .booth{width:min(780px,calc(100vw - 24px))}
+#pan .top{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+#pan .top b{font-size:26px;color:var(--sun)}
+#panview{display:block;width:100%;height:min(420px,56vh);border-radius:14px;border:3px solid var(--paper);cursor:crosshair;touch-action:none}
+#panmsg{min-height:44px;margin:8px 2px;font-size:15px;font-weight:600}
+#pan .foot{font-size:12px;opacity:.7}
 #decks .booth{width:min(940px,calc(100vw - 24px));max-height:calc(100vh - 16px);overflow:auto}
 #decks .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:6px}
 #decks .top b{font-size:26px;color:var(--sun)}
@@ -239,6 +264,12 @@ body.tripping canvas#view{animation:trip 14s linear infinite}
 <div id="spinhint" class="panel hidden">Drag to spin your character</div>
 
 <div id="rainveil"></div>
+<div id="pan" class="hidden"><div class="booth">
+  <div class="top"><b class="comix" id="pantitle">Panning</b><span id="pancount"></span></div>
+  <canvas id="panview"></canvas>
+  <div id="panmsg"></div>
+  <div class="foot">Scoop: click a patch or <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> · Swirl: circle the mouse round the pan, or hold <kbd>Space</kbd> · Pick: click a glint, hold <kbd>Shift</kbd> to shade it, <kbd>Space</kbd> when done · <kbd>Esc</kbd> tip it out</div>
+</div></div>
 <div id="decks" class="hidden"><div class="booth">
   <div class="top"><b class="comix" id="deckmix">Open Decks</b><span>Crowd Energy</span><div class="ebar"><i id="deckenergy"></i></div><span id="deckleft"></span></div>
   <div id="deckwant"></div>
@@ -258,7 +289,7 @@ body.tripping canvas#view{animation:trip 14s linear infinite}
   <div id="toast" class="panel comix"></div>
   <div id="menu" class="panel hidden"><h3 class="comix" id="menutitle"></h3><div id="menuopts"></div><div class="next">number keys or click · Esc to leave</div></div>
   <div id="fill" class="panel hidden"><h3 class="comix">Fill a balloon</h3><div id="fillcount"></div><div id="fillstage"><div id="fillballoon"></div><b id="fillpop" class="hidden">POP!</b></div><div class="cookbar" id="fillbar"><i id="fillmark"></i></div><button id="fillbtn">Hold to fill</button><div id="fillmsg"></div><div class="next">Hold Space · let go in the gold · Esc before you start to back out</div></div>
-  <div id="cook" class="panel hidden"><h3 class="comix">Grilled cheese</h3><div id="cookcount"></div><div id="cookbars"></div><div id="cooktops"></div><div id="cookmsg"></div><div class="next">Space to flip · numbers to top · Esc to stop</div></div>
+  <div id="cook" class="panel hidden"><h3 class="comix">Grilled cheese</h3><div id="cookrail"></div><div class="cookcols"><div id="cookboard"><div id="bread"></div><div id="boardnote"></div><div class="boardbtns"><button id="cooksend">Into the pan <kbd>F</kbd></button><button id="cookscrape" title="Scrape it off">X</button></div></div><div class="cookside"><div id="cookcount"></div><div id="cookbars"></div><div id="cooktops"></div><div id="cookmsg"></div></div></div><div class="next" id="cookhint">Space to flip · Esc to stop</div></div><div id="cookghost" class="hidden"></div>
   <div id="bagpanel" class="panel hidden"></div>
   <div id="bath" class="hidden"><div id="bathtarget"></div><div id="bathring"></div><div id="bathmsg" class="panel comix"></div></div>
   <div id="levelup" class="panel"></div>
@@ -269,6 +300,6 @@ body.tripping canvas#view{animation:trip 14s linear infinite}
 <div id="card" class="hidden"><div><h1 class="comix" id="cardh"></h1><p id="cardp"></p></div></div>
 <div id="done" class="panel hidden"><h2 class="comix">Quest complete: Bare Witness</h2><p>You chased a screaming naked man into a sunset and got the whole tour.</p><ul id="tour"></ul><p style="font-size:13px;color:#6b5d78">That is the end of the opening. The Healing Village is open, north of the main stage.</p><button id="explore" class="big comix" style="background:var(--teal)">Keep exploring</button><button id="again" class="big comix" style="background:var(--sun)">Play again</button></div>
 
-<script type="module" src="./main.js?v=120"></script>
+<script type="module" src="./main.js?v=127"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 // buying and eating, the grilled cheese and cold water hustles, and saving the game.
 // Kept apart from the opening quest in main.js.
 
-import { ICONS } from './icons.js?v=11';
+import { ICONS } from './icons.js?v=12';
 
 const HOUR = 50; // real seconds per game hour, so a full day is 20 minutes
 const DAYS = ['Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday']; // the festival never ends: the week just comes round again
@@ -30,6 +30,9 @@ const ITEMS = {
   seedTomato: { name: 'Tomato seeds', stack: 3, desc: 'Plant them in your garden. Eight hours.' },
   seedPepper: { name: 'Pepper seeds', stack: 3, desc: 'Plant them in your garden. Eight hours.' },
   seedSage: { name: 'Sage seeds', stack: 3, desc: 'Healing herbs for your garden. Six hours.' },
+  pietin: { name: 'Pie tin', stack: 1, desc: 'Dented, but it holds gravel. Pan the slow bends of the river with it, or turn it into a proper gold pan at your workbench.' },
+  goldflake: { name: 'Gold flakes', stack: 10, desc: 'Panned from the river. One goes on a sandwich: a gold-leaf melt, worth $12 more to somebody with money to show off. Shade them to be sure they are gold.' },
+  nugget: { name: 'Gold nugget', stack: 3, desc: 'Too good to eat. The shops will pay well for it.' },
   serum: { name: 'Grow serum', stack: 3, desc: 'Pour a bottle on a plot that is growing and it is ready to harvest at once. Use it at your garden.' },
   tomato: { name: 'Tomatoes', stack: 6, desc: 'One goes into a sandwich: a tomato melt, worth $2 more.' },
   pepper: { name: 'Peppers', stack: 6, desc: 'One goes into a sandwich: a jalapeño popper, worth $2 more.' },
@@ -54,6 +57,8 @@ const ITEMS = {
 const STASH_BASE = 12;
 // What you can make at the workbench. Each thing is made once and then worn or set up at camp.
 const RECIPES = [
+  { id: 'goldpan', name: 'Ridged gold pan', level: 2, xp: 10, needs: { salvage: 2, pietin: 1 }, does: 'Pan the river properly: riffles catch more gold and it sloshes less than a pie tin' },
+  { id: 'sluice', name: 'Sluice box', level: 4, xp: 16, needs: { salvage: 4, fabric: 2 }, does: 'Leave it in a bend of the river and it catches a few flakes of gold by itself' },
   { id: 'sling', name: 'Cup-holder sling', level: 1, xp: 6, needs: { salvage: 2, fabric: 1 }, does: 'One more bag slot, and you get thirsty a little slower' },
   { id: 'tray', name: 'Cooler-lid serving tray', level: 2, xp: 8, needs: { salvage: 2 }, does: 'People say yes to your food more often' },
   { id: 'vest', name: 'Sleeping-bag puffer vest', level: 2, xp: 8, needs: { fabric: 2 }, does: 'Nights drain your Energy slower' },
@@ -80,7 +85,7 @@ export function saveLabel(s) {
 for (const k of ['oyster', 'chanterelle', 'morel', 'lionsmane', 'reishi', 'cordyceps', 'foxfire', 'goldcap', 'chicken', 'puffball', 'turkeytail', 'ghostcap']) ICONS[k] = `<img src="./assets/journal/${k}.jpg" alt="">`;
 
 export function createLife(ctx) {
-  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER, CORNER, CREW = { rules: {}, stations: {}, members: {} } } = ctx;
+  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER, CORNER, CREW = { rules: {}, stations: {}, members: {} }, RIVER = null, PAN = null } = ctx;
   const sfx = ctx.sfx || (() => {});
   Object.assign(state, {
     hour: 16 + 20 / 60, day: 0, cash: 40, stash: 0, cheese: [], sold: 0, noSprint: false, menu: null, cooking: null, panel: false,
@@ -101,6 +106,7 @@ export function createLife(ctx) {
     chain: { i: 0, stats: { digs: 0, builds: 0, perfect: 0, herbs: 0, rainCamp: 0, kandi: 0, headliner: 0 } }, trophies: {},
     garden: { on: false, wet: false, start: 0, ready: 0 }, permitDay: -1, heal: { next: 0, ids: [], count: 0 },
     weather: { rain: false, until: 0, next: 31 + Math.random() * 8 }, // the first shower comes on Friday
+    river: { day: -1, panned: [], sluice: { bend: -1, at: 0 } }, panning: false,
     plots: [], recipes: {}, pantry: {}, pantryCheese: [], shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
     fx: { clear: 0, soul: 0, zombie: 0, broth: 0, smoke: 0, trip: 0, tripDay: -1 }, glow: 0, vision: false, visionUsed: false,
     offer: '', pal: { friend: 0, watch: 0, gift: -1, held: 0, told: true }, danced: 0, daily: null, over: false, act: '',
@@ -295,7 +301,7 @@ export function createLife(ctx) {
     } else { (from === 'bag' ? state.bag : state.store)[k] -= amount; (to === 'bag' ? state.bag : state.store)[k] += amount; }
   }
   // What the shops give for spare things, each. Not herbs or sage (those would pay for their own seeds), and never cooked food.
-  const SELL = { salvage: 1, fabric: 1, lights: 2, kandi: 1, bottles: 1, tomato: 1, pepper: 1, oyster: 1, chanterelle: 2, morel: 3 };
+  const SELL = { salvage: 1, fabric: 1, lights: 2, kandi: 1, bottles: 1, tomato: 1, pepper: 1, oyster: 1, chanterelle: 2, morel: 3, goldflake: 6, nugget: 60 };
   const atShop = () => { const p = getPlayer().root.position; return [STALLS.water, STALLS.gear].some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 5); };
   // Drop one stack from your bag for good; with a price, a shop takes it off you.
   function dropStack(k, price = 0) {
@@ -655,6 +661,7 @@ export function createLife(ctx) {
   const chip = (body) => `<svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#17111f" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${body}</g></svg>`;
   const shroom = (cap, stem) => chip(`<path d="M10 13h4l1 8H9z" fill="${stem}"/><path d="M3 13c0-6 4-10 9-10s9 4 9 10z" fill="${cap}"/>`);
   const TOP_CHIP = {
+    goldflake: chip('<path d="M12 2l2.6 6.4L21 11l-6.4 2.6L12 20l-2.6-6.4L3 11l6.4-2.6z" fill="#ffd23f"/><path d="M18 15l1 2.4 2.4 1-2.4 1-1 2.4-1-2.4-2.4-1 2.4-1z" fill="#ffe9a8"/>'),
     tomato: chip('<circle cx="12" cy="12" r="9.5" fill="#e0392b"/><circle cx="12" cy="12" r="6" fill="#f58a78"/><g fill="#f7e6a6" stroke="none"><circle cx="12" cy="8.5" r="1.2"/><circle cx="15.2" cy="13.6" r="1.2"/><circle cx="8.8" cy="13.6" r="1.2"/></g>'),
     pepper: chip('<circle cx="12" cy="12" r="9.5" fill="#3f9d4a"/><circle cx="12" cy="12" r="5.5" fill="#d4ecb0"/><g fill="#f7e6a6" stroke="none"><circle cx="10.5" cy="11" r="1"/><circle cx="13.6" cy="12.6" r="1"/></g>'),
     herbs: chip('<path d="M12 22V11" fill="none"/><path d="M12 12C5 12 3 8 3 4c6 0 9 3 9 8zM12 15c6 0 9-4 9-8-6 0-9 3-9 8z" fill="#4caf50"/>'),
@@ -662,24 +669,88 @@ export function createLife(ctx) {
   };
   const topLimit = () => (state.gear.stove >= 7 ? 2 : 1); // the sandwich press takes two
   const perFlip = () => (state.gear.stove >= 6 ? 2 : 1); // the griddle does two sandwiches to a flip, and one press tops both
-  const promised = (item) => state.cooking.stations.reduce((sum, st) => sum + (st.active && !st.fresh && st.top.includes(item) ? perFlip() : 0), 0);
+  const promised = (item) => state.cooking.stations.reduce((sum, st) => sum + (st.active && !st.fresh && st.top.includes(item) ? perFlip() : 0), 0) + (state.cooking.board.order.includes(item) ? perFlip() : 0);
+  // ---- the board: the next sandwich lies open beside the stove. You drag each piece of topping onto the bread yourself,
+  // and how evenly you lay it decides what it is worth. Then it goes in the pan. Rules in data/garden.json "board".
+  const newBoard = () => ({ order: [], bits: {} });
+  const spreadOf = (bits) => new Set((bits || []).map((b) => (b.x < 0.5 ? 0 : 1) + (b.y < 0.5 ? 0 : 2))).size / 4; // how many quarters of the bread have some
+  const spreadWord = (v) => (v >= 1 ? 'corner to corner' : v <= DATA.board.lopsidedAt ? 'lopsided' : 'fair');
+  const topBonus = (f, v) => (v === undefined ? f.bonus : v >= 1 ? f.bonus + DATA.board.evenTip : v <= DATA.board.lopsidedAt ? Math.max(1, Math.floor(f.bonus * DATA.board.lopsided)) : f.bonus);
+  const cookSay = (t) => { $('cookmsg').textContent = t; };
+  function boardPlace(item, x, y) {
+    const c = state.cooking;
+    if (!c || !c.tops.includes(item)) return false;
+    const b = c.board, name = ITEMS[item].name.toLowerCase();
+    if (c.queue < 1) { cookSay('No more bread and cheese to build on this time.'); return false; }
+    if (!b.order.includes(item)) {
+      if (b.order.length >= topLimit()) { cookSay(topLimit() > 1 ? 'Two toppings is all the press will close on.' : 'One topping to a sandwich on this stove. The sandwich press takes two.'); return false; }
+      if (have(item) - promised(item) < 1) { cookSay(`You are out of ${name}.`); return false; }
+      b.order.push(item); b.bits[item] = [];
+    }
+    if (b.bits[item].length >= DATA.board.pieces) { cookSay(`That is all the ${name} one sandwich holds. F puts it in the pan.`); return false; }
+    b.bits[item].push({ x: Math.min(0.92, Math.max(0.08, x)), y: Math.min(0.92, Math.max(0.08, y)) });
+    sfx('pick');
+    const n = b.bits[item].length, v = spreadOf(b.bits[item]);
+    cookSay(n < DATA.board.pieces ? `${n} of ${DATA.board.pieces} pieces on. Lay them into all four corners.` : `All ${n} on: ${spreadWord(v)}${v >= 1 ? `, worth $${DATA.board.evenTip} more` : v <= DATA.board.lopsidedAt ? ', worth less. X scrapes it off' : ''}. F puts it in the pan.`);
+    drawTops();
+    return true;
+  }
+  function boardClear() { const c = state.cooking; if (!c || !c.board.order.length) return; c.board = newBoard(); cookSay('Scraped off. Nothing wasted.'); drawTops(); }
+  // The board's sandwich goes into the first empty pan, toppings and all.
+  function toPan() {
+    const c = state.cooking;
+    if (!c) return false;
+    if (c.queue < 1) { cookSay('That was the last of what you can cook this time.'); return false; }
+    const st = c.stations.find((x) => !x.active);
+    if (!st) { cookSay(c.pans > 1 ? 'Both pans are full. Flip one out first.' : 'The pan is full. Flip that one out first.'); return false; }
+    const b = c.board;
+    c.queue--; st.active = true; st.fresh = false; st.side = 0; st.first = null; st.wait = 0.42;
+    st.top = b.order.slice(); st.spread = Object.fromEntries(b.order.map((k) => [k, spreadOf(b.bits[k])]));
+    cook.newSandwich(st.i);
+    if (cook.addTopping) for (const k of st.top) cook.addTopping(st.i, k);
+    c.board = newBoard();
+    if (st.top.length) cookSay(`${st.top.map((k) => `${FILLINGS.find((f) => f.item === k).name}, ${spreadWord(st.spread[k])}`).join(' and ')}: in the ${c.pans > 1 ? (st.i ? 'right pan' : 'left pan') : 'pan'}.`);
+    drawTops();
+    return true;
+  }
+  const ticketName = (want) => (want === 'any' ? 'Anything hot' : want === 'plain' ? 'Plain, golden' : FILLINGS.find((f) => f.item === want).name);
+  function drawRail() { // the orders waiting at your counter, pinned up where you can see them while you cook
+    const waiting = state.kitchen.queue.filter((q) => q.at), cooked = [...state.store.cheese, ...state.pantryCheese];
+    $('cookrail').innerHTML = waiting.map((q) => `<span class="ticket${cooked.some((x) => meets(x, q.want)) ? ' got' : ''}">${TOP_CHIP[q.want] || ''}${ticketName(q.want)}</span>`).join('');
+  }
+  let topDrag = null;
+  $('cooksend').onclick = () => toPan();
+  $('cookscrape').onclick = () => boardClear();
+  window.addEventListener('pointermove', (e) => {
+    if (!topDrag) return;
+    if (Math.hypot(e.clientX - topDrag.x0, e.clientY - topDrag.y0) > 6) topDrag.moved = true;
+    const gh = $('cookghost'); gh.classList.toggle('hidden', !topDrag.moved); gh.style.left = `${e.clientX}px`; gh.style.top = `${e.clientY}px`;
+  });
+  window.addEventListener('pointerup', (e) => {
+    if (!topDrag) return;
+    const d = topDrag; topDrag = null; $('cookghost').classList.add('hidden');
+    if (!state.cooking) return;
+    if (!d.moved) { cookTop(d.item); return; } // a tap on the bowl is the same as its number key
+    const r = $('bread').getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+    if (x >= 0 && x <= 1 && y >= 0 && y <= 1) boardPlace(d.item, x, y); else cookSay('Drop it on the bread.');
+  });
   function drawTops() {
     const c = state.cooking;
     $('cooktops').innerHTML = !c.tops.length ? '<small>No toppings on you. Grow tomatoes, peppers or herbs in your garden, or forage mushrooms, and they show up here to put on.</small>' : c.tops.map((item, n) => { const left = have(item) - promised(item); return `<button data-top="${item}"${left > 0 ? '' : ' disabled'}><kbd>${n + 1}</kbd>${TOP_CHIP[item] || ''}<span>${FILLINGS.find((f) => f.item === item).name}</span><b>×${Math.max(0, left)}</b></button>`; }).join('');
-    $('cooktops').querySelectorAll('button').forEach((b) => { b.onclick = () => cookTop(b.dataset.top); });
+    $('cooktops').querySelectorAll('button').forEach((b) => { b.onpointerdown = (e) => { if (b.disabled) return; topDrag = { item: b.dataset.top, x0: e.clientX, y0: e.clientY, moved: false }; $('cookghost').innerHTML = TOP_CHIP[b.dataset.top] || ''; e.preventDefault(); }; });
     for (const st of c.stations) { const el = $('cookon' + st.i); if (el) el.textContent = !st.active || st.fresh ? '' : st.top.length ? st.top.map((k) => sandwichName(k).replace(' grilled cheese', '')).join(' + ') : 'plain'; }
+    const b = c.board;
+    $('bread').innerHTML = '<i class="cheese"></i>' + b.order.map((item) => b.bits[item].map((bit) => `<span class="bit" style="left:${bit.x * 100}%;top:${bit.y * 100}%">${TOP_CHIP[item] || ''}</span>`).join('')).join('');
+    $('cookboard').classList.toggle('done', c.queue < 1);
+    $('boardnote').textContent = c.queue < 1 ? 'Nothing left to build.' : !b.order.length ? (c.tops.length ? 'Plain so far' : 'Plain') : b.order.map((k) => `${ITEMS[k].name}: ${spreadWord(spreadOf(b.bits[k]))}`).join(' · ');
+    drawRail();
   }
-  // Put a topping on the sandwich in pan i; with no pan named, on the one furthest along that still has room for it.
-  function cookTop(item, i) {
+  // The number key, or a tap on the bowl: the rest of that topping goes on in one careless handful. Quick, but it never reaches all four corners.
+  function cookTop(item) {
     const c = state.cooking;
     if (!c || !c.tops.includes(item)) return;
-    const open = (st) => st.active && !st.fresh && st.top.length < topLimit() && !st.top.includes(item);
-    const st = i !== undefined ? c.stations[i] : c.stations.filter(open).sort((x, y) => (y.side + y.x) - (x.side + x.x))[0];
-    if (!st || !open(st)) { $('cookmsg').textContent = 'Nothing in the pan has room for that.'; return; }
-    if (have(item) - promised(item) < 1) { $('cookmsg').textContent = `You are out of ${ITEMS[item].name.toLowerCase()}.`; return; }
-    st.top.push(item); sfx('pick'); if (cook.addTopping) cook.addTopping(st.i, item);
-    $('cookmsg').textContent = `${FILLINGS.find((f) => f.item === item).name} going on${c.pans > 1 ? ` the ${st.i ? 'right' : 'left'} pan` : ''}.`;
-    drawTops();
+    const lazy = DATA.board.handful, had = (c.board.bits[item] || []).length;
+    for (let n = had; n < DATA.board.pieces; n++) if (!boardPlace(item, lazy[n % lazy.length][0], lazy[n % lazy.length][1])) break;
   }
   function startCooking() {
     if (!have('supplies')) { toast('You need bread and cheese. The General Store sells it.'); return; }
@@ -694,20 +765,21 @@ export function createLife(ctx) {
     else if (short === 'supplies') toast(`Bread and cheese for only ${have('supplies')} sandwiches, so this will be a short one. The General Store sells a case of 20.`);
     state.stashedAtStart = state.store.cheese.length;
     state.canMove = false;
-    state.cooking = { pans, queue: totalToCook, total: totalToCook, made: 0, short, stations: [], tops: FILLINGS.filter((f) => have(f.item) > 0).map((f) => f.item) };
+    state.cooking = { pans, queue: totalToCook, total: totalToCook, made: 0, short, stations: [], board: newBoard(), railT: 0, tops: FILLINGS.filter((f) => have(f.item) > 0).map((f) => f.item) };
     ZONES = state.gear.stove >= 5 ? WIDEST : state.gear.stove >= 3 ? WIDE : NARROW;
     const pc = ZONES.map(([edge]) => `${Math.min(edge, 1) * 100}%`);
     const paint = `linear-gradient(90deg,#f6e7c1 0 ${pc[0]},#e8a33d ${pc[0]} ${pc[1]},#ffd23f ${pc[1]} ${pc[2]},#e8a33d ${pc[2]} ${pc[3]},#3b2416 ${pc[3]} 100%)`;
     $('cookbars').innerHTML = Array.from({ length: pans }, (_, i) => `<div class="cookrow">${pans > 1 ? `<kbd>${'AD'[i]}</kbd>` : ''}<div class="cookbar" style="background:${paint}"><i id="cookmark${i}"></i></div><span class="cookon" id="cookon${i}"></span></div>`).join('');
     $('cook').classList.remove('hidden'); $('prompt').classList.add('hidden');
     document.body.classList.add('cooking');
-    $('cookmsg').textContent = (pans > 1 ? 'Two pans. A flips the left, D flips the right. Space flips whichever is further along.' : 'Flip it when the marker hits the gold. Space or click.') + (state.cooking.tops.length ? ' Number keys put a topping on what is in the pan.' : '');
+    const hands = state.cooking.tops.length > 0; // with toppings on you, each sandwich is built on the board first; with none, plain ones feed themselves into the pan
+    state.cooking.auto = !hands;
+    $('cookboard').classList.toggle('hidden', !hands);
+    $('cookmsg').textContent = hands ? 'Build it on the board: drag a topping onto the bread, piece by piece, into all four corners. F puts it in the pan. Space flips.' : pans > 1 ? 'Two pans. A flips the left, D flips the right. Space flips whichever is further along.' : 'Flip it when the marker hits the gold. Space or click.';
+    $('cookhint').textContent = hands ? `Drag toppings on · F into the pan · X scrape off · ${pans > 1 ? 'A / D / Space' : 'Space'} to flip · Esc to stop` : 'Space to flip · Esc to stop';
     cook.start(gfx.light, Math.min(4, state.gear.stove));
-    for (let i = 0; i < pans; i++) {
-      const st = { i, side: 0, x: 0, speed: 0.3, first: null, wait: 0, fresh: false, active: false, top: [] };
-      state.cooking.stations.push(st);
-      if (state.cooking.queue > 0) { state.cooking.queue--; st.active = true; cook.newSandwich(i); st.wait = 0.42 + i * 0.9; } // the second pan starts a beat later
-    }
+    for (let i = 0; i < pans; i++) state.cooking.stations.push({ i, side: 0, x: 0, speed: 0.3, first: null, wait: 0, fresh: false, active: false, top: [], spread: {} });
+    if (!hands) for (let i = 0; i < pans; i++) if (toPan()) state.cooking.stations[i].wait = 0.42 + i * 0.9; // the second pan starts a beat later
     drawCount(); drawTops();
   }
   const drawCount = () => { const c = state.cooking; $('cookcount').textContent = `${c.made} sandwich${c.made === 1 ? '' : 'es'} done`; };
@@ -742,7 +814,7 @@ export function createLife(ctx) {
         const bad = badFilling(f.item);
         spend(f.item, 1);
         if (bad) { price = 1; break; }
-        price += f.bonus;
+        price += topBonus(f, st.spread[f.item]);
       }
       if (fills.length && price > base) name = fills.length > 1 ? `${fills[0].name} with ${ITEMS[fills[1].item].name.toLowerCase()}` : fills[0].name;
       const done = { p: price, f: price > base ? fills.map((f) => f.item) : [] };
@@ -756,12 +828,14 @@ export function createLife(ctx) {
     }
     st.side = 0;
     pass(8 / 60 / c.pans);
-    $('cookmsg').textContent = `${name}${/melt|popper/i.test(name) ? '' : ' grilled cheese'}${batch > 1 ? ', two of them' : ''}. Worth $${price}${batch > 1 ? ' each' : ''}.`;
-    st.wait = 1.25; st.fresh = true; st.top = [];
+    const laid = Object.values(st.spread), how = price <= 1 || !laid.length ? '' : laid.every((v) => v >= 1) ? ' Laid corner to corner.' : laid.some((v) => v <= DATA.board.lopsidedAt) ? ' Lopsided: the topping was all on one side.' : '';
+    $('cookmsg').textContent = `${name}${/melt|popper/i.test(name) ? '' : ' grilled cheese'}${batch > 1 ? ', two of them' : ''}. Worth $${price}${batch > 1 ? ' each' : ''}.${how}`;
+    st.wait = 1.25; st.fresh = true; st.top = []; st.spread = {};
     cook.plate(st.i, name);
     drawCount(); drawTops();
   }
   function stopCooking() {
+    topDrag = null; $('cookghost').classList.add('hidden');
     const made = state.cooking.made, why = state.cooking.queue > 0 || state.cooking.stations.some((s) => s.active) ? '' : { space: ' That is all your bag and stash have room for.', supplies: ' That was the last of your bread and cheese.', '': '' }[state.cooking.short || ''];
     state.cooking = null; state.canMove = true;
     $('cook').classList.add('hidden');
@@ -779,8 +853,8 @@ export function createLife(ctx) {
         st.wait -= dt;
         if (st.wait <= 0) {
           if (st.fresh) { // the last one is plated: start another, or this pan is finished
-            st.fresh = false;
-            if (c.queue > 0) { c.queue--; cook.newSandwich(st.i); st.wait = 0.42; } else st.active = false;
+            st.fresh = false; st.active = false; // the pan is empty again
+            if (c.auto) toPan();
             drawTops();
           } else nextSide(st);
         }
@@ -791,7 +865,8 @@ export function createLife(ctx) {
       $('cookmark' + st.i).style.left = `${Math.min(st.x, 1) * 100}%`;
       if (st.x >= 1) cookPress(st.i); // left it too long
     }
-    if (c.stations.every((s) => !s.active)) stopCooking();
+    c.railT -= dt; if (c.railT <= 0) { c.railT = 0.5; drawRail(); }
+    if (c.queue < 1 && c.stations.every((s) => !s.active)) stopCooking();
   }
 
   // ---- selling and eating
@@ -862,12 +937,15 @@ export function createLife(ctx) {
       + (state.vibes > 0.7 ? 0.1 : state.vibes < 0.3 ? -0.15 : 0)
       - (n.hygiene < 0.5 ? 0.1 : 0) + (made('tray') ? 0.08 : 0) + hustleEdge(level('hustle'));
     if (n.hygiene < 0.3) chance *= 0.35;
-    chance = Math.min(0.9, Math.max(0.05, chance));
+    const gilded = state.cheese[0].f.includes('goldflake'); // gold leaf is for showing off: most people will not pay for it, and a few will pay anything
+    if (gilded) { if (f.flush === undefined) f.flush = Math.random() < 0.12; chance = f.flush ? 0.92 : chance * 0.3; }
+    chance = Math.min(gilded && f.flush ? 0.95 : 0.9, Math.max(0.05, chance));
     if (Math.random() > chance) {
       f.appetite = Math.random(); // they may feel differently later
       const no = n.hygiene < 0.3 ? ['"Uh, no thanks." You reek.', 'They take one step back. "I’m good."']
         : price === 1 ? ['"That one is burnt, friend."', '"Is that… charcoal?"']
         : f.appetite < 0.4 || !mealtime ? ['"Just ate, sorry."', '"I’m good, thanks."', '"Maybe later, family."', '"No cash on me."', 'They did not even hear you.']
+        : gilded ? ['"Gold? On a sandwich? I just want lunch."', '"Twenty bucks for cheese on toast. No."', '"That is… glitter. I am not eating glitter."']
         : ['"Three bucks? Nah."', '"I’m good, thanks."', '"Got my own, thanks."'];
       // with the cooler behind you there is a second thing to offer
       if (canSellWater() && sellWater(f, true)) { toast('No sandwich, but they took a cold water. +$2.'); return; }
@@ -1427,6 +1505,7 @@ export function createLife(ctx) {
     const bad = state.fakes[item] || 0, all = have(item);
     if (!bad || Math.random() >= bad / Math.max(all, bad)) return false;
     state.fakes[item] = bad - 1;
+    if (item === 'goldflake') { toast('That glitter was fool’s gold. It goes grey and gritty on the heat, and the sandwich is ruined. Shade a glint before you pick it.'); return true; }
     if (!fx('broth')) { state.body = clamp(state.body - 0.2); add('nourishment', -0.15); }
     const one = SPECIES[item] ? SPECIES[item].name.toLowerCase() : item;
     toast(fx('broth') ? `That was not a ${one}. The broth saves you; the sandwich goes in the bin.` : `That was not a ${one}. One taste and you feel ill. The sandwich goes in the bin.`);
@@ -1740,7 +1819,7 @@ export function createLife(ctx) {
     const c = state.corner, v = state.nos, front = seatId('front'), lost = Math.min(v.fills, CREW.rules.bustLoss);
     v.fills -= lost; c.busts = (c.busts || 0) + 1;
     if (front) c.jail[front] = total() + CREW.rules.jail;
-    const who = front ? CREW.members[front].name : 'Your crew';
+    const who = front ? CREW.members[front].name : seatId('fill') ? CREW.members[seatId('fill')].name : 'Your crew';
     for (const st of STATIONS) if (c.crew[st]) c.crew[st].until = 0;
     toast(`${why} ${who} sold to one of Officer Dan's. The crew scattered, ${lost} fills went with them${front ? `, and ${who} is in the cooler till tomorrow night` : ''}.`);
   }
@@ -1755,9 +1834,14 @@ export function createLife(ctx) {
       c.refills++; v.fills = 30; return;
     }
     if (Math.random() < (fill.pop || 0)) { v.fills--; c.popped = (c.popped || 0) + 1; return; }
-    if (Math.random() < R.narc) { if (Math.random() < (front.spot || 0)) { c.crewWaved = (c.crewWaved || 0) + 1; return; } crewBust('Word from the Street:'); return; }
-    if (Math.random() < (front.turnaway || 0)) return;
-    const pay = bank(price() + (Math.random() < (fill.tip || 0) ? 1 : 0));
+    if (Math.random() < R.narc) { if (front && Math.random() < (front.spot || 0)) { c.crewWaved = (c.crewWaved || 0) + 1; return; } crewBust('Word from the Street:'); return; } // with nobody on the front, every undercover gets served
+    if (front && Math.random() < (front.turnaway || 0)) return;
+    let pay = price() + (Math.random() < (fill.tip || 0) ? 1 : 0);
+    if (seat('cash')) pay = bank(pay);
+    else { // nobody on cash: it piles up in a tin on the crate until you come for it, and a tin on a crate gets noticed
+      c.pile = (c.pile || 0) + pay;
+      if (Math.random() < R.pileTheft) { toast(`Word from the Street: somebody walked off with the cash tin from your corner. $${c.pile} gone.`); c.stolen = (c.stolen || 0) + c.pile; c.pile = 0; }
+    }
     v.fills--; v.sold++; c.crewSold++; c.crewTake += pay; casualty();
   }
   // With somebody on the tank you do not fill: they do, at their own standard. You still decide who gets one unless the front is covered too.
@@ -1777,7 +1861,8 @@ export function createLife(ctx) {
   function hireCrew(id) {
     const m = CREW.members[id], c = state.corner;
     c.crew[m.station] = { id, until: crewNight() }; c.crewNext = 0;
-    toast(`${m.name}: ${m.hired || '"I am on it."'}${fullCrew() ? ' All four stations are filled: the corner runs without you tonight.' : ''}`);
+    const gaps = [!seat('fill') ? 'nobody on the tank, so it only sells while you are here' : '', seat('fill') && !seat('front') ? 'nobody watching for undercovers' : '', seat('fill') && !seat('cash') ? 'the money sits in a tin on the crate' : '', seat('fill') && !seat('run') ? 'half speed with nobody handing out' : ''].filter(Boolean);
+    toast(`${m.name}: ${m.hired || '"I am on it."'}${fullCrew() ? ' All four stations are filled: the corner runs itself tonight.' : gaps.length ? ` If you walk away: ${gaps.join('; ')}.` : ''}`);
     if (fullCrew()) { closeCorner(); elderWalk(); }
   }
   function stationMenu(st) {
@@ -1802,8 +1887,8 @@ export function createLife(ctx) {
   }
   function crewMenu() {
     const c = state.corner;
-    menu(`Your crew · ${crewCount()} of 4 stations filled tonight${fullCrew() ? ' · the corner runs without you' : ''}`, [
-      ...STATIONS.map((st) => { const m = seat(st), S = CREW.stations[st]; return { label: `${S.name}: ${m ? `${m.name}, on tonight` : 'empty, you cover it'} <small>${S.does}</small>`, act: () => stationMenu(st) }; }),
+    menu(`Your crew · ${crewCount()} of 4 stations filled tonight${fullCrew() ? ' · the corner runs itself' : seat('fill') ? ' · it keeps selling when you leave, at a cost' : ' · it only sells while you are here'}`, [
+      ...STATIONS.map((st) => { const m = seat(st), S = CREW.stations[st], empty = { fill: 'empty: nothing sells unless you are here', front: 'empty: undercovers get served if you are not here', cash: 'empty: the money sits in a tin on the crate', run: 'empty: half speed without you' }[st]; return { label: `${S.name}: ${m ? `${m.name}, on tonight` : empty} <small>${S.does}</small>`, act: () => stationMenu(st) }; }),
       { label: `Your crew has sold ${c.crewSold} for $${c.crewTake} <small>into your camp stash. ${c.popped || 0} popped, ${c.crewWaved || 0} undercovers waved off, ${c.skimmed || 0} dollars gone missing, ${c.busts || 0} busts</small>`, can: () => 'for your information', act() {} },
       { label: 'Back', act: cornerMenu },
     ]);
@@ -1825,6 +1910,54 @@ export function createLife(ctx) {
     if (!id) return;
     state.corner.left[id] = true;
     toast(`${CREW.members[id].name} looks at you, then at him, and walks back up the Street beside the Elder. They will not work your corner again.`);
+  }
+  // ---- panning for gold on the river: three slow bends, a pan (a pie tin does, badly), and a sluice box you can leave behind.
+  // The minigame itself is pan.js; where and how rich, and what you walk away with, is here. Numbers are data/river.json.
+  const panKind = () => (made('goldpan') ? 'ridged' : have('pietin') > 0 ? 'tin' : '');
+  function bendRich(i) { // 0..1: how much gold a scoop from this bend can hold right now
+    const R = RIVER.richness, r = state.river;
+    if (r.day !== state.day) { r.day = state.day; r.panned = RIVER.bends.map(() => 0); } // the river settles overnight
+    const hot = (state.day * 7 + 3) % RIVER.bends.length === i; // one bend a day is the good one
+    const v = (hot ? R.hot : R.other) + (total() - state.rainedAt < R.rainHours ? R.afterRain : 0) + (state.hour >= 5 && state.hour < R.morningUntil ? R.morning : 0) - R.perPan * (r.panned[i] || 0);
+    return Math.max(R.floor, Math.min(1, v));
+  }
+  const nearBend = (p) => (RIVER ? RIVER.bends.findIndex((b) => Math.hypot(p.x - b.x, p.z - b.z) < 2.6) : -1);
+  const sluiceCount = () => { const sl = state.river.sluice; return sl.bend < 0 ? 0 : Math.min(RIVER.sluice.holds, Math.floor((total() - sl.at) / RIVER.sluice.hoursPerFlake)); };
+  function takeGold(real, fake, nugget) { // fool's gold goes in the same pouch: you believe it is gold until the heat says otherwise
+    const fit = give('goldflake', real + fake, undefined, false) ; const kept = real + fake - fit;
+    const fakeKept = Math.min(fake, Math.round(kept * (fake / Math.max(1, real + fake))));
+    if (fakeKept) state.fakes.goldflake = (state.fakes.goldflake || 0) + fakeKept;
+    if (kept - fakeKept > 0) state.recipes.goldflake = true;
+    if (nugget) give('nugget', 1, undefined, false);
+    return { kept, lost: fit };
+  }
+  function startPan(i) {
+    const b = RIVER.bends[i];
+    state.canMove = false; state.panning = true; document.body.classList.add('decking'); $('prompt').classList.add('hidden');
+    PAN.start({ pan: panKind(), rich: bendRich(i), where: b.name, clearHead: fx('clear'), onDone: (r) => {
+      state.panning = false; document.body.classList.remove('decking'); state.canMove = true;
+      if (r.quit) { toast('You tip the pan back into the river.'); return; }
+      state.river.panned[i] = (state.river.panned[i] || 0) + 1;
+      pass(RIVER.panHours); gfx.setTime(state.hour); add('energy', -0.03); add('hygiene', 0.04);
+      const got = takeGold(r.gold, r.pyrite, r.nugget), n = got.kept;
+      toast(!n && !r.nugget ? (r.left ? 'You left what glinted in the pan and tipped it out.' : 'Nothing but black sand that time. This bend may be picked over.')
+        : `${n ? `${n} flake${n === 1 ? '' : 's'} of gold in your pouch` : ''}${n && r.nugget ? ', and ' : ''}${r.nugget ? 'a gold nugget' : ''}.${got.lost ? ' No room for the rest.' : ''}${r.spills ? ' Some went back in the river when it sloshed.' : ''}`);
+      if (r.nugget) sfx('level'); save();
+    } });
+  }
+  function bendMenu(i) {
+    const b = RIVER.bends[i], kind = panKind(), sl = state.river.sluice, rich = bendRich(i), S = RIVER.sluice;
+    const look = rich > 0.75 ? 'The gravel is freshly turned and there is black sand everywhere.' : rich > 0.45 ? 'Some black sand has settled behind the rocks.' : 'It looks picked over.';
+    const opts = [{ label: `Pan a scoop of gravel <small>${kind ? `with your ${RIVER.pans[kind].name.toLowerCase()}. About ${Math.round(RIVER.panHours * 60)} minutes` : 'scoop, swirl, pick out what glints'}</small>`,
+      can: () => (kind ? true : 'you need a pan: a pie tin turns up in the Free Pile, and your workbench makes a proper one'), act: () => startPan(i) }];
+    if (made('sluice')) {
+      if (sl.bend === i) opts.push({ label: `Empty your sluice box <small>${sluiceCount()} of ${S.holds} flakes caught</small>`, can: () => (sluiceCount() > 0 ? true : 'nothing in it yet'), act: () => {
+        const n = sluiceCount(); let fake = 0; for (let k = 0; k < n; k++) if (Math.random() < S.pyriteChance) fake++;
+        const got = takeGold(n - fake, fake, false); sl.at = total(); sfx('coin'); toast(`${got.kept} flake${got.kept === 1 ? '' : 's'} from the sluice box.${got.lost ? ' No room for the rest.' : ''}`); bendMenu(i); } },
+        { label: 'Pull your sluice box out <small>to set it somewhere else</small>', act: () => { sl.bend = -1; toast('You haul the sluice box out of the river.'); bendMenu(i); } });
+      else opts.push({ label: `Set your sluice box here <small>${sl.bend >= 0 ? `it moves from ${RIVER.bends[sl.bend].name}, and anything in it is lost. ` : ''}Catches a flake every ${S.hoursPerFlake} hours, up to ${S.holds}</small>`, act: () => { sl.bend = i; sl.at = total(); toast('The sluice box is in the current. Come back for what it catches.'); bendMenu(i); } });
+    } else opts.push({ label: 'A sluice box would work this bend while you are away', can: () => 'build one at your workbench', act() {} });
+    menu(`${b.name[0].toUpperCase()}${b.name.slice(1)}. ${look}`, opts);
   }
   // ---- your corner: once Vinny has backed off, a spot at the far end of the Street is yours. Post up there at night with your
   // tank and buyers come to you; or pay Whip a night's wage to work it. Settings below were first guesses, not yet tuned.
@@ -1932,8 +2065,9 @@ export function createLife(ctx) {
   function cornerTick() {
     const c = state.corner, v = state.nos, now = total(), R = CORNER_RULES;
     crewEarnTick();
-    if (fullCrew() && late() && now >= c.crewNext) { // all four stations filled: the corner works itself, wherever you are
-      const pace = Math.min(seat('fill').speed || 1, seat('front').speed || 1, seat('run').speed || 1); // as fast as its slowest station
+    if (seat('fill') && !c.open && late() && now >= c.crewNext) { // somebody is on the tank and you are not posted up: the crew sells without you
+      const speeds = ['fill', 'front', 'run'].map((st) => seat(st)).filter(Boolean).map((m) => m.speed || 1);
+      const pace = Math.min(...speeds) * (seat('run') ? 1 : CREW.rules.noRunner); // as fast as its slowest station; with nobody handing out, half that
       c.crewNext = now + (CREW.rules.gap[0] + Math.random() * (CREW.rules.gap[1] - CREW.rules.gap[0])) / pace * (shunned() ? RECKON.warnedGap : 1);
       crewSale();
     }
@@ -1969,7 +2103,8 @@ export function createLife(ctx) {
       c.open ? { label: 'Pack up <small>stop selling here</small>', act: () => closeCorner('You pack up the corner.') }
         : { label: `Post up here <small>buyers walk up to you; E fills them a balloon (or has your filler do it), Q waves one off. Busiest 8 PM to 4 AM${late() ? '' : ', slow right now'}. Watch for Officer Dan’s people</small>`, can: () => (fullCrew() ? 'your crew has the corner tonight' : v.fills < 1 ? 'your tank is empty' : true),
           act: () => { c.open = true; c.next = total(); toast(late() ? 'You are on your corner. Stay close and they will come to you.' : 'You are on your corner. It is slow before 8 PM: about a quarter of the night-time trade.'); } },
-      { label: `Your crew <small>${crewCount()} of 4 stations filled tonight. Each hire takes a job off you; with all four the corner runs without you</small>`, act: crewMenu },
+      { label: `Your crew <small>${crewCount()} of 4 stations filled tonight. A filler keeps it selling when you walk away; every empty station costs you something</small>`, act: crewMenu },
+      ...((c.pile || 0) > 0 ? [{ label: `Collect the cash tin: $${c.pile} <small>what your crew took with nobody on cash</small>`, act: () => { state.cash += c.pile; sfx('coin'); toast(`+$${c.pile} from the tin.`); c.pile = 0; cornerMenu(); } }] : []),
       { label: `You have sold ${c.sold} here for $${c.take}; your crew has sold ${c.crewSold + c.whipSold} for $${c.crewTake + c.whipTake}`, can: () => 'for your information', act() {} },
     ]);
   }
@@ -2031,6 +2166,7 @@ export function createLife(ctx) {
   // ---- places you can use
   interactables.push(
     { test: (p) => (state.gear.pantry >= 2 || Object.values(state.pantry).some((v) => v > 0)) && Math.hypot(p.x - CAMP.pantry[0], p.z - CAMP.pantry[1]) < 1.6, label: () => `Your ${GEAR.pantry[1][state.gear.pantry - 1].name.toLowerCase().replace('no cabinet', 'old pantry shelf')}: ${pantryLine()}${state.pantryCheese.length ? `, ${state.pantryCheese.length} grilled cheese` : ''}`, use: pantryMenu },
+    { test: (p) => nearBend(p) >= 0, label: () => { const i = nearBend(getPlayer().root.position); return `${RIVER.bends[i].name[0].toUpperCase()}${RIVER.bends[i].name.slice(1)}: ${state.river.sluice.bend === i ? `your sluice box, ${sluiceCount()} flakes` : 'pan for gold'}`; }, use: () => bendMenu(nearBend(getPlayer().root.position)) },
     { test: (p) => cornerBuyer(p) !== undefined, label: () => cornerPitch(cornerBuyer(getPlayer().root.position)), use: () => { const q = cornerBuyer(getPlayer().root.position); if (seat('fill')) crewFillSale(q); else startFill(q); } },
     { test: (p) => atCorner(p) && state.corner.open && (state.corner.queue.length > 0 || state.t - cornerT < 1.5), label: () => (state.corner.queue.length ? 'Somebody is heading for your corner · C for your corner menu' : 'Your corner (open) · C for your corner menu'), use() {} },
     { test: (p) => cornerOwned() && Math.hypot(p.x - CORNER[0], p.z - CORNER[1]) < 2.2, label: () => (state.corner.open ? 'Your corner (open)' : 'Your corner'), use: cornerMenu },
@@ -2048,12 +2184,13 @@ export function createLife(ctx) {
     ]) },
     { at: PILE, r: 3.4, label: 'Dig through the Free Pile', use: () => {
       if (total() < state.pileNext) { toast('Picked clean for now. It restocks every hour or so.'); return; }
-      if (['salvage', 'fabric', 'lights'].every((k) => room('bag', k) < 1)) { toast('Your bag is full. Stash something at camp first.'); return; }
+      if (['salvage', 'fabric', 'lights', 'pietin'].every((k) => room('bag', k) < 1)) { toast('Your bag is full. Stash something at camp first.'); return; }
       state.pileNext = total() + (state.tree.keen ? 0.5 : 1) * (['Monday', 'Tuesday'].includes(week().name) ? 0.34 : 1); // everybody leaving dumps their gear
       pass(0.2);
       const finds = [['a broken camp chair', { salvage: 1 }], ['a tent with one pole', { salvage: 1, fabric: 1 }], ['half a sleeping bag', { fabric: 1 }],
         ['a tangle of dead fairy lights', { lights: 1 }], ['a tarp and some bungee cords', { fabric: 1, salvage: 1 }], ['a roll of duct tape, nearly full', { salvage: 2 }],
         ['a cracked cooler lid', { salvage: 1 }], ['a ripped flannel', { fabric: 1 }], ['a single flip-flop', {}]];
+      if (!have('pietin') && !made('goldpan') && Math.random() < 0.3) finds.splice(0, finds.length, ['a dented pie tin. You could pan the river with this', { pietin: 1 }]); // the start of the gold trail
       let [what, parts] = finds[Math.floor(Math.random() * finds.length)];
       if (!Object.keys(parts).length && Math.random() < (craftLevel() - 1) * 0.25) [what, parts] = finds[Math.floor(Math.random() * 8)]; // a trained eye digs past the junk
       const got = [], left = [];
@@ -2146,7 +2283,7 @@ export function createLife(ctx) {
   interactables.unshift(interactables.splice(interactables.findIndex((i) => i.label === 'Your tank'), 1)[0]);
 
   // ---- saving. The game saves itself once you are free to roam; the opening is short enough to replay.
-  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry', 'pantryCheese', 'corner', 'reckon', 'crewShifts'];
+  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry', 'pantryCheese', 'corner', 'reckon', 'crewShifts', 'river'];
   let saveClock = 0;
   function save() {
     if (state.mode !== 'free') return;
@@ -2235,12 +2372,15 @@ export function createLife(ctx) {
     save,
     key(e) {
       if (decks.active) return true; // the Decks have their own hands
+      if (PAN && PAN.active) return true; // so has the gold pan
       if (state.filling) { if (e.code === 'Space' && !e.repeat) fillHold(true); else if (e.code === 'Escape' && !state.filling.started) closeFill(true); return true; }
       if (state.cooking) {
         if (e.code === 'Space') cookPress();
         else if (e.code === 'KeyA' || e.code === 'ArrowLeft') cookPress(0);
         else if (e.code === 'KeyD' || e.code === 'ArrowRight') cookPress(state.cooking.pans > 1 ? 1 : 0);
         else if (e.code.startsWith('Digit')) { const item = state.cooking.tops[+e.code.slice(5) - 1]; if (item) cookTop(item); }
+        else if ((e.code === 'KeyF' || e.code === 'Enter') && !e.repeat) toPan();
+        else if (e.code === 'KeyX' || e.code === 'Backspace') boardClear();
         else if (e.code === 'Escape') stopCooking();
         return true;
       }
@@ -2271,11 +2411,12 @@ export function createLife(ctx) {
       return false;
     },
     // A click while cooking: with two pans, the left half of the screen is the left pan.
-    cookTop, fillHold,
+    cookTop, boardPlace, boardClear, toPan, fillHold,
     cookClick(xFraction) { if (state.cooking) cookPress(state.cooking.pans > 1 ? (xFraction < 0.5 ? 0 : 1) : 0); },
     update(dt) {
       if (['load', 'creator', 'intro'].includes(state.mode)) return;
       if (decks.active) { decks.update(dt); return; } // the world waits while you play
+      if (PAN && PAN.active) { PAN.update(dt); return; } // and while you pan
       if (state.cooking) updateCooking(dt);
       if (state.filling) updateFilling(dt);
       const free = state.mode === 'free', hours = dt / HOUR;
