@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=87';
+import { createLife, readSave, saveLabel } from './life.js?v=88';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -973,6 +973,11 @@ function crewStand(dt) {
   if (!c) return;
   const now = (state.day || 0) * 24 + (state.hour || 0), on = {};
   if (campLook.corner && campLook.corner.visible) for (const st in CREW_SPOT) { const seat = c.crew && c.crew[st]; if (seat && now < seat.until && !(c.left && c.left[seat.id])) on[seat.id] = st; }
+  if (whip) { // Whip has his own model: on duty he comes over to the tank, off duty he is back behind the Costume Shop
+    const st = on.whip;
+    if (st) { const [dx, dz, ry] = CREW_SPOT[st]; whip.root.position.set(CORNER[0] + dx, 0, CORNER[1] + dz); whip.root.rotation.y = ry; }
+    else if (whip.root.position.x !== WHIP[0]) { whip.root.position.set(WHIP[0], 0, WHIP[1]); whip.root.rotation.y = -1.9; }
+  }
   for (const id in crewModels) {
     const ch = crewModels[id], st = on[id];
     ch.root.visible = !!st;

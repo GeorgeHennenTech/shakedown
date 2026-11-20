@@ -1753,12 +1753,14 @@ export function createLife(ctx) {
       toast(`${m.name} will work your corner: ${CREW.stations[m.station].name.toLowerCase()}. Hire them by the night at your crate.`);
     }
   }
-  // Where a sale's money goes: with somebody on cash it leaves the corner for your camp stash (less whatever sticks to their fingers).
+  // Where a sale's money goes: with somebody on cash they hold it for you until the night is over (less whatever sticks to their fingers).
+  const holder = () => (CREW.members[state.corner.heldBy] || { name: 'Your crew' }).name;
+  const cashOnShift = () => !!seatId('cash') && seatId('cash') === state.corner.heldBy;
   function bank(pay) {
     const cash = seat('cash'), c = state.corner;
     if (!cash) { state.cash += pay; return pay; }
     if (Math.random() < (cash.skim || 0)) { pay = Math.max(0, pay - 1); c.skimmed = (c.skimmed || 0) + 1; }
-    state.stash += pay; return pay;
+    c.held = (c.held || 0) + pay; c.heldBy = seatId('cash'); c.heldTold = false; return pay; // kept on them until the shift ends, then you collect it at the crate
   }
   function crewBust(why) { // the whole crew scatters for the night; whoever was on the front spends a day in the cooler
     const c = state.corner, v = state.nos, front = seatId('front'), lost = Math.min(v.fills, CREW.rules.bustLoss);
@@ -2080,6 +2082,7 @@ export function createLife(ctx) {
   function cornerTick() {
     const c = state.corner, v = state.nos, now = total(), R = CORNER_RULES;
     crewEarnTick();
+    if (!c.heldTold && (c.held || 0) > 0 && !cashOnShift()) { c.heldTold = true; toast(`The night is over on your corner. ${holder()} is holding $${c.held} for you: collect it at your crate.`); }
     if (seat('fill') && !c.open && late() && now >= c.crewNext) { // somebody is on the tank and you are not posted up: the crew sells without you
       const speeds = ['fill', 'front', 'run'].map((st) => seat(st)).filter(Boolean).map((m) => m.speed || 1);
       const pace = Math.min(...speeds) * (seat('run') ? 1 : CREW.rules.noRunner); // as fast as its slowest station; with nobody handing out, half that
@@ -2119,6 +2122,9 @@ export function createLife(ctx) {
         : { label: `Post up here <small>buyers walk up to you; E fills them a balloon (or has your filler do it), Q waves one off. Busiest 8 PM to 4 AM${late() ? '' : ', slow right now'}. Watch for Officer Dan’s people</small>`, can: () => (fullCrew() ? 'your crew has the corner tonight' : v.fills < 1 ? 'your tank is empty' : true),
           act: () => { c.open = true; c.next = total(); toast(late() ? 'You are on your corner. Stay close and they will come to you.' : 'You are on your corner. It is slow before 8 PM: about a quarter of the night-time trade.'); } },
       { label: `Your crew <small>${crewCount()} of 4 stations filled tonight. A filler keeps it selling when you walk away; every empty station costs you something</small>`, act: crewMenu },
+      ...((c.held || 0) > 0 ? [{ label: `Collect your takings from ${holder()}: $${c.held} <small>${cashOnShift() ? 'settles up when the shift ends at 4 AM' : 'what your crew took last night'}</small>`,
+        can: () => (cashOnShift() ? 'still on shift: come back after 4 AM' : true),
+        act: () => { const n = c.held; state.cash += n; c.held = 0; c.heldTold = true; sfx('coin'); toast(`${holder()} counts it into your hand. +$${n}.`); save(); cornerMenu(); } }] : []),
       ...((c.pile || 0) > 0 ? [{ label: `Collect the cash tin: $${c.pile} <small>what your crew took with nobody on cash</small>`, act: () => { state.cash += c.pile; sfx('coin'); toast(`+$${c.pile} from the tin.`); c.pile = 0; cornerMenu(); } }] : []),
       { label: `You have sold ${c.sold} here for $${c.take}; your crew has sold ${c.crewSold + c.whipSold} for $${c.crewTake + c.whipTake}`, can: () => 'for your information', act() {} },
     ]);
@@ -2202,8 +2208,8 @@ export function createLife(ctx) {
     { at: PILE, r: 3.4, label: 'Dig through the Free Pile', use: () => {
       if (total() < state.pileNext) { toast('Picked clean for now. It restocks every hour or so.'); return; }
       if (['salvage', 'fabric', 'lights', 'pietin'].every((k) => room('bag', k) < 1)) { toast('Your bag is full. Stash something at camp first.'); return; }
-      state.pileNext = total() + (state.tree.keen ? 0.5 : 1) * (['Monday', 'Tuesday'].includes(week().name) ? 0.34 : 1); // everybody leaving dumps their gear
       pass(0.2);
+      state.pileNext = total() + Math.max(0.33, (state.tree.keen ? 0.5 : 1) * (['Monday', 'Tuesday'].includes(week().name) ? 0.5 : 1)); // counted from when you finish digging. Everybody leaving dumps their gear, so it is quicker early in the week, but never under 20 minutes
       const finds = [['a broken camp chair', { salvage: 1 }], ['a tent with one pole', { salvage: 1, fabric: 1 }], ['half a sleeping bag', { fabric: 1 }],
         ['a tangle of dead fairy lights', { lights: 1 }], ['a tarp and some bungee cords', { fabric: 1, salvage: 1 }], ['a roll of duct tape, nearly full', { salvage: 2 }],
         ['a cracked cooler lid', { salvage: 1 }], ['a ripped flannel', { fabric: 1 }], ['a single flip-flop', {}]];
