@@ -103,7 +103,7 @@ export function createLife(ctx) {
     weather: { rain: false, until: 0, next: 31 + Math.random() * 8 }, // the first shower comes on Friday
     plots: [], recipes: {}, pantry: {}, pantryCheese: [], shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
     fx: { clear: 0, soul: 0, zombie: 0, broth: 0, smoke: 0, trip: 0, tripDay: -1 }, glow: 0, vision: false, visionUsed: false,
-    offer: '', pal: { friend: 0, watch: 0, gift: -1 }, danced: 0, daily: null, over: false, act: '',
+    offer: '', pal: { friend: 0, watch: 0, gift: -1, held: 0, told: true }, danced: 0, daily: null, over: false, act: '',
     tree: {}, dayLog: { worth: 40, sold: 0, helped: 0, picked: 0 },
     craft: { xp: 0, made: {} }, skills: { hustle: 0, wellness: 0, charisma: 0, decks: 0 }, crate: { owned: [...CRATE.start], sets: 0, best: 0, gift: -1 }, points: 0, litter: [], picked: 0, towing: false,
   });
@@ -956,7 +956,11 @@ export function createLife(ctx) {
     const pal = state.pal, watching = total() < pal.watch;
     const mood = pal.friend >= 4 ? 'Moonbeam lights up when he sees you.' : pal.friend >= 2 ? 'Moonbeam nods you over.' : 'Your neighbour looks up from a camp chair.';
     toast(mood);
+    const onShift = hired('front'), held = pal.held || 0;
     menu(`Moonbeam, your neighbour${pal.friend ? ` (friendship ${pal.friend})` : ''}`, [
+      ...(held > 0 || onShift ? [{ label: `Collect your takings: $${held} <small>${onShift ? 'he settles up when his shift ends at 2 AM' : 'what he sold at your counter'}</small>`,
+        can: () => (onShift ? 'still on shift: come back after 2 AM' : held > 0 ? true : 'he sold nothing'),
+        act: () => { state.cash += held; pal.held = 0; pal.told = true; sfx('coin'); toast(`Moonbeam counts it into your hand. +$${held}. "Good day at the counter, neighbour."`); save(); } }] : []),
       { label: 'Share a grilled cheese <small>he shares something back</small>', can: () => (state.cheese.length ? true : 'you have none on you'), act: () => {
         state.cheese.sort((a, b) => a.p - b.p); state.cheese.pop(); // you give them your best one
         pal.friend++; add('vibes', 0.05);
@@ -969,7 +973,7 @@ export function createLife(ctx) {
       { label: 'Ask him to be your lookout tonight <small>slower heat; a warning when a buyer smells wrong</small>', cost: 10,
         can: () => (lookout() ? 'he is already watching' : pal.friend < 2 ? 'share food first' : !state.nos.tank && !state.bag.balloons ? 'you have nothing to look out for' : true),
         act: () => { state.nos.lookoutUntil = state.hour < 6 ? state.day * 24 + 6 : (state.day + 1) * 24 + 6; toast('Moonbeam: I’ll whistle if I see tracksuits. Or new tie-dye.'); } },
-      { label: 'Hire for the day: run the counter <small>sells from your camp stash while you are out; the money goes in your stash</small>', cost: 35,
+      { label: 'Hire for the day: run the counter <small>sells from your camp stash and cabinet while you are out. He holds the takings: collect them from him when his shift ends at 2 AM</small>', cost: 35,
         can: () => (pal.friend < 4 ? 'needs friendship 4' : !state.kitchen.open ? 'put your kitchen sign up first' : working() ? 'already working for you today' : true), act: () => hire('front') },
       { label: 'Hire for the day: tend the garden <small>waters, picks and replants from your seeds</small>', cost: 35,
         can: () => (pal.friend < 4 ? 'needs friendship 4' : working() ? 'already working for you today' : true), act: () => hire('garden') },
@@ -1534,7 +1538,7 @@ export function createLife(ctx) {
     if (!best.ok) k.wrong = (k.wrong || 0) + 1;
     const named = best.ok && q.want !== 'any' && q.want !== 'plain';
     const pay = best.price + (byPal ? 0 : KITCHEN.premium) + (named ? KITCHEN.tip : 0); // served by you, at your own counter: a dollar more than on foot. A named order met: a tip, whoever serves it
-    if (byPal) { state.stash += pay; k.palSold++; k.palTake += pay; }
+    if (byPal) { state.pal.held = (state.pal.held || 0) + pay; state.pal.told = false; k.palSold++; k.palTake += pay; } // Moonbeam keeps the takings in his apron until you come and collect
     else { state.cash += pay; gain('hustle', 2); add('vibes', 0.015); sfx('coin'); toast(`+$${pay} for a ${sandwichName(best.f[0])}. ${named ? `Just what they ordered: $${KITCHEN.tip} tip.` : best.ok ? 'Just what they ordered.' : 'Not what they asked for, but they took it.'}`); }
     state.sold++; k.served++; if (f) { f.next = total() + 3; f.appetite = Math.random() * 0.4; }
     leaveQueue(q);
@@ -1571,6 +1575,7 @@ export function createLife(ctx) {
   function kitchenTick() {
     const k = state.kitchen, now = total(), h = state.hour;
     if (hired('garden') && now >= k.gardenNext) { k.gardenNext = now + 0.5; tendGarden(); }
+    if (!state.pal.told && (state.pal.held || 0) > 0 && !hired('front')) { state.pal.told = true; toast(`Moonbeam's shift is over. He is holding $${state.pal.held} for you: go and collect it from him.`); }
     if (!k.open) return;
     if ((h >= 8 || h < 2) && now >= k.next && k.queue.length < KITCHEN.queue && (atCamp() || hired('front'))) {
       const rush = (h >= 12 && h < 14) || (h >= 18 && h < 20.5) || h >= 23 || h < 2; // the same mealtimes that help you on foot
@@ -1646,12 +1651,12 @@ export function createLife(ctx) {
         : { label: 'Put the sign up <small>people nearby walk over and order. An open kitchen draws more thieves</small>', can: () => ready, act: () => { k.open = true; k.next = total(); toast('Sign up. Stay at camp and customers will come to the counter.'); } },
       { label: `On the board today: ${['grilled cheese', ...board([state.cheese, state.store.cheese, state.pantryCheese]).map((f) => sandwichName(f.item))].join(', ')} <small>cooked: ${stockLine([state.cheese, state.store.cheese, state.pantryCheese])}</small>`, can: () => 'for your information', act() {} },
       { label: `In your produce cabinet: ${state.gear.pantry < 2 ? 'you have none; Leather & Burner sells a produce crate' : pantryLine()} <small>bread and cheese for ${have('supplies')} more sandwiches, counting your bag and stash</small>`, can: () => 'for your information', act() {} },
-      { label: `Moonbeam has sold ${k.palSold} for $${k.palTake} <small>hire him from his camp chair, $35 a day</small>`, can: () => 'for your information', act() {} },
+      { label: `Moonbeam has sold ${k.palSold} for $${k.palTake} <small>${(state.pal.held || 0) > 0 ? `he is holding $${state.pal.held} for you: collect it from him after his shift` : 'hire him from his camp chair, $35 a day'}</small>`, can: () => 'for your information', act() {} },
     ]);
   }
   function hire(job) {
     state.kitchen.hire = { job, until: state.hour < 2 ? state.day * 24 + 2 : (state.day + 1) * 24 + 2 }; state.kitchen.gardenNext = 0;
-    toast(job === 'front' ? '"Counter is mine. Keep that stash full of sandwiches." Sales go in your camp stash.' : '"I love a garden. Leave your seeds in the stash and I will replant."');
+    toast(job === 'front' ? '"Counter is mine. Keep that stash full of sandwiches." He holds what he takes: collect it from him when his shift ends at 2 AM.' : '"I love a garden. Leave your seeds in the stash and I will replant."');
   }
   // ---- the Elder and the balloons: sell enough and the people you sold to start filling the cots in the Chill-Out Tent.
   // The Elder asks what you intend to do about it. First-guess numbers, not yet tuned.
