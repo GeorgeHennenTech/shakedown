@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=91';
+import { createLife, readSave, saveLabel } from './life.js?v=92';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -1024,15 +1024,46 @@ function buildRiverBends(RIVER) {
 }
 // ---- the corner crew: whoever is hired for the night stands at their station by the crate
 const crewModels = {};
-const CREW_SPOT = { fill: [1.85, 0.1, -0.3], front: [-1.9, 1.1, 0.4], cash: [-0.7, -0.5, 0.1], run: [2.4, 1.35, -0.5] }; // metres from the crate, and which way they face
+const CREW_SPOT = { fill: [1.85, 0.1, -1.75], front: [-1.9, 1.1, 0.4], cash: [-0.7, -0.5, 0.1], run: [2.4, 1.35, -0.5] }; // the filler faces the tank
+// What the crew do with their hands. Same rig and axes as Moonbeam's (see MOON_POSE): arm x- brings a hand forward, RightArm z- lifts it out.
+const CREW_POSE = {
+  greet: { secs: 1.1, bones: { RightArm: [0, 0, -1.3], RightForeArm: [0, 0, -0.7], Head: [0.1, 0, 0] }, wobble: { bone: 'RightForeArm', axis: 2, amount: 0.4, speed: 14 } }, // the front waves the next one in
+  pump: { secs: 1.2, bones: { RightArm: [-1.1, 0, 0], LeftArm: [-0.85, 0, 0], Spine01: [0.2, 0, 0], Head: [0.2, 0, 0] }, wobble: { bone: 'RightForeArm', axis: 0, amount: 0.35, speed: 17 } }, // the filler leans to the tank and cracks the valve
+  take: { secs: 1.0, bones: { RightArm: [-1.2, 0, 0], RightForeArm: [-0.35, 0, 0], Spine01: [0.1, 0, 0] }, wobble: { bone: 'Head', axis: 0, amount: 0.14, speed: 11 } }, // cash holds a hand out and counts it with a nod
+  hand: { secs: 1.1, bones: { RightArm: [-1.3, 0, 0], LeftArm: [-1.3, 0, 0], Spine01: [0.24, 0, 0] } }, // the runner passes it over with both hands
+  sorry: { secs: 1.5, bones: { RightArm: [0, 0, -0.45], LeftArm: [0, 0, 0.45], RightForeArm: [-0.8, 0, 0], LeftForeArm: [-0.8, 0, 0] }, wobble: { bone: 'Head', axis: 1, amount: 0.35, speed: 8 } }, // open hands, a shake of the head
+  look: { secs: 1.2, bones: { Head: [0, 0.55, 0], Spine01: [0, 0.2, 0] } }, // everyone else turns to watch
+  laugh: { secs: 1.1, bones: { Spine01: [-0.16, 0, 0] }, wobble: { bone: 'Head', axis: 0, amount: 0.22, speed: 18 } },
+  groove: { secs: 0, bones: {}, wobble: { bone: 'Head', axis: 0, amount: 0.1, speed: 5.2 } }, // between sales they all nod to the same beat
+};
+// One thing happens at the corner and each station plays its part, one after the other down the line: [pose, seconds after it starts].
+const CREW_BEAT = {
+  sale: { front: ['greet', 0], fill: ['pump', 0.3], cash: ['take', 0.95], run: ['hand', 1.45] },
+  wave: { front: ['sorry', 0], fill: ['look', 0.15], cash: ['look', 0.2], run: ['look', 0.25] },
+  pop: { fill: ['sorry', 0], front: ['look', 0.1], cash: ['laugh', 0.25], run: ['laugh', 0.3] },
+};
+function poseOn(ch, pose, w) {
+  for (const [name, r] of Object.entries(pose.bones)) { const b = ch.bones[name]; if (b) { b.rotation.x += r[0] * w; b.rotation.y += r[1] * w; b.rotation.z += r[2] * w; } }
+  if (pose.wobble) { const b = ch.bones[pose.wobble.bone]; if (b) b.rotation['xyz'[pose.wobble.axis]] += Math.sin(state.t * pose.wobble.speed) * pose.wobble.amount * w; }
+}
+function crewAct(ch, st) { // call after the mixer has moved the bones for this frame
+  if (ch.bones.Hips && ch.actions.Idle) { // the shared idle swings the whole body about; at work they face the job
+    if (!ch.hipsRest) { const t = ch.actions.Idle.getClip().tracks.find((x) => x.name === 'Hips.quaternion'); ch.hipsRest = t ? new THREE.Quaternion().fromArray(t.values, 0) : ch.bones.Hips.quaternion.clone(); }
+    ch.bones.Hips.quaternion.slerp(ch.hipsRest, 0.85);
+  }
+  const act = state.corner.act, part = act && CREW_BEAT[act.kind] && CREW_BEAT[act.kind][st], pose = part && CREW_POSE[part[0]], age = part ? state.t - act.at - part[1] : -1;
+  if (pose && age >= 0 && age < pose.secs) poseOn(ch, pose, Math.sin(Math.PI * Math.min(1, age / pose.secs * 1.15)) ** 0.6); // ease in, hold, ease out
+  else poseOn(ch, CREW_POSE.groove, 1);
+} // metres from the crate, and which way they face
 function crewStand(dt) {
   const c = state.corner;
   if (!c) return;
   const now = (state.day || 0) * 24 + (state.hour || 0), on = {};
-  if (campLook.corner && campLook.corner.visible) for (const st in CREW_SPOT) { const seat = c.crew && c.crew[st]; if (seat && now < seat.until && !(c.left && c.left[seat.id])) on[seat.id] = st; }
+  const scattered = now < (c.scatterUntil || 0); // run off by Officer Dan's people: the corner stands empty until they drift back
+  if (campLook.corner && campLook.corner.visible && !scattered) for (const st in CREW_SPOT) { const seat = c.crew && c.crew[st]; if (seat && now < seat.until && !(c.left && c.left[seat.id])) on[seat.id] = st; }
   if (whip) { // Whip has his own model: on duty he comes over to the tank, off duty he is back behind the Costume Shop
     const st = on.whip;
-    if (st) { const [dx, dz, ry] = CREW_SPOT[st]; whip.root.position.set(CORNER[0] + dx, 0, CORNER[1] + dz); whip.root.rotation.y = ry; }
+    if (st) { const [dx, dz, ry] = CREW_SPOT[st]; whip.root.position.set(CORNER[0] + dx, 0, CORNER[1] + dz); whip.root.rotation.y = ry; crewAct(whip, st); }
     else if (whip.root.position.x !== WHIP[0]) { whip.root.position.set(WHIP[0], 0, WHIP[1]); whip.root.rotation.y = -1.9; }
   }
   for (const id in crewModels) {
@@ -1042,6 +1073,7 @@ function crewStand(dt) {
     const [dx, dz, ry] = CREW_SPOT[st];
     ch.root.position.set(CORNER[0] + dx, 0, CORNER[1] + dz); ch.root.rotation.y = ry;
     ch.mixer.update(dt);
+    crewAct(ch, st);
   }
 }
 async function loadCharacter(url) {
@@ -1798,7 +1830,7 @@ async function boot() {
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });

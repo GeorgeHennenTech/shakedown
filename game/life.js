@@ -1757,8 +1757,10 @@ export function createLife(ctx) {
   // Where a sale's money goes: with somebody on cash they hold it for you until the night is over (less whatever sticks to their fingers).
   const holder = () => (CREW.members[state.corner.heldBy] || { name: 'Your crew' }).name;
   const cashOnShift = () => !!seatId('cash') && seatId('cash') === state.corner.heldBy;
+  const cornerAct = (kind) => { state.corner.act = { kind, at: state.t }; }; // 'sale', 'wave', 'pop': main.js plays each station's part
   function bank(pay) {
     const cash = seat('cash'), c = state.corner;
+    cornerAct('sale');
     if (!cash) { state.cash += pay; return pay; }
     if (Math.random() < (cash.skim || 0)) { pay = Math.max(0, pay - 1); c.skimmed = (c.skimmed || 0) + 1; }
     c.held = (c.held || 0) + pay; c.heldBy = seatId('cash'); c.heldTold = false; return pay; // kept on them until the shift ends, then you collect it at the crate
@@ -1777,7 +1779,7 @@ export function createLife(ctx) {
     v.fills -= lost; c.busts = (c.busts || 0) + 1; c.nightBusts = (c.nightBusts || 0) + 1;
     const who = front ? CREW.members[front].name : seatId('fill') ? CREW.members[seatId('fill')].name : 'Your crew';
     if (front && c.nightBusts < R.bustsEndNight) {
-      c.crewNext = total() + R.bustPause;
+      c.crewNext = total() + R.bustPause; c.scatterUntil = c.crewNext; // main.js clears the corner until they drift back
       toast(`${why} ${who} all but served one of Officer Dan's. The crew scattered and ${lost} fills went with them. They will be back on your corner in about ${Math.round(R.bustPause * 60)} minutes.`);
       return;
     }
@@ -1801,8 +1803,8 @@ export function createLife(ctx) {
       for (const [box, key] of [[c, 'held'], [state, 'stash'], [state, 'cash']]) { const pay = Math.min(box[key] || 0, owe); box[key] = (box[key] || 0) - pay; owe -= pay; }
       c.refills++; c.nightGas = (c.nightGas || 0) + R.refillCost; v.fills = 30; return;
     }
-    if (Math.random() < (fill.pop || 0)) { v.fills--; c.popped = (c.popped || 0) + 1; return; }
-    if (Math.random() < R.narc) { if (front && Math.random() < (front.spot || 0)) { c.crewWaved = (c.crewWaved || 0) + 1; return; } crewBust('Word from the Street:'); return; } // with nobody on the front, every undercover gets served
+    if (Math.random() < (fill.pop || 0)) { v.fills--; c.popped = (c.popped || 0) + 1; cornerAct('pop'); return; }
+    if (Math.random() < R.narc) { if (front && Math.random() < (front.spot || 0)) { c.crewWaved = (c.crewWaved || 0) + 1; cornerAct('wave'); return; } crewBust('Word from the Street:'); return; } // with nobody on the front, every undercover gets served
     if (front && Math.random() < (front.turnaway || 0)) return;
     let pay = price() + (Math.random() < (fill.tip || 0) ? 1 : 0);
     if (seat('cash')) pay = bank(pay);
@@ -1816,7 +1818,7 @@ export function createLife(ctx) {
   function crewFillSale(q) {
     const c = state.corner, v = state.nos, fill = seat('fill'), f = people[q.i];
     cornerT = state.t;
-    if (Math.random() < (fill.pop || 0)) { v.fills--; toast(`${fill.name} pops one. A fill wasted; they are still waiting.`); if (v.fills < 1) closeCorner('The tank is empty. Your corner is closed until you refill.'); return; }
+    if (Math.random() < (fill.pop || 0)) { cornerAct('pop'); v.fills--; toast(`${fill.name} pops one. A fill wasted; they are still waiting.`); if (v.fills < 1) closeCorner('The tank is empty. Your corner is closed until you refill.'); return; }
     leaveCorner(q); f.next = total() + 2;
     if (tell(f).narc) { closeCorner(); for (const st of STATIONS) if (c.crew[st]) c.crew[st].until = 0; bust(); return; }
     const pay = bank(price() + (Math.random() < (fill.tip || 0) ? 1 : 0));
@@ -2129,7 +2131,7 @@ export function createLife(ctx) {
       if (!people[q.i] || !people[q.i].called) { c.queue = c.queue.filter((x) => x !== q); continue; }
       if (!q.at && crowd.waiting(q.i)) {
         q.at = now; const t = tell(people[q.i]), front = seat('front');
-        if (front && t.narc && Math.random() < (front.spot || 0)) { state.corner.frontWaved = (state.corner.frontWaved || 0) + 1; people[q.i].next = now + 2; leaveCorner(q); toast(`${front.name} sends one away before they reach you: "Not tonight."`); continue; }
+        if (front && t.narc && Math.random() < (front.spot || 0)) { state.corner.frontWaved = (state.corner.frontWaved || 0) + 1; cornerAct('wave'); people[q.i].next = now + 2; leaveCorner(q); toast(`${front.name} sends one away before they reach you: "Not tonight."`); continue; }
         if (front && !t.narc && Math.random() < (front.turnaway || 0)) { people[q.i].next = now + 2; leaveCorner(q); toast(`${front.name} turns somebody away. They looked fine to you.`); continue; }
         toast(t.speaks ? `At your corner: ${t.line}` : 'Somebody is at your corner, holding out a five.');
       }
