@@ -85,7 +85,7 @@ export function saveLabel(s) {
 for (const k of ['oyster', 'chanterelle', 'morel', 'lionsmane', 'reishi', 'cordyceps', 'foxfire', 'goldcap', 'chicken', 'puffball', 'turkeytail', 'ghostcap']) ICONS[k] = `<img src="./assets/journal/${k}.jpg" alt="">`;
 
 export function createLife(ctx) {
-  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER, CORNER, CREW = { rules: {}, stations: {}, members: {} }, RIVER = null, PAN = null } = ctx;
+  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER, CORNER, CREW = { rules: {}, stations: {}, members: {} }, RIVER = null, PAN = null, TAPESTRY = { list: [], line: { x: 0, z: 0 } } } = ctx;
   const sfx = ctx.sfx || (() => {});
   Object.assign(state, {
     hour: 16 + 20 / 60, day: 0, cash: 40, stash: 0, cheese: [], sold: 0, noSprint: false, menu: null, cooking: null, panel: false,
@@ -107,6 +107,7 @@ export function createLife(ctx) {
     garden: { on: false, wet: false, start: 0, ready: 0 }, permitDay: -1, heal: { next: 0, ids: [], count: 0 },
     weather: { rain: false, until: 0, next: 31 + Math.random() * 8 }, // the first shower comes on Friday
     river: { day: -1, panned: [], sluice: { bend: -1, at: 0 } }, panning: false,
+    tapestry: { owned: {}, up: '' }, // bought at the tapestry stall; one hangs on the line at camp
     plots: [], recipes: {}, pantry: {}, pantryCheese: [], shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
     fx: { clear: 0, soul: 0, zombie: 0, broth: 0, smoke: 0, trip: 0, tripDay: -1 }, glow: 0, vision: false, visionUsed: false,
     offer: '', pal: { friend: 0, watch: 0, gift: -1, held: 0, told: true }, danced: 0, daily: null, over: false, act: '',
@@ -437,6 +438,7 @@ export function createLife(ctx) {
     dot(...STALLS.water, '#3aa0ff', 'General Store');
     dot(...STALLS.burrito, '#8ac926', 'Veggie Burritos');
     dot(...STALLS.gear, '#ffc93c', 'Leather & Burner (camp gear)');
+    dot(...TAP_STALL, '#ff3d9a', 'Tie-Dye & Tapestry');
     dot(...STALLS.cheese, '#e8a33d', 'Grilled Cheese', -1);
     dot(...PERMIT, '#fff', 'Lot office (permits)');
     dot(...PILE, '#b9c2c9', 'Free Pile', -1);
@@ -1843,6 +1845,24 @@ export function createLife(ctx) {
     state.corner.left[id] = true;
     toast(`${CREW.members[id].name} looks at you, then at him, and walks back up the Street beside the Elder. They will not work your corner again.`);
   }
+  // ---- tapestries: bought on the Street, hung on the line at camp, one at a time. Rules in data/tapestry.json.
+  const TAP_STALL = [-5.9, -22];
+  const tapOf = (id) => TAPESTRY.list.find((t) => t.id === id);
+  const tapsOwned = () => TAPESTRY.list.filter((t) => state.tapestry.owned[t.id]);
+  function tapShop() {
+    menu('Tie-Dye & Tapestry · something for your camp', TAPESTRY.list.map((t) => ({
+      label: `${t.name} <small>${state.tapestry.owned[t.id] ? 'yours already' : 'a tapestry for the line at your camp'}</small>`, cost: t.cost, stay: true,
+      can: () => (state.tapestry.owned[t.id] ? 'yours already' : true),
+      act: () => { const first = !tapsOwned().length; state.tapestry.owned[t.id] = true; if (first) state.tapestry.up = t.id; sfx('coin'); toast(first ? `${t.name}. It is up on a line behind your kitchen at camp; change it there any time.` : `${t.name}. Swap it in on the line at your camp.`); tapShop(); },
+    })));
+  }
+  function tapLine() {
+    menu(`Your tapestry line · up: ${state.tapestry.up ? tapOf(state.tapestry.up).name : 'nothing'}`, [
+      ...tapsOwned().map((t) => ({ label: `${t.name} <small>${state.tapestry.up === t.id ? 'hanging now' : 'hang this one'}</small>`, can: () => (state.tapestry.up === t.id ? 'hanging now' : true), act: () => { state.tapestry.up = t.id; sfx('build'); toast(`${t.name} is up. Your camp, your colours.`); } })),
+      { label: 'Take it down <small>a bare line</small>', can: () => (state.tapestry.up ? true : 'nothing is up'), act: () => { state.tapestry.up = ''; toast('The line is bare.'); } },
+    ]);
+  }
+
   // ---- panning for gold on the river: three slow bends, a pan (a pie tin does, badly), and a sluice box you can leave behind.
   // The minigame itself is pan.js; where and how rich, and what you walk away with, is here. Numbers are data/river.json.
   const panKind = () => (made('goldpan') ? 'ridged' : have('pietin') > 0 ? 'tin' : '');
@@ -2166,6 +2186,8 @@ export function createLife(ctx) {
         can: () => (state.permitDay === state.day ? 'you already hold today’s' : true), act: () => { state.permitDay = state.day; toast('Permit pinned to your shirt. Vend away.'); } },
       ...officeExtras(),
     ]) },
+    { at: TAP_STALL, r: 2.9, label: 'Tie-Dye & Tapestry', use: tapShop },
+    { test: (p) => tapsOwned().length > 0 && Math.hypot(p.x - TAPESTRY.line.x, p.z - TAPESTRY.line.z - 0.7) < 2.1, label: () => (state.tapestry.up ? `Your tapestry line: ${tapOf(state.tapestry.up).name}` : 'Your tapestry line (bare)'), use: tapLine },
     { at: STALLS.water, r: 2.9, label: 'General Store', use: () => menu('General Store', [
       { icon: 'cup', label: 'Cold water <small>drink it now</small>', cost: 2, stay: true, act: () => { add('hydration', sip()); toast('Ahh.'); } },
       shelf('Water bottle <small>for your bag</small>', 'bottles', 1, 2),
@@ -2215,7 +2237,7 @@ export function createLife(ctx) {
   interactables.unshift(interactables.splice(interactables.findIndex((i) => i.label === 'Your tank'), 1)[0]);
 
   // ---- saving. The game saves itself once you are free to roam; the opening is short enough to replay.
-  const KEEP = ['hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry', 'pantryCheese', 'corner', 'reckon', 'crewShifts', 'river'];
+  const KEEP = ['tapestry', 'hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry', 'pantryCheese', 'corner', 'reckon', 'crewShifts', 'river'];
   let saveClock = 0;
   function save() {
     if (state.mode !== 'free') return;
@@ -2366,6 +2388,7 @@ export function createLife(ctx) {
         if (dry) { state.chain.stats.rainCamp += hours; add('vibes', hours * 0.04); } else if (!state.poncho && !fx('broth')) { add('vibes', -hours * 0.08); add('hygiene', hours * 0.05); }
       }
       if (camp && state.trophies.flag) add('vibes', hours * 0.03);
+      if (camp && state.tapestry.up) add('vibes', hours * TAPESTRY.vibesPerHour); // your own colours on the line
       const cold = state.hour >= 1 && state.hour < 6 && !made('vest') && !fx('broth');
       if (cold && !warned.cold && free) { warned.cold = true; toast('It got cold. A warm layer would help.'); } else if (!cold) warned.cold = false;
       const chill = (w.rain && !dry && !state.poncho && !fx('broth') ? 1.2 : 1) * (cold ? 1.25 : 1);

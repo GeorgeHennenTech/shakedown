@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=85';
+import { createLife, readSave, saveLabel } from './life.js?v=86';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -885,6 +885,63 @@ function moonbeamShift(dt) {
 // The slow bends of the river where gold settles: a gravel bar, a few stones and a stake with a yellow rag, so you can find them.
 // Your sluice box shows in whichever bend you set it.
 let RIVER_BENDS = [];
+// ---- the tapestry line at camp: two poles and a rope; whichever tapestry is up hangs from it. Patterns are painted here from data/tapestry.json.
+const tapLook = { group: null, cloth: null, canvas: null, tex: null, shown: null, list: [] };
+function paintTapestry(t) {
+  const c = tapLook.canvas, g = c.getContext('2d'), W = c.width, H = c.height, [a, b, d] = t.colors;
+  const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })(); // the same cloth every time
+  g.fillStyle = a; g.fillRect(0, 0, W, H);
+  if (t.draw === 'leopard') {
+    for (let i = 0; i < 150; i++) { const x = rnd() * W, y = rnd() * H, r = 9 + rnd() * 10; g.fillStyle = b; g.beginPath(); g.ellipse(x, y, r, r * 0.8, rnd() * 3, 0, 7); g.fill(); g.strokeStyle = d; g.lineWidth = 5; g.beginPath(); g.ellipse(x, y, r + 3, r * 0.8 + 3, rnd() * 3, 0.4, 2.4); g.stroke(); g.beginPath(); g.ellipse(x, y, r + 3, r * 0.8 + 3, 0, 3.4, 5.6); g.stroke(); }
+  } else if (t.draw === 'tiger' || t.draw === 'zebra') {
+    g.strokeStyle = b; g.lineCap = 'round';
+    for (let y = -20; y < H + 40; y += t.draw === 'zebra' ? 30 : 38) for (const side of [0, 1]) { g.lineWidth = 9 + rnd() * 9; g.beginPath(); const x0 = side ? W : 0, x1 = W / 2 + (rnd() - 0.5) * 90, yy = y + rnd() * 16; g.moveTo(x0, yy); g.quadraticCurveTo((x0 + x1) / 2, yy + (rnd() - 0.5) * 50, x1, yy + 26 + rnd() * 20); g.stroke(); }
+  } else if (t.draw === 'patchwork') {
+    const n = 6, w = W / n, h = H / 4;
+    for (let i = 0; i < n; i++) for (let j = 0; j < 4; j++) { g.fillStyle = t.colors[(i * 5 + j * 3 + ((i * j) % 2)) % t.colors.length]; g.fillRect(i * w, j * h, w, h); g.strokeStyle = 'rgba(255,243,214,.8)'; g.lineWidth = 2; g.setLineDash([7, 6]); g.strokeRect(i * w + 5, j * h + 5, w - 10, h - 10); }
+    g.setLineDash([]);
+  } else if (t.draw === 'sunmoon') {
+    g.fillStyle = b; g.strokeStyle = b; g.lineWidth = 6;
+    for (let k = 0; k < 16; k++) { const an = k / 16 * 6.283; g.beginPath(); g.moveTo(W * 0.32 + Math.cos(an) * 62, H / 2 + Math.sin(an) * 62); g.lineTo(W * 0.32 + Math.cos(an) * (k % 2 ? 84 : 104), H / 2 + Math.sin(an) * (k % 2 ? 84 : 104)); g.stroke(); }
+    g.beginPath(); g.arc(W * 0.32, H / 2, 52, 0, 7); g.fill();
+    g.beginPath(); g.arc(W * 0.72, H / 2, 58, 0, 7); g.fill(); g.fillStyle = a; g.beginPath(); g.arc(W * 0.72 + 26, H / 2 - 10, 50, 0, 7); g.fill();
+    g.fillStyle = b; for (let i = 0; i < 26; i++) { g.beginPath(); g.arc(rnd() * W, rnd() * H, 2 + rnd() * 2.5, 0, 7); g.fill(); }
+    g.strokeStyle = b; g.lineWidth = 5; g.strokeRect(14, 14, W - 28, H - 28);
+  } else if (t.draw === 'tree') {
+    g.strokeStyle = b; g.fillStyle = b; g.lineCap = 'round';
+    const limb = (x, y, an, len, w) => { if (len < 14) { g.beginPath(); g.ellipse(x, y, 7, 4, an, 0, 7); g.fill(); return; } const x2 = x + Math.cos(an) * len, y2 = y + Math.sin(an) * len; g.lineWidth = w; g.beginPath(); g.moveTo(x, y); g.lineTo(x2, y2); g.stroke(); limb(x2, y2, an - 0.5, len * 0.72, w * 0.7); limb(x2, y2, an + 0.45, len * 0.72, w * 0.7); };
+    limb(W / 2, H - 26, -Math.PI / 2, 78, 15);
+    g.lineWidth = 5; g.strokeRect(14, 14, W - 28, H - 28); g.lineWidth = 2; g.strokeRect(24, 24, W - 48, H - 48);
+  } else { // wavy checkerboard
+    const n = 9, w = W / n, h = H / 6;
+    g.fillStyle = b;
+    for (let i = 0; i < n; i++) for (let j = 0; j < 6; j++) if ((i + j) % 2) { g.beginPath(); for (let k = 0; k <= 8; k++) { const u = k / 8; g.lineTo(i * w + u * w + Math.sin((j * h) / 40) * 10, j * h + Math.sin((i + u) * 1.6) * 9); } for (let k = 8; k >= 0; k--) { const u = k / 8; g.lineTo(i * w + u * w + Math.sin(((j + 1) * h) / 40) * 10, (j + 1) * h + Math.sin((i + u) * 1.6) * 9); } g.fill(); }
+  }
+  for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '0,0,0' : '255,255,255'},${rnd() * 0.06})`; g.fillRect(rnd() * W, rnd() * H, 2, 2); } // a little weave
+  tapLook.tex.needsUpdate = true;
+}
+function buildTapestryLine(T) {
+  const { x, z, width, height } = T.line, grp = new THREE.Group();
+  grp.position.set(x, 0, z); scene.add(grp);
+  for (const s of [-1, 1]) mesh(new THREE.CylinderGeometry(0.05, 0.06, height + 0.5, 7), lambert(0x8a6a3a), s * (width / 2 + 0.12), (height + 0.5) / 2, 0, grp);
+  mesh(new THREE.CylinderGeometry(0.015, 0.015, width + 0.24, 5), lambert(0xd9c8a4), 0, height + 0.38, 0, grp).rotation.z = Math.PI / 2;
+  tapLook.canvas = document.createElement('canvas'); tapLook.canvas.width = 512; tapLook.canvas.height = 340;
+  tapLook.tex = new THREE.CanvasTexture(tapLook.canvas); tapLook.tex.colorSpace = THREE.SRGBColorSpace;
+  tapLook.cloth = mesh(new THREE.PlaneGeometry(width, height - 0.15), new THREE.MeshLambertMaterial({ map: tapLook.tex, side: THREE.DoubleSide }), 0, height / 2 + 0.38, 0, grp);
+  tapLook.cloth.castShadow = true;
+  tapLook.group = grp; tapLook.list = T.list; grp.visible = false;
+}
+function tapestryShow() { // called every frame: cheap unless what is hanging has changed
+  const s = state.tapestry;
+  if (!tapLook.group || !s) return;
+  const key = `${Object.keys(s.owned).length}|${s.up}`;
+  if (key === tapLook.shown) return;
+  tapLook.shown = key;
+  tapLook.group.visible = Object.keys(s.owned).length > 0; // the poles go in when you bring your first one home
+  const t = tapLook.list.find((q) => q.id === s.up);
+  tapLook.cloth.visible = !!t;
+  if (t) paintTapestry(t);
+}
 function buildRiverBends(RIVER) {
   RIVER_BENDS = RIVER.bends;
   for (const b of RIVER.bends) {
@@ -1499,6 +1556,7 @@ function update(dt) {
     for (const ch of [player, patches, buck, vinny, elder, whip, moonbeam, ...goons]) if (ch && ch.root.visible) ch.mixer.update(dt);
     if (moonbeam) moonbeamShift(dt);
     crewStand(dt);
+    tapestryShow();
     if (campLook.sluice && state.river) { const sl = state.river.sluice, b = sl && sl.bend >= 0 ? RIVER_BENDS[sl.bend] : null; campLook.sluice.visible = !!b; if (b) campLook.sluice.position.set(b.x - 0.6, 0, b.z - 1.5); }
     const d = state.dialogue;
     const typing = !!(d && d.text && d.shown < d.text.length);
@@ -1648,6 +1706,8 @@ async function boot() {
   const RIVER = await (await fetch(`./data/river.json?v=${BUILD}`)).json(); // gold panning: the bends, the pans, the odds
   const panGame = createPan({ $, rules: RIVER, sfx: (name) => sound.play(name) });
   buildRiverBends(RIVER);
+  const TAPESTRY = await (await fetch(`./data/tapestry.json?v=${BUILD}`)).json(); // tapestries: what the stall sells and where the line stands
+  buildTapestryLine(TAPESTRY);
   const CREW = await (await fetch(`./data/crew.json?v=${BUILD}`)).json(); // the corner crew: stations, people, how each is earned
   const CRATE = await (await fetch(`./data/crate.json?v=${BUILD}`)).json(); // the tracks and the rules of a set
   const decks = createDecks({ $, crate: CRATE, isMuted: () => sound.isMuted() });
@@ -1661,10 +1721,10 @@ async function boot() {
       } catch (e) { console.warn(`Crew model ${id} not loaded`, e); }
     }
   })();
-  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
+  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });

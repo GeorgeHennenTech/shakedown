@@ -43,6 +43,7 @@ It needs `art/logo/`, which is on Seth's Mac but not in the repository (see "Wha
 | `game/data/crate.json` | DJ tracks and the scoring rules of a set. |
 | `game/data/crew.json` | The corner crew: stations, people, wages, how each is earned. |
 | `game/data/river.json` | The river bends, pans, swirl and sluice numbers for gold panning. |
+| `game/data/tapestry.json` | Tapestries sold on the Street and where the line stands at camp. |
 | `game/data/crowd.json` | Where the crowd is at each hour. |
 | `game/assets/` | Slimmed character models, props, textures, journal illustrations. |
 | `design/camp-upgrade-map.md` | **Plan of record** for everything upgradeable at camp: 14 ladders with prices and benefits, what is built, the build order. |
