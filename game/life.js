@@ -1786,6 +1786,11 @@ export function createLife(ctx) {
         can: () => (on === id ? 'already on tonight' : total() < (c.jail[id] || 0) ? 'in the cooler until tomorrow night' : state.nos.fills < 1 && st === 'fill' ? 'your tank is empty' : true),
         act: () => { hireCrew(id); if (!state.menu && state.canMove) crewMenu(); } };
     });
+    if (st === 'fill' && !c.earned.whip && state.nos.whipState !== 'grateful') { // you won, but not with Whip on your side: say why he is missing, and give a way back
+      const why = { gone: 'He cleared out after the showdown: you had cut him loose, leaned on him, or he had already talked to Vinny', fled: 'He ran when you took his tank', cut: 'You cut him loose', leaned: 'You leaned on him and he has not forgiven it', flipped: 'He told Vinny everything' }[state.nos.whipState] || 'He is keeping his head down';
+      opts.splice(1, 0, { label: `Send word to Whip and square it <small>${why}. Pay what he reckons he is owed and he comes back: your filler, and $25 refills for good</small>`, cost: CREW.rules.whipBack || 80,
+        act: () => { state.nos.whipState = 'grateful'; crewEarnTick(); toast('"…Yeah. Alright. We’re square." Whip is back behind the Costume Shop, and he will work your tank.'); stationMenu(st); } });
+    }
     if (st === 'cash' && !c.tinyPaid) opts.push({ label: `Clear Tiny's debt to Vinny <small>he is yours to hire after that</small>`, cost: CREW.rules.tinyDebt, act: () => { c.tinyPaid = true; crewEarnTick(); stationMenu(st); } });
     opts.push({ label: 'Back', act: crewMenu });
     menu(`${S.name}: ${S.does}${on ? ` · ${CREW.members[on].name} is on tonight` : ' · you cover this yourself'}`, opts);
