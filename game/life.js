@@ -626,12 +626,21 @@ export function createLife(ctx) {
     return keys.length ? keys.map((k) => `${by[k]} ${k === 'burnt' ? k : plural(sandwichName(k), by[k])}`).join(', ') : 'nothing cooked';
   }
   // ---- toppings go on by hand, one sandwich at a time, while it is in the pan. No topping means plain grilled cheese.
+  // The strip shows each one as a small drawn slice, the same shapes that drop onto the sandwich (never a photo or a journal plate).
+  const chip = (body) => `<svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#17111f" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${body}</g></svg>`;
+  const shroom = (cap, stem) => chip(`<path d="M10 13h4l1 8H9z" fill="${stem}"/><path d="M3 13c0-6 4-10 9-10s9 4 9 10z" fill="${cap}"/>`);
+  const TOP_CHIP = {
+    tomato: chip('<circle cx="12" cy="12" r="9.5" fill="#e0392b"/><circle cx="12" cy="12" r="6" fill="#f58a78"/><g fill="#f7e6a6" stroke="none"><circle cx="12" cy="8.5" r="1.2"/><circle cx="15.2" cy="13.6" r="1.2"/><circle cx="8.8" cy="13.6" r="1.2"/></g>'),
+    pepper: chip('<circle cx="12" cy="12" r="9.5" fill="#3f9d4a"/><circle cx="12" cy="12" r="5.5" fill="#d4ecb0"/><g fill="#f7e6a6" stroke="none"><circle cx="10.5" cy="11" r="1"/><circle cx="13.6" cy="12.6" r="1"/></g>'),
+    herbs: chip('<path d="M12 22V11" fill="none"/><path d="M12 12C5 12 3 8 3 4c6 0 9 3 9 8zM12 15c6 0 9-4 9-8-6 0-9 3-9 8z" fill="#4caf50"/>'),
+    oyster: shroom('#eadfc8', '#f5efe0'), chanterelle: shroom('#e8a33d', '#c9822b'), morel: shroom('#7a5a3a', '#d9c8a4'),
+  };
   const topLimit = () => (state.gear.stove >= 7 ? 2 : 1); // the sandwich press takes two
   const perFlip = () => (state.gear.stove >= 6 ? 2 : 1); // the griddle does two sandwiches to a flip, and one press tops both
   const promised = (item) => state.cooking.stations.reduce((sum, st) => sum + (st.active && !st.fresh && st.top.includes(item) ? perFlip() : 0), 0);
   function drawTops() {
     const c = state.cooking;
-    $('cooktops').innerHTML = !c.tops.length ? '<small>No toppings on you. Grow tomatoes, peppers or herbs in your garden, or forage mushrooms, and they show up here to put on.</small>' : c.tops.map((item, n) => { const left = have(item) - promised(item); return `<button data-top="${item}"${left > 0 ? '' : ' disabled'}><kbd>${n + 1}</kbd>${ICONS[item]}<span>${FILLINGS.find((f) => f.item === item).name}</span><b>×${Math.max(0, left)}</b></button>`; }).join('');
+    $('cooktops').innerHTML = !c.tops.length ? '<small>No toppings on you. Grow tomatoes, peppers or herbs in your garden, or forage mushrooms, and they show up here to put on.</small>' : c.tops.map((item, n) => { const left = have(item) - promised(item); return `<button data-top="${item}"${left > 0 ? '' : ' disabled'}><kbd>${n + 1}</kbd>${TOP_CHIP[item] || ''}<span>${FILLINGS.find((f) => f.item === item).name}</span><b>×${Math.max(0, left)}</b></button>`; }).join('');
     $('cooktops').querySelectorAll('button').forEach((b) => { b.onclick = () => cookTop(b.dataset.top); });
     for (const st of c.stations) { const el = $('cookon' + st.i); if (el) el.textContent = !st.active || st.fresh ? '' : st.top.length ? st.top.map((k) => sandwichName(k).replace(' grilled cheese', '')).join(' + ') : 'plain'; }
   }
@@ -643,7 +652,7 @@ export function createLife(ctx) {
     const st = i !== undefined ? c.stations[i] : c.stations.filter(open).sort((x, y) => (y.side + y.x) - (x.side + x.x))[0];
     if (!st || !open(st)) { $('cookmsg').textContent = 'Nothing in the pan has room for that.'; return; }
     if (have(item) - promised(item) < 1) { $('cookmsg').textContent = `You are out of ${ITEMS[item].name.toLowerCase()}.`; return; }
-    st.top.push(item); sfx('pick');
+    st.top.push(item); sfx('pick'); if (cook.addTopping) cook.addTopping(st.i, item);
     $('cookmsg').textContent = `${FILLINGS.find((f) => f.item === item).name} going on${c.pans > 1 ? ` the ${st.i ? 'right' : 'left'} pan` : ''}.`;
     drawTops();
   }

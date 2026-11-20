@@ -111,6 +111,69 @@ export function createCookView({ renderer }) {
   }
   const REST_Y = PAN_Y + THICK + 0.0075;
 
+  // ---- toppings: little cut vegetables that drop in and tuck into the filling, poking out all round the edge
+  const TOP_MAT = {
+    red: std(0xe0392b, 0.45), pink: std(0xf58a78, 0.5), seed: std(0xf7e6a6, 0.5),
+    green: std(0x3f9d4a, 0.5), pale: std(0xd4ecb0, 0.55), leaf: std(0x4caf50, 0.6), stalk: std(0x2f7d3a, 0.6),
+    cream: std(0xeadfc8, 0.7), gill: std(0xcdbfa3, 0.8), gold: std(0xe8a33d, 0.6), goldDark: std(0xc9822b, 0.7), brown: std(0x7a5a3a, 0.85), tan: std(0xd9c8a4, 0.8),
+  };
+  const TOP_GEO = {
+    disc: new THREE.CylinderGeometry(0.017, 0.017, 0.006, 18), inner: new THREE.CylinderGeometry(0.0125, 0.0125, 0.0066, 16), seed: new THREE.SphereGeometry(0.0022, 5, 4),
+    ring: new THREE.TorusGeometry(0.0115, 0.0042, 7, 16), core: new THREE.CylinderGeometry(0.008, 0.008, 0.003, 12),
+    leaf: new THREE.SphereGeometry(0.013, 8, 6), cap: new THREE.SphereGeometry(0.016, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), stem: new THREE.CylinderGeometry(0.004, 0.0055, 0.016, 7),
+    morel: new THREE.ConeGeometry(0.009, 0.026, 7),
+  };
+  function makePiece(kind) {
+    const g = new THREE.Group();
+    if (kind === 'tomato') { // a round slice: red skin, pink flesh, pale seeds
+      add(TOP_GEO.disc, TOP_MAT.red, 0, 0, 0, g); add(TOP_GEO.inner, TOP_MAT.pink, 0, 0, 0, g);
+      for (let j = 0; j < 5; j++) { const a = j / 5 * 6.28; add(TOP_GEO.seed, TOP_MAT.seed, Math.cos(a) * 0.0075, 0.0034, Math.sin(a) * 0.0075, g); add(TOP_GEO.seed, TOP_MAT.seed, Math.cos(a) * 0.0075, -0.0034, Math.sin(a) * 0.0075, g); }
+    } else if (kind === 'pepper') { // a jalapeño ring: green skin, pale middle
+      add(TOP_GEO.ring, TOP_MAT.green, 0, 0, 0, g).rotation.x = Math.PI / 2; add(TOP_GEO.core, TOP_MAT.pale, 0, 0, 0, g);
+    } else if (kind === 'herbs') { // a sprig: three leaves on a stalk
+      for (const [x, z, r] of [[0.008, 0, 0], [-0.004, 0.007, 2.2], [-0.004, -0.007, -2.2]]) { const l = add(TOP_GEO.leaf, TOP_MAT.leaf, x, 0, z, g); l.scale.set(1, 0.16, 0.5); l.rotation.y = r; }
+      add(TOP_GEO.stem, TOP_MAT.stalk, -0.012, 0, 0, g).rotation.z = Math.PI / 2;
+    } else if (kind === 'morel') { // a little honeycombed cone on a pale stem
+      add(TOP_GEO.morel, TOP_MAT.brown, 0.006, 0, 0, g).rotation.z = -Math.PI / 2; add(TOP_GEO.stem, TOP_MAT.tan, -0.011, 0, 0, g).rotation.z = Math.PI / 2;
+    } else { // oyster (cream) or chanterelle (gold): a sliced cap on a short stem, lying on its side
+      const gold = kind === 'chanterelle';
+      const cap = add(TOP_GEO.cap, gold ? TOP_MAT.gold : TOP_MAT.cream, 0.004, 0, 0, g); cap.rotation.z = -Math.PI / 2; cap.scale.set(1, 0.55, 1);
+      add(TOP_GEO.core, gold ? TOP_MAT.goldDark : TOP_MAT.gill, 0.0035, 0, 0, g).rotation.z = Math.PI / 2;
+      add(TOP_GEO.stem, gold ? TOP_MAT.goldDark : TOP_MAT.cream, -0.008, 0, 0, g).rotation.z = Math.PI / 2;
+    }
+    return g;
+  }
+  // Eight places round the edge of the sandwich; a second topping takes the gaps between the first.
+  function addTopping(s, kind) {
+    s.tops = s.tops || [];
+    const nth = new Set(s.tops.map((p) => p.kind)).size, theta = s.group.rotation.z, up = [Math.sin(theta), Math.cos(theta)];
+    for (let j = 0; j < 8; j++) {
+      const a = (j + (nth % 2) * 0.5) / 8 * Math.PI * 2 + 0.2, e = HALF * 1.1;
+      const x = Math.max(-e, Math.min(e, Math.cos(a) * e * 1.45)), z = Math.max(-e, Math.min(e, Math.sin(a) * e * 1.45));
+      const piece = makePiece(kind); piece.scale.setScalar(1.45);
+      piece.rotation.y = -a + (kind === 'tomato' || kind === 'pepper' ? j : 0); // sprigs and mushrooms point outwards
+      piece.rotation.x = (j % 3 - 1) * 0.18;
+      const to = new THREE.Vector3(x, (nth % 2 ? 0.004 : -0.001) + (j % 2) * 0.002, z);
+      const from = to.clone().add(new THREE.Vector3(up[0] * 0.24 + (j % 3 - 1) * 0.02, up[1] * 0.24, (j % 2 ? 0.03 : -0.03)));
+      piece.position.copy(from); piece.visible = false;
+      s.group.add(piece);
+      s.tops.push({ kind, piece, from, to, t: -j * 0.055, spin: (j % 2 ? 1 : -1) * (3 + j) });
+    }
+  }
+  function tickTops(s, dt) {
+    if (!s || !s.tops) return;
+    for (const p of s.tops) {
+      if (p.t >= 0.34) continue;
+      p.t += dt;
+      const u = clamp01(p.t / 0.34);
+      if (p.t < 0) continue;
+      p.piece.visible = true;
+      p.piece.position.lerpVectors(p.from, p.to, u * u); // it falls, speeding up
+      p.piece.rotation.z = (1 - u) * p.spin;
+      if (u >= 1) p.piece.rotation.z = 0;
+    }
+  }
+
   // ---- a burner with its pan. There are two; the second only shows once you own it.
   function makeStation() {
     const g = new THREE.Group();
@@ -241,6 +304,8 @@ export function createCookView({ renderer }) {
       s.anim = { kind: 'drop', t: 0, dur: 0.38 };
     },
     setProgress(i, x) { stations[i].progress = Math.max(0, x); },
+    // A topping goes on the sandwich in pan i: cut pieces drop in from above and tuck into the edge.
+    addTopping(i, kind) { const s = stations[i]; if (s && s.current) { addTopping(s.current, kind); blip([520, 700], 'triangle', 0.05, 0.1); } },
     // Flip it over: the side that was cooking is now on top, showing how you did.
     flip(i) { const s = stations[i]; s.anim = { kind: 'flip', t: 0, dur: 0.72, from: s.current.flips }; lastBusy = s; hiss(); },
     // Second side done: lift it out to the plate, cooked side up.
@@ -254,6 +319,7 @@ export function createCookView({ renderer }) {
     },
     update(dt) {
       time += dt;
+      for (const p of plated) tickTops(p, dt);
       // the spatula rests on the right, drifting a little with your hand
       let spPos = IDLE.clone().add(new THREE.Vector3(pointer.x * 0.06, Math.sin(time * 2.1) * 0.004 - pointer.y * 0.02, pointer.y * 0.05));
       let spRotZ = -0.35, spRotY = 0.25, spBusy = false;
@@ -261,6 +327,7 @@ export function createCookView({ renderer }) {
       const m = new THREE.Matrix4();
       for (let i = 0; i < pans; i++) {
         const st = stations[i], s = st.current;
+        tickTops(s, dt);
         // the side facing the pan browns as the marker moves
         if (s && !st.anim) {
           const bottom = s.slices[s.flips % 2 === 0 ? 0 : 1];

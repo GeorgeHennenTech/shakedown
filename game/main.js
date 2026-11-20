@@ -3,11 +3,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=56';
+import { createLife, readSave, saveLabel } from './life.js?v=57';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { createCookView } from './cook.js?v=4';
+import { createCookView } from './cook.js?v=6';
 import { createDecks } from './decks.js?v=2';
 import { createCrowd } from './crowd.js?v=3';
 const BUILD = new URL(import.meta.url).searchParams.get('v') || '?';
