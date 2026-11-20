@@ -648,9 +648,9 @@ function showGear(g, made = {}) {
 }
 let crowd = null; // moves everybody through their day (crowd.js)
 const people = []; // everyone you could sell a sandwich to
-function person(x, z, rot, amp = 0, kind = 'fixed') {
-  const name = 'person' + (1 + Math.floor(Math.random() * 4));
-  put(name, x, z, rot, rand(0.94, 1.06), rand(-0.5, 0.5));
+function person(x, z, rot, amp = 0, kind = 'fixed', look = null) { // look: { model, scale, hue } pins one person's appearance, so they are the same every time you play
+  const name = look ? look.model : 'person' + (1 + Math.floor(Math.random() * 4));
+  put(name, x, z, rot, look ? look.scale : rand(0.94, 1.06), look ? look.hue : rand(-0.5, 0.5));
   const list = placed[name];
   people.push({ x, z, next: 0, name, n: list.length - 1, rot, s: list[list.length - 1].scale, amp, ph: rand(0, 6), col: colliders[colliders.length - 1], home: { x, z, rot }, kind, fixed: kind === 'fixed' });
 }
@@ -741,7 +741,36 @@ function buildWorld() {
   signBoard('SHOWERS $3', 46.1, 2.65, -66.75, Math.PI, 2.4, 0.56, { bg: '#fff3d6' });
   for (let i = 0; i < 6; i++) put('potty', 34 + i * 1.45, -66, Math.PI + rand(-0.05, 0.05), 1, 0);
   for (let i = 0; i < 16; i++) { const x = rand(-20, 46), z = rand(-118, -74); if (!nearRoute(x, z, 2)) put('totem', x, z, rand(0, tau), rand(0.8, 1.1), hue()); }
-  person(CAMP.tent[0] + 5.4, CAMP.tent[1] + 4.6, -2.2); // Moonbeam, your neighbour, always camped beside you
+  // Moonbeam, your neighbour, always camped beside you. Until Moonbeam has a model of their own they are picked out by
+  // everything around them: the same body and colours every time, a name over their head, and a little moon camp
+  // (a crescent on a pole, stars on a string, an indigo rug, a lantern) that nobody else on the grounds has.
+  {
+    const mx = CAMP.tent[0] + 5.4, mz = CAMP.tent[1] + 4.6;
+    person(mx, mz, -2.2, 0, 'fixed', { model: 'person2', scale: 1.08, hue: 0.42 });
+    const camp = new THREE.Group(); camp.position.set(mx, 0, mz); scene.add(camp);
+    const glow = (c) => new THREE.MeshBasicMaterial({ color: c }); // lit from inside, so it reads at night too
+    // the rug: indigo, with a pale moon and a ring of stars
+    const rug = mesh(new THREE.CircleGeometry(1.25, 28), lambert(0x2b2350), 0, 0.02, 0, camp); rug.rotation.x = -Math.PI / 2; rug.castShadow = false;
+    const ring = mesh(new THREE.RingGeometry(1.08, 1.2, 28), lambert(0xffe9a8), 0, 0.025, 0, camp); ring.rotation.x = -Math.PI / 2; ring.castShadow = false;
+    for (let i = 0; i < 8; i++) { const a = i / 8 * tau; const st = mesh(new THREE.CircleGeometry(0.06, 5), glow(0xffe9a8), Math.cos(a) * 0.82, 0.03, Math.sin(a) * 0.82, camp); st.rotation.x = -Math.PI / 2; st.castShadow = false; }
+    // the crescent on its pole
+    const R = 0.36, c = 0.2, r2 = Math.hypot(c, R), moon = new THREE.Shape();
+    moon.absarc(0, 0, R, Math.PI / 2, Math.PI * 1.5, false);
+    moon.absarc(c, 0, r2, Math.atan2(-R, -c), Math.atan2(R, -c), true);
+    const pole = [-1.05, -0.75];
+    mesh(new THREE.CylinderGeometry(0.03, 0.04, 2.9, 6), lambert(0x6b4a2b), pole[0], 1.45, pole[1], camp);
+    const crescent = mesh(new THREE.ExtrudeGeometry(moon, { depth: 0.07, bevelEnabled: false, curveSegments: 20 }), glow(0xffe38a), pole[0], 3.15, pole[1] - 0.035, camp); crescent.castShadow = false;
+    crescent.rotation.z = -0.35;
+    // stars on a string, from the pole down to a peg
+    for (let i = 1; i <= 5; i++) { const u = i / 6; mesh(new THREE.OctahedronGeometry(0.07), glow([0xffe38a, 0xb9a0ff, 0x8fd8ff][i % 3]), pole[0] + u * 1.5, 2.75 - u * 2.3 + Math.sin(u * Math.PI) * -0.25, pole[1] + u * 0.2, camp).castShadow = false; }
+    // a lantern by the chair
+    mesh(new THREE.BoxGeometry(0.2, 0.06, 0.2), lambert(0x3a2a1c), 0.85, 0.03, -0.55, camp);
+    mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.24, 8), glow(0xffc46b), 0.85, 0.18, -0.55, camp).castShadow = false;
+    mesh(new THREE.ConeGeometry(0.12, 0.1, 8), lambert(0x3a2a1c), 0.85, 0.35, -0.55, camp);
+    // the name, floating where a nameplate would be; it always faces you
+    const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('MOONBEAM', { w: 384, h: 96, bg: '#2b2350', fg: '#ffe9a8', border: '#ffe9a8', size: 58 }), depthWrite: false }));
+    tag.scale.set(1.5, 0.375, 1); tag.position.set(0, 2.45, 0); camp.add(tag);
+  }
   for (let i = 0; i < 20; i++) { const x = rand(-20, 46), z = rand(-118, -74); if (!nearRoute(x, z, 2) && !colliders.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 0.8) ** 2)) person(x, z, rand(0, tau), 0.015, 'camp'); }
   // Main Stage Field
   put('stage', -70, -121, Math.PI / 2);
