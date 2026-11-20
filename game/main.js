@@ -1138,7 +1138,7 @@ function buildCanopies() {
     for (const [x, z, ry] of [[0, 1.55, 0], [0, -1.55, 0], [1.55, 0, Math.PI / 2], [-1.55, 0, Math.PI / 2]]) { mesh(new THREE.BoxGeometry(3.14, 0.26, 0.03), funk('velvet', 3, 0.3), x, 2.3, z, g).rotation.y = ry; mesh(new THREE.BoxGeometry(3.14, 0.05, 0.035), funk('gold'), x, 2.16, z, g).rotation.y = ry; }
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 340;
     const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
-    const cloth = mesh(new THREE.PlaneGeometry(2.9, 1.9), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }), 0, 1.2, -1.5, g); cloth.castShadow = true; cloth.visible = false;
+    const cloth = mesh(new THREE.PlaneGeometry(2.9, 1.9), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }), 0, 1.2, -1.5, g); cloth.castShadow = true; cloth.visible = false; windy(cloth, 2.9, 1.9);
     canopyLook.push({ group: g, cloth, canvas, tex, shown: null });
   }
 }
@@ -1155,10 +1155,39 @@ function canopyShow() {
 }
 // ---- the tapestry line at camp: two poles and a rope; whichever tapestry is up hangs from it. Patterns are painted here from data/tapestry.json.
 const tapLook = { group: null, cloth: null, canvas: null, tex: null, shown: null, list: [] };
+const tapImages = {};
+// ---- cloth in the wind: every hanging tapestry is a sheet pinned along its top edge; the rest of it swells and ripples.
+const windCloths = [];
+function windy(cloth, w, h) {
+  cloth.geometry.dispose(); cloth.geometry = new THREE.PlaneGeometry(w, h, 16, 10);
+  windCloths.push({ cloth, h, base: cloth.geometry.attributes.position.array.slice(), seed: windCloths.length * 1.7 });
+}
+function clothWind() { // called every frame
+  const t = state.t, gust = (state.weather && state.weather.rain ? 1.7 : 1) * (0.75 + 0.25 * Math.sin(t * 0.23) + 0.2 * Math.sin(t * 0.61 + 1.3)); // the wind comes and goes, and blows harder in rain
+  for (const c of windCloths) {
+    if (!c.cloth.visible || !c.cloth.parent.visible) continue;
+    const pos = c.cloth.geometry.attributes.position, a = pos.array, b = c.base;
+    for (let i = 0; i < a.length; i += 3) {
+      const x = b[i], y = b[i + 1], down = 0.5 - y / c.h, hang = down * down; /* 0 along the pinned top edge, 1 at the free hem */
+      a[i + 2] = gust * hang * (0.2 * Math.sin(t * 1.5 + x * 1.3 + c.seed) + 0.075 * Math.sin(t * 3.4 + x * 3.1 - y * 2.2 + c.seed * 2) + 0.12 * Math.sin(t * 0.7 + c.seed));
+      a[i] = x + gust * hang * 0.03 * Math.sin(t * 2.1 + y * 3 + c.seed);
+    }
+    pos.needsUpdate = true; c.cloth.geometry.computeVertexNormals();
+  }
+}
 function paintTapestry(t, target = tapLook) {
   const c = target.canvas, g = c.getContext('2d'), W = c.width, H = c.height, [a, b, d] = t.colors;
   const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })(); // the same cloth every time
   g.fillStyle = a; g.fillRect(0, 0, W, H);
+  target.want = t.id;
+  if (t.draw === 'image') { // a picture made for the game: game/assets/tapestry/<image>.jpg
+    let im = tapImages[t.image];
+    if (!im) { im = tapImages[t.image] = new Image(); im.src = `./assets/tapestry/${t.image}.jpg`; }
+    const draw = () => { if (target.want !== t.id) return; g.drawImage(im, 0, 0, W, H); target.tex.needsUpdate = true; };
+    if (im.complete && im.naturalWidth) draw(); else im.addEventListener('load', draw, { once: true });
+    target.tex.needsUpdate = true;
+    return;
+  }
   if (t.draw === 'leopard') {
     for (let i = 0; i < 150; i++) { const x = rnd() * W, y = rnd() * H, r = 9 + rnd() * 10; g.fillStyle = b; g.beginPath(); g.ellipse(x, y, r, r * 0.8, rnd() * 3, 0, 7); g.fill(); g.strokeStyle = d; g.lineWidth = 5; g.beginPath(); g.ellipse(x, y, r + 3, r * 0.8 + 3, rnd() * 3, 0.4, 2.4); g.stroke(); g.beginPath(); g.ellipse(x, y, r + 3, r * 0.8 + 3, 0, 3.4, 5.6); g.stroke(); }
   } else if (t.draw === 'tiger' || t.draw === 'zebra') {
@@ -1196,7 +1225,7 @@ function buildTapestryLine(T) {
   tapLook.canvas = document.createElement('canvas'); tapLook.canvas.width = 512; tapLook.canvas.height = 340;
   tapLook.tex = new THREE.CanvasTexture(tapLook.canvas); tapLook.tex.colorSpace = THREE.SRGBColorSpace;
   tapLook.cloth = mesh(new THREE.PlaneGeometry(width, height - 0.15), new THREE.MeshLambertMaterial({ map: tapLook.tex, side: THREE.DoubleSide }), 0, height / 2 + 0.38, 0, grp);
-  tapLook.cloth.castShadow = true;
+  tapLook.cloth.castShadow = true; windy(tapLook.cloth, width, height - 0.15);
   tapLook.group = grp; tapLook.list = T.list; tapLook.data = T; grp.visible = false;
 }
 function tapestryShow() { // called every frame: cheap unless what is hanging has changed
@@ -1956,6 +1985,7 @@ function update(dt) {
     crewStand(dt);
     carLights();
     campLayoutTick();
+    clothWind();
     if (state.act && state.act !== seenAct) { seenAct = state.act; if (state.act.kind === 'balloon') startBalloon(player); }
     balloonTick(dt);
     if (state.towing && campModels.cooler && campLook.cooler.userData.towed && state.mode !== 'creator') { // your hand is on the cooler's handle, behind you
@@ -2142,7 +2172,7 @@ async function boot() {
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, CARQ, CAMP_PLOT, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, CAMP, canopyLook, crewAt, crewProp, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, CAMP, canopyLook, windCloths, crewAt, crewProp, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });

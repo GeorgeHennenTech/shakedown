@@ -1,5 +1,5 @@
 {
-  "_about": "Tapestries, sold at the TIE-DYE & TAPESTRY stall on Shakedown Street and hung on the line at your camp. You can own several and hang one at a time. The one that is up lifts your Vibes a little while you are at camp. 'draw' names the pattern main.js paints (leopard, tiger, zebra, patchwork, sunmoon, tree, wavy); 'colors' are that pattern's colours, background first.",
+  "_about": "Tapestries, sold at the TIE-DYE & TAPESTRY stall on Shakedown Street and hung on the line at your camp. You can own several and hang one at a time. The one that is up lifts your Vibes a little while you are at camp. 'draw' names the pattern main.js paints (leopard, tiger, zebra, patchwork, sunmoon, tree, wavy); 'colors' are that pattern's colours, background first. 'draw': 'image' hangs a picture instead: 'image' names a file in game/assets/tapestry (768 by 512 jpg; originals in art/tapestry), and 'colors' is only what shows until it loads.",
 
   "line": { "x": 21.6, "z": -81.2, "width": 3.0, "height": 2.0 },
   "vibesPerHour": 0.015,
@@ -12,6 +12,10 @@
     { "id": "patchwork", "name": "Patchwork velvet",     "cost": 30, "draw": "patchwork", "colors": ["#6b2d8f", "#c2255c", "#e8a33d", "#1f8a8a", "#7a2331", "#3b2416"] },
     { "id": "sunmoon",   "name": "Sun and moon",         "cost": 20, "draw": "sunmoon",   "colors": ["#17111f", "#fff3d6"] },
     { "id": "tree",      "name": "Tree of life",         "cost": 20, "draw": "tree",      "colors": ["#f4e6c3", "#2b3a8c"] },
-    { "id": "wavy",      "name": "Wavy checkerboard",    "cost": 20, "draw": "wavy",      "colors": ["#ff7a1a", "#fff3d6"] }
+    { "id": "wavy",      "name": "Wavy checkerboard",    "cost": 20, "draw": "wavy",      "colors": ["#ff7a1a", "#fff3d6"] },
+    { "id": "panther",   "name": "Velvet panther",       "cost": 45, "draw": "image", "image": "panther",    "colors": ["#0d0a12", "#e8a33d", "#e0218a"] },
+    { "id": "tigerface", "name": "Roaring pink tiger",   "cost": 45, "draw": "image", "image": "tigerface",  "colors": ["#4a1466", "#ff3d9a", "#e8a33d"] },
+    { "id": "disco",     "name": "Disco moon",           "cost": 40, "draw": "image", "image": "disco",      "colors": ["#3a1240", "#e8b54a", "#fff3d6"] },
+    { "id": "crazyquilt","name": "Crazy-quilt sun",      "cost": 40, "draw": "image", "image": "crazyquilt", "colors": ["#6b2d8f", "#e8a33d", "#1f8a8a"] }
   ]
 }
