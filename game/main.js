@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=6';
-import { createLife, readSave, saveLabel } from './life.js?v=94';
+import { createLife, readSave, saveLabel } from './life.js?v=95';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -893,6 +893,7 @@ function buildWorld() {
     put(Math.random() < 0.72 ? 'pine' : 'oak', x, z, rand(0, tau), rand(0.8, 1.6), rand(-0.3, 0.2), !near);
     trees++;
   }
+  if (carQuestData) buildCarQuest(carQuestData);
   buildInstances();
 }
 // ---------------------------------------------------------------- characters
@@ -1049,6 +1050,43 @@ function balloonTick(dt) { // run after the animation mixers, so this sits on to
     a.prop.scale.setScalar(Math.max(0.001, size));
     a.prop.visible = size > 0.02;
   }
+}
+// ---- Where's My Car: the things in the lot the story points at, and your car's lights when you press the fob
+const carLook = { lamps: [], light: null, at: null };
+let carQuestData = null;
+function buildCarQuest(Q) {
+  const [van, flag, row] = Q.memories;
+  // the purple van: a tarp somebody has thrown over the roof of a van
+  put('campervan', van.x - 2.4, van.z, Math.PI / 2, 1, 0);
+  mesh(new THREE.BoxGeometry(4.3, 0.06, 2.3), lambert(0x7a3fd1), van.x - 2.4, 2.32, van.z);
+  for (const side of [-1, 1]) mesh(new THREE.BoxGeometry(4.3, 0.55, 0.05), lambert(0x7a3fd1), van.x - 2.4, 2.06, van.z + side * 1.16);
+  // the flag: a towel on a pole
+  mesh(new THREE.CylinderGeometry(0.04, 0.05, 3.2, 6), lambert(0x6b4a2b), flag.x + 1.6, 1.6, flag.z);
+  const towel = mesh(new THREE.PlaneGeometry(1.1, 0.7), new THREE.MeshLambertMaterial({ color: 0xffc93c, side: THREE.DoubleSide }), flag.x + 2.15, 2.75, flag.z); towel.castShadow = true;
+  mesh(new THREE.PlaneGeometry(1.1, 0.12), new THREE.MeshLambertMaterial({ color: 0xff7b54, side: THREE.DoubleSide }), flag.x + 2.15, 2.6, flag.z + 0.01);
+  solid(flag.x + 1.6, flag.z, 0.25);
+  // the row signs: a kid has been busy
+  [['ROW 4', -1.9, 1.5, -0.2], ['ROW 7', -0.5, 1.9, 0.15], ['ROW π', 0.9, 1.6, -0.1], ['ROW 4 AGAIN', 2.6, 2.0, 0.2]].forEach(([text, dx, y, rot]) => {
+    signBoard(text, row.x + dx, y, row.z + 1.8, rot, text.length > 6 ? 1.9 : 1.2, 0.42, { bg: '#fff3d6' });
+    mesh(new THREE.CylinderGeometry(0.035, 0.045, y, 6), lambert(0x6b4a2b), row.x + dx, y / 2, row.z + 1.8);
+  });
+  // your car, out past the last proper row, with a card game on the hood
+  const c = Q.car;
+  put('hatchback', c.x, c.z, c.turn, 1, 1.1);
+  const fx = Math.sin(c.turn), fz = Math.cos(c.turn);
+  mesh(new THREE.BoxGeometry(0.5, 0.02, 0.36), lambert(0xf2efe6), c.x + fx * 1.35, 0.98, c.z + fz * 1.35).rotation.y = c.turn + 0.3; // cards on the hood
+  for (const side of [-1, 1]) {
+    const lamp = mesh(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshBasicMaterial({ color: 0x3a3320, toneMapped: false }), c.x + fx * 1.92 + fz * side * 0.62, 0.72, c.z + fz * 1.92 - fx * side * 0.62);
+    lamp.castShadow = false; carLook.lamps.push(lamp);
+  }
+  carLook.light = new THREE.PointLight(0xffe2a8, 0, 16, 1.6); carLook.light.position.set(c.x + fx * 2.4, 1.1, c.z + fz * 2.4); scene.add(carLook.light);
+}
+function carLights() { // two quick flashes each time the fob is pressed
+  const c = state.car;
+  if (!c || !carLook.light) return;
+  const age = state.t - (c.beepAt ?? -99), on = age >= 0 && age < 1.1 && (age % 0.55) < 0.28;
+  for (const l of carLook.lamps) l.material.color.setHex(on ? 0xfff0b0 : 0x3a3320).multiplyScalar(on ? 3 : 1);
+  carLook.light.intensity = on ? 30 : 0;
 }
 // ---- the tapestry line at camp: two poles and a rope; whichever tapestry is up hangs from it. Patterns are painted here from data/tapestry.json.
 const tapLook = { group: null, cloth: null, canvas: null, tex: null, shown: null, list: [] };
@@ -1836,6 +1874,7 @@ function update(dt) {
     for (const ch of [player, patches, buck, vinny, elder, whip, moonbeam, ...goons]) if (ch && ch.root.visible) ch.mixer.update(dt);
     if (moonbeam) moonbeamShift(dt);
     crewStand(dt);
+    carLights();
     if (state.act && state.act !== seenAct) { seenAct = state.act; if (state.act.kind === 'balloon') startBalloon(player); }
     balloonTick(dt);
     if (state.towing && campModels.cooler && campLook.cooler.userData.towed && state.mode !== 'creator') { // your hand is on the cooler's handle, behind you
@@ -1891,6 +1930,8 @@ async function boot() {
   // the stage's screen and lamps give off their own light
   Object.assign(PROPS.stage.mat, { emissiveMap: PROPS.stage.mat.map, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0.55 });
   for (const n of ['dome', 'chilltent', 'foodstall', 'merchstall', 'apothecary', 'canopy']) if (PROPS[n].mat) Object.assign(PROPS[n].mat, { emissiveMap: PROPS[n].mat.map, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0.12 });
+  const CARQ = await (await fetch(`./data/car.json?v=${BUILD}`)).json(); // Where's My Car: the spots and the lines
+  carQuestData = CARQ; // buildWorld places its van and your car along with everything else
   buildWorld();
   gfx.paintFootprints(colliders, [{ x: -66.5, z: -158.5, r: 4 }, { x: -70, z: -121, r: 13 }]);
   gfx.addBulbs(bulbSpots);
@@ -2015,7 +2056,7 @@ async function boot() {
     }
   })();
   loadCampModels(); // in the background too
-  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
+  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, CARQ, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
   window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, crewAt, crewProp, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };

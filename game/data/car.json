@@ -1,0 +1,54 @@
+{
+  "_about": "Where's My Car, as plain data. From Friday on, the beater by the gate turns out not to be yours. You have three memories of where you parked, each one slightly wrong; checking a memory means walking to its spot in the Parking Lot and talking to whoever is there. With all three checked you remember the key fob in your pocket: press it anywhere in the lot and your car chirps and flashes from a row that is not a row. Reward: cash from the cup holder and your hoodie, which stops the cold between 1 and 6 AM. Spots are world x, z.",
+
+  "startsOnDay": 1,
+  "gate": { "x": 2.9, "z": 4.6 },
+  "car": { "x": 23.4, "z": 27.2, "turn": 0.35 },
+  "reward": { "cash": 23, "vibes": 0.2 },
+
+  "opening": [
+    ["You", "There it is. The beater. Right by the gate, exactly where I left it."],
+    ["You", "…Mine had a cassette stuck in the deck. This one has a CD stuck in the deck."],
+    ["Lawn Chair Guy", "Lot of those about. Same year, same dent. I count nine."],
+    ["Lawn Chair Guy", "Every festival is the same festival. Same field. They roll it up and move it. That's why you can't find your car. The car's fine. The FIELD moved."],
+    ["You", "I remember three things. A purple van. A flag. And a row number."],
+    ["Lawn Chair Guy", "Three memories. Good luck. You find your car yet? …You won't. Love you, though."]
+  ],
+
+  "memories": [
+    { "id": "van", "x": -22.6, "z": 18.4, "name": "The purple van", "memory": "You parked next to a purple van.",
+      "lines": [
+        ["Van Roof Guy", "You were next to a purple van? Friend, look around. Purple is the colour this year."],
+        ["Van Roof Guy", "Also this one was green on Thursday. My cousin had the paint."],
+        ["You", "So it could be any van."],
+        ["Van Roof Guy", "It could be no van. Vans leave. That's the thing about vans."]
+      ], "learned": "Not the van. Vans leave." },
+    { "id": "flag", "x": 22.6, "z": 9.8, "name": "The flag", "memory": "There was a flag. A sun on it. Or a bird.",
+      "lines": [
+        ["Towel Lady", "That's my towel."],
+        ["You", "It was a flag on Thursday. It had a sun on it."],
+        ["Towel Lady", "It had a sun on it because it was in the sun. Now it's a towel. Things change, honey."],
+        ["Towel Lady", "You look like somebody patting the wrong pocket."]
+      ], "learned": "Not the flag. It was a towel the whole time." },
+    { "id": "row", "x": 0.4, "z": 21.5, "name": "The row sign", "memory": "Row 4. Or Row 7. There was definitely a number.",
+      "lines": [
+        ["Kid With A Marker", "Which row do you want it to be?"],
+        ["You", "…Did you write all of these?"],
+        ["Kid With A Marker", "Row 4, Row 7, Row Pi and Row 4 Again. Dad said find something to do."],
+        ["You", "Is there a real Row 4?"],
+        ["Kid With A Marker", "There's a real marker."]
+      ], "learned": "Not the row. There are no rows. There is a kid." }
+  ],
+
+  "fobThought": "Three memories, three dead ends. You pat your pockets the way the Towel Lady said. Left pocket: lint. Right pocket: your car keys. They have been there since Thursday.",
+  "fobLabel": "Press your key fob",
+  "fobLines": ["Somewhere off to the north-east, past the last proper row, a car goes chirp-chirp.", "Chirp-chirp. Further east than you would ever have parked.", "Chirp-chirp. It sounds pleased with itself."],
+
+  "found": [
+    ["Card Player", "Raise you two zip ties. …Oh. Is this your table?"],
+    ["You", "It's my car."],
+    ["Card Player", "We thought it was the lot's car. It's been very welcoming."],
+    ["You", "It was by the gate. I parked by the gate."],
+    ["Card Player", "And where's the gate now? Exactly. Your hoodie's on the back seat, we didn't touch it. There's a lot of change in the cup holder. We touched some of that."]
+  ]
+}

@@ -92,7 +92,7 @@ export function saveLabel(s) {
 for (const k of ['oyster', 'chanterelle', 'morel', 'lionsmane', 'reishi', 'cordyceps', 'foxfire', 'goldcap', 'chicken', 'puffball', 'turkeytail', 'ghostcap']) ICONS[k] = `<img src="./assets/journal/${k}.jpg" alt="">`;
 
 export function createLife(ctx) {
-  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER, CORNER, CREW = { rules: {}, stations: {}, members: {} }, RIVER = null, PAN = null, TAPESTRY = { list: [], line: { x: 0, z: 0 } }, FISH = null, FISHING = null } = ctx;
+  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER, CORNER, CREW = { rules: {}, stations: {}, members: {} }, RIVER = null, PAN = null, TAPESTRY = { list: [], line: { x: 0, z: 0 } }, CARQ = null, FISH = null, FISHING = null } = ctx;
   const sfx = ctx.sfx || (() => {});
   Object.assign(state, {
     hour: 16 + 20 / 60, day: 0, cash: 40, stash: 0, cheese: [], sold: 0, noSprint: false, menu: null, cooking: null, panel: false,
@@ -115,6 +115,7 @@ export function createLife(ctx) {
     weather: { rain: false, until: 0, next: 31 + Math.random() * 8 }, // the first shower comes on Friday
     river: { day: -1, panned: [], sluice: { bend: -1, at: 0 } }, panning: false,
     fishing: { sturgeonBack: 0, cure: [], caught: {}, kept: 0 }, angling: false, // the river's fish; see data/fish.json
+    car: { stage: 0, checked: {}, beeps: 0, beepAt: -99, hoodie: false }, // Where's My Car: 0 not begun, 1 checking memories, 2 the fob, 3 found
     tapestry: { owned: {}, up: '' }, // bought at the tapestry stall; one hangs on the line at camp
     plots: [], recipes: {}, pantry: {}, pantryCheese: [], shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
     fx: { clear: 0, soul: 0, zombie: 0, broth: 0, smoke: 0, trip: 0, tripDay: -1 }, glow: 0, vision: false, visionUsed: false,
@@ -447,6 +448,8 @@ export function createLife(ctx) {
     dot(...STALLS.burrito, '#8ac926', 'Veggie Burritos');
     dot(...STALLS.gear, '#ffc93c', 'Leather & Burner (camp gear)');
     dot(...TAP_STALL, '#ff3d9a', 'Tie-Dye & Tapestry');
+    if (CARQ && state.car.stage === 1) for (const m of CARQ.memories) if (!state.car.checked[m.id]) dot(m.x, m.z, '#8f6aff', `A memory: ${m.name.toLowerCase()}`);
+    if (CARQ && state.car.stage === 3) dot(CARQ.car.x, CARQ.car.z, '#ffc93c', 'Your car');
     dot(...STALLS.cheese, '#e8a33d', 'Grilled Cheese', -1);
     dot(...PERMIT, '#fff', 'Lot office (permits)');
     dot(...PILE, '#b9c2c9', 'Free Pile', -1);
@@ -1936,6 +1939,46 @@ export function createLife(ctx) {
     return opts;
   }
 
+  // ---- Where's My Car: three memories of where you parked, all a little wrong, and a key fob you had all along. Text and spots are data/car.json.
+  const nearXZ = (p, spot, r) => Math.hypot(p.x - spot.x, p.z - spot.z) < r;
+  const carMemoryAt = (p) => CARQ.memories.find((m) => !state.car.checked[m.id] && nearXZ(p, m, 3.2));
+  const carLeft = () => CARQ.memories.filter((m) => !state.car.checked[m.id]);
+  function carGate() {
+    const c = state.car;
+    if (c.stage === 0 && state.day < CARQ.startsOnDay) { toast('Locked, and nothing in it you need tonight. You know exactly where it is.'); return; }
+    if (c.stage === 0) {
+      talk(CARQ.opening, () => { c.stage = 1; sfx('level'); toast(`Where's My Car. Three memories to check, marked on your map (M): ${CARQ.memories.map((m) => m.name.toLowerCase()).join(', ')}.`); save(); });
+      return;
+    }
+    const left = carLeft();
+    talk([['Lawn Chair Guy', c.stage === 2 ? 'You have the look of a man with keys in his pocket. Press the button, see who answers.' : `Still looking? You had ${left.length === 1 ? 'one more thing' : `${left.length} more things`} you remembered. ${left.map((m) => m.memory).join(' ')}`], ['Lawn Chair Guy', 'You find your car yet? …You won’t. Love you, though.']]);
+  }
+  function carMemory(m) {
+    const c = state.car;
+    talk([['You', m.memory], ...m.lines], () => {
+      c.checked[m.id] = true; add('vibes', 0.03); sfx('pick');
+      const left = carLeft().length;
+      if (left) { toast(`${m.learned} ${left === 1 ? 'One memory' : `${left} memories`} left to check.`); save(); return; }
+      c.stage = 2;
+      card('Where is my car', CARQ.fobThought, 6200, () => { toast(`${m.learned} You have had your keys all along: press E anywhere in the Parking Lot to try the fob.`); });
+      save();
+    });
+  }
+  function carFob() {
+    const c = state.car;
+    c.beepAt = state.t; c.beeps++; sfx('coin');
+    toast(CARQ.fobLines[Math.min(c.beeps - 1, CARQ.fobLines.length - 1)]);
+  }
+  function carFound() {
+    const c = state.car, R = CARQ.reward;
+    if (c.stage === 3) { toast(state.hour >= 1 && state.hour < 6 ? 'Your car. You are wearing the hoodie; it is doing its job.' : 'Your car. It looks happy here. The card game has moved to the roof.'); return; }
+    talk(CARQ.found, () => {
+      c.stage = 3; c.hoodie = true; state.cash += R.cash; add('vibes', R.vibes); sfx('level');
+      card('Found it', `Your car, a long way from where you parked it. $${R.cash} from the cup holder, mostly in coins, and your hoodie off the back seat: the small hours will not chill you any more.`, 6500);
+      save();
+    });
+  }
+
   // ---- tapestries: bought on the Street, hung on the line at camp, one at a time. Rules in data/tapestry.json.
   const TAP_STALL = [-5.9, -22];
   const tapOf = (id) => TAPESTRY.list.find((t) => t.id === id);
@@ -2284,6 +2327,10 @@ export function createLife(ctx) {
         can: () => (state.permitDay === state.day ? 'you already hold today’s' : true), act: () => { state.permitDay = state.day; toast('Permit pinned to your shirt. Vend away.'); } },
       ...officeExtras(),
     ]) },
+    { test: (p) => !!CARQ && state.car.stage < 3 && nearXZ(p, CARQ.gate, 2.6), label: () => (state.car.stage === 0 ? (state.day >= CARQ.startsOnDay ? 'Your car. Probably' : 'The beater you arrived in') : 'Lawn Chair Guy, and a car that is not yours'), use: carGate },
+    { test: (p) => !!CARQ && state.car.stage === 1 && !!carMemoryAt(p), label: () => `Check a memory: ${carMemoryAt(getPlayer().root.position).name.toLowerCase()}`, use: () => carMemory(carMemoryAt(getPlayer().root.position)) },
+    { test: (p) => !!CARQ && state.car.stage >= 2 && nearXZ(p, CARQ.car, 3.1), label: () => (state.car.stage === 3 ? 'Your car' : 'A car with a card game on the hood'), use: carFound },
+    { test: (p) => !!CARQ && state.car.stage === 2 && zoneAt(p.x, p.z) === 'The Parking Lot', label: () => CARQ.fobLabel, use: carFob },
     { at: TAP_STALL, r: 2.9, label: 'Tie-Dye & Tapestry', use: tapShop },
     { test: (p) => tapsOwned().length > 0 && Math.hypot(p.x - TAPESTRY.line.x, p.z - TAPESTRY.line.z - 0.7) < 2.1, label: () => (state.tapestry.up ? `Your tapestry line: ${tapOf(state.tapestry.up).name}` : 'Your tapestry line (bare)'), use: tapLine },
     { at: STALLS.water, r: 2.9, label: 'General Store', use: () => menu('General Store', [
@@ -2335,7 +2382,7 @@ export function createLife(ctx) {
   interactables.unshift(interactables.splice(interactables.findIndex((i) => i.label === 'Your tank'), 1)[0]);
 
   // ---- saving. The game saves itself once you are free to roam; the opening is short enough to replay.
-  const KEEP = ['tapestry', 'fishing', 'hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry', 'pantryCheese', 'corner', 'reckon', 'crewShifts', 'river'];
+  const KEEP = ['tapestry', 'fishing', 'car', 'hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry', 'pantryCheese', 'corner', 'reckon', 'crewShifts', 'river'];
   let saveClock = 0;
   function save() {
     if (state.mode !== 'free') return;
@@ -2489,7 +2536,7 @@ export function createLife(ctx) {
       }
       if (camp && state.trophies.flag) add('vibes', hours * 0.03);
       if (camp && state.tapestry.up) add('vibes', hours * TAPESTRY.vibesPerHour); // your own colours on the line
-      const cold = state.hour >= 1 && state.hour < 6 && !made('vest') && !fx('broth');
+      const cold = state.hour >= 1 && state.hour < 6 && !made('vest') && !fx('broth') && !state.car.hoodie; // the hoodie from your car does it too
       if (cold && !warned.cold && free) { warned.cold = true; toast('It got cold. A warm layer would help.'); } else if (!cold) warned.cold = false;
       const chill = (w.rain && !dry && !state.poncho && !fx('broth') ? 1.2 : 1) * (cold ? 1.25 : 1);
       const well = 1 - wellEase(level('wellness'));
