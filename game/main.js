@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=57';
+import { createLife, readSave, saveLabel } from './life.js?v=61';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -532,6 +532,11 @@ function buildCampLook() {
   campLook.corner.add(signBoard('YOUR CORNER', -4.2, 2.1, -64.2, 0, 2.6, 0.6, { bg: '#ffc93c' }));
   mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.9, 6), lambert(0x6b4a2b), -4.2, 0.95, -64.2, campLook.corner);
   mesh(new THREE.BoxGeometry(1.1, 0.5, 0.6), lambert(0x8a5a2b), -4.2, 0.25, -63.4, campLook.corner); // a crate to sell from
+  // and the tank you sell from, with a few filled balloons tied to it
+  mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.1, 12), lambert(0x3d7bd9), -3.25, 0.55, -63.5, campLook.corner);
+  mesh(new THREE.SphereGeometry(0.18, 12, 8), lambert(0x3d7bd9), -3.25, 1.1, -63.5, campLook.corner);
+  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 8), lambert(0xb9c2c9), -3.25, 1.32, -63.5, campLook.corner);
+  for (const [x, y, c] of [[-3.4, 1.75, 0xff5d8f], [-3.05, 1.9, 0xffd23f], [-3.2, 2.1, 0x3aa0ff]]) mesh(new THREE.SphereGeometry(0.14, 10, 8), new THREE.MeshLambertMaterial({ color: c }), x, y, -63.5, campLook.corner);
   campLook.corner.visible = false;
   scene.add(campLook.corner);
 
@@ -614,7 +619,7 @@ function updateCamp(dt) {
   campLook.shelfGroup.visible = any;
   const v = state.nos;
   campLook.tank.visible = v.tank && !v.rig; // hidden in the cooler, it is not standing by the tent
-  campLook.corner.visible = v.arc === 'won';
+  campLook.corner.visible = v.arc === 'won'; if (campLook.cornerSolid) campLook.cornerSolid.x = v.arc === 'won' ? CORNER[0] : 1e6;
   if (whip) whip.root.visible = !['gone', 'fled'].includes(v.whipState);
   for (const g of goons) g.root.visible = g.role === 'flank' ? v.arc !== 'won' || g === goons[0] : g.role === 'watch' ? v.tank && v.arc === '' && v.stage >= 1 : v.arc === 'truce';
   const raining = state.weather.rain && (state.mode === 'free' || state.mode === 'chase');
@@ -653,6 +658,7 @@ const BOOTH = [-37, -98]; // the Open Decks tent, on the camp side of the Main S
 const VILLAGE = { dome: [-58.5, -149.5], chill: [-28, -143.5], bath: [-24, -159], elder: [-49.5, -152] };
 const inVillage = (x, z) => x < -19 && x > -74 && z < -137;
 const CAMP = { tent: [22, -74.5], stove: [25.8, -76.8], cooler: [23.9, -77.6], bench: [20.4, -78.6], garden: [18.0, -77.3], tank: [19.3, -70.7], myco: [16.9, -72.4], counter: [28.2, -75.2], pantry: [27.9, -78.2] }; // right beside the YOUR CAMP sign, where you cannot miss it
+const CORNER = [-4.2, -63.4]; // the crate under the YOUR CORNER sign, which goes up when Vinny backs off
 const WHIP = [12.4, -52.6]; // the twitchy guy behind the Costume Shop
 const PERMIT = [4.4, -15.6]; // the lot office sign at the top of Shakedown Street // your ratty tent, near the gate end of the Campgrounds
 const STALLS = { water: [5.9, -22], burrito: [5.9, -31.2], cheese: [-5.9, -31.2], gear: [5.9, -40.4] };
@@ -706,6 +712,7 @@ function buildWorld() {
   signBoard('YOUR CAMP', CAMP.tent[0] - 2.4, 2.0, CAMP.tent[1] + 2.4, 0.5, 2.3, 0.56, { bg: '#ffc93c' });
   mesh(new THREE.BoxGeometry(0.08, 1.75, 0.08), lambert(0x6b4a2b), CAMP.tent[0] - 2.4, 0.87, CAMP.tent[1] + 2.4);
   // the Campgrounds
+  solid(1e6, CORNER[1], 0.6); campLook.cornerSolid = colliders[colliders.length - 1]; // the crate is only in the way once the corner is yours
   solid(1e6, CAMP.pantry[1], 0.6); campLook.pantrySolid = colliders[colliders.length - 1]; // moved into place once you own a cabinet
   solid(CAMP.counter[0], CAMP.counter[1], 0.75); solid(CAMP.counter[0] + 2.4, CAMP.counter[1] + 1.3, 0.3); // your kitchen counter and its queue: keeps the neighbours' tents off them
   let n = 0, tries = 0;
@@ -1511,7 +1518,7 @@ async function boot() {
   crowd = createCrowd({ THREE, people, instanced, routeSamples, data: CROWD, rand, isFree: (x, z) => !nearRoute(x, z, 2) && !colliders.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 0.8) ** 2) });
   const CRATE = await (await fetch('./data/crate.json')).json(); // the tracks and the rules of a set
   const decks = createDecks({ $, crate: CRATE, isMuted: () => sound.isMuted() });
-  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
+  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
   window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
