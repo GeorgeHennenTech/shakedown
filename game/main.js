@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=84';
+import { createLife, readSave, saveLabel } from './life.js?v=85';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -899,6 +899,23 @@ function buildRiverBends(RIVER) {
   for (const z of [-0.5, -0.2, 0.1, 0.4]) mesh(new THREE.BoxGeometry(0.46, 0.05, 0.04), lambert(0x6b4a2b), 0, 0.2, z, s);
   s.rotation.x = 0.12; s.visible = false; scene.add(s);
 }
+// ---- the corner crew: whoever is hired for the night stands at their station by the crate
+const crewModels = {};
+const CREW_SPOT = { fill: [1.85, 0.1, -0.3], front: [-1.9, 1.1, 0.4], cash: [-0.7, -0.5, 0.1], run: [2.4, 1.35, -0.5] }; // metres from the crate, and which way they face
+function crewStand(dt) {
+  const c = state.corner;
+  if (!c) return;
+  const now = (state.day || 0) * 24 + (state.hour || 0), on = {};
+  if (campLook.corner && campLook.corner.visible) for (const st in CREW_SPOT) { const seat = c.crew && c.crew[st]; if (seat && now < seat.until && !(c.left && c.left[seat.id])) on[seat.id] = st; }
+  for (const id in crewModels) {
+    const ch = crewModels[id], st = on[id];
+    ch.root.visible = !!st;
+    if (!st) continue;
+    const [dx, dz, ry] = CREW_SPOT[st];
+    ch.root.position.set(CORNER[0] + dx, 0, CORNER[1] + dz); ch.root.rotation.y = ry;
+    ch.mixer.update(dt);
+  }
+}
 async function loadCharacter(url) {
   const gltf = await loader.loadAsync(url);
   gltf.scene.traverse((o) => {
@@ -1481,6 +1498,7 @@ function update(dt) {
     if (elder && Math.hypot(p.x - VILLAGE.elder[0], p.z - VILLAGE.elder[1]) < 9) faceTo(elder.root, p.x - VILLAGE.elder[0], p.z - VILLAGE.elder[1], dt, 3);
     for (const ch of [player, patches, buck, vinny, elder, whip, moonbeam, ...goons]) if (ch && ch.root.visible) ch.mixer.update(dt);
     if (moonbeam) moonbeamShift(dt);
+    crewStand(dt);
     if (campLook.sluice && state.river) { const sl = state.river.sluice, b = sl && sl.bend >= 0 ? RIVER_BENDS[sl.bend] : null; campLook.sluice.visible = !!b; if (b) campLook.sluice.position.set(b.x - 0.6, 0, b.z - 1.5); }
     const d = state.dialogue;
     const typing = !!(d && d.text && d.shown < d.text.length);
@@ -1633,10 +1651,20 @@ async function boot() {
   const CREW = await (await fetch(`./data/crew.json?v=${BUILD}`)).json(); // the corner crew: stations, people, how each is earned
   const CRATE = await (await fetch(`./data/crate.json?v=${BUILD}`)).json(); // the tracks and the rules of a set
   const decks = createDecks({ $, crate: CRATE, isMuted: () => sound.isMuted() });
+  (async () => { // the crew models load in the background, so the game does not wait on them
+    for (const id of ['brody', 'doc', 'marge', 'juniper', 'tiny']) {
+      try {
+        const ch = await loadCharacter(`./assets/crew-${id}.glb`);
+        addAction(ch, 'Idle', prepClip(idle, 'Idle', true));
+        play(ch, 'Idle'); ch.mixer.update(Math.random() * 3); ch.root.visible = false; scene.add(ch.root);
+        crewModels[id] = ch;
+      } catch (e) { console.warn(`Crew model ${id} not loaded`, e); }
+    }
+  })();
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });

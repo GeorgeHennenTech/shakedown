@@ -669,88 +669,24 @@ export function createLife(ctx) {
   };
   const topLimit = () => (state.gear.stove >= 7 ? 2 : 1); // the sandwich press takes two
   const perFlip = () => (state.gear.stove >= 6 ? 2 : 1); // the griddle does two sandwiches to a flip, and one press tops both
-  const promised = (item) => state.cooking.stations.reduce((sum, st) => sum + (st.active && !st.fresh && st.top.includes(item) ? perFlip() : 0), 0) + (state.cooking.board.order.includes(item) ? perFlip() : 0);
-  // ---- the board: the next sandwich lies open beside the stove. You drag each piece of topping onto the bread yourself,
-  // and how evenly you lay it decides what it is worth. Then it goes in the pan. Rules in data/garden.json "board".
-  const newBoard = () => ({ order: [], bits: {} });
-  const spreadOf = (bits) => new Set((bits || []).map((b) => (b.x < 0.5 ? 0 : 1) + (b.y < 0.5 ? 0 : 2))).size / 4; // how many quarters of the bread have some
-  const spreadWord = (v) => (v >= 1 ? 'corner to corner' : v <= DATA.board.lopsidedAt ? 'lopsided' : 'fair');
-  const topBonus = (f, v) => (v === undefined ? f.bonus : v >= 1 ? f.bonus + DATA.board.evenTip : v <= DATA.board.lopsidedAt ? Math.max(1, Math.floor(f.bonus * DATA.board.lopsided)) : f.bonus);
-  const cookSay = (t) => { $('cookmsg').textContent = t; };
-  function boardPlace(item, x, y) {
-    const c = state.cooking;
-    if (!c || !c.tops.includes(item)) return false;
-    const b = c.board, name = ITEMS[item].name.toLowerCase();
-    if (c.queue < 1) { cookSay('No more bread and cheese to build on this time.'); return false; }
-    if (!b.order.includes(item)) {
-      if (b.order.length >= topLimit()) { cookSay(topLimit() > 1 ? 'Two toppings is all the press will close on.' : 'One topping to a sandwich on this stove. The sandwich press takes two.'); return false; }
-      if (have(item) - promised(item) < 1) { cookSay(`You are out of ${name}.`); return false; }
-      b.order.push(item); b.bits[item] = [];
-    }
-    if (b.bits[item].length >= DATA.board.pieces) { cookSay(`That is all the ${name} one sandwich holds. F puts it in the pan.`); return false; }
-    b.bits[item].push({ x: Math.min(0.92, Math.max(0.08, x)), y: Math.min(0.92, Math.max(0.08, y)) });
-    sfx('pick');
-    const n = b.bits[item].length, v = spreadOf(b.bits[item]);
-    cookSay(n < DATA.board.pieces ? `${n} of ${DATA.board.pieces} pieces on. Lay them into all four corners.` : `All ${n} on: ${spreadWord(v)}${v >= 1 ? `, worth $${DATA.board.evenTip} more` : v <= DATA.board.lopsidedAt ? ', worth less. X scrapes it off' : ''}. F puts it in the pan.`);
-    drawTops();
-    return true;
-  }
-  function boardClear() { const c = state.cooking; if (!c || !c.board.order.length) return; c.board = newBoard(); cookSay('Scraped off. Nothing wasted.'); drawTops(); }
-  // The board's sandwich goes into the first empty pan, toppings and all.
-  function toPan() {
-    const c = state.cooking;
-    if (!c) return false;
-    if (c.queue < 1) { cookSay('That was the last of what you can cook this time.'); return false; }
-    const st = c.stations.find((x) => !x.active);
-    if (!st) { cookSay(c.pans > 1 ? 'Both pans are full. Flip one out first.' : 'The pan is full. Flip that one out first.'); return false; }
-    const b = c.board;
-    c.queue--; st.active = true; st.fresh = false; st.side = 0; st.first = null; st.wait = 0.42;
-    st.top = b.order.slice(); st.spread = Object.fromEntries(b.order.map((k) => [k, spreadOf(b.bits[k])]));
-    cook.newSandwich(st.i);
-    if (cook.addTopping) for (const k of st.top) cook.addTopping(st.i, k);
-    c.board = newBoard();
-    if (st.top.length) cookSay(`${st.top.map((k) => `${FILLINGS.find((f) => f.item === k).name}, ${spreadWord(st.spread[k])}`).join(' and ')}: in the ${c.pans > 1 ? (st.i ? 'right pan' : 'left pan') : 'pan'}.`);
-    drawTops();
-    return true;
-  }
-  const ticketName = (want) => (want === 'any' ? 'Anything hot' : want === 'plain' ? 'Plain, golden' : FILLINGS.find((f) => f.item === want).name);
-  function drawRail() { // the orders waiting at your counter, pinned up where you can see them while you cook
-    const waiting = state.kitchen.queue.filter((q) => q.at), cooked = [...state.store.cheese, ...state.pantryCheese];
-    $('cookrail').innerHTML = waiting.map((q) => `<span class="ticket${cooked.some((x) => meets(x, q.want)) ? ' got' : ''}">${TOP_CHIP[q.want] || ''}${ticketName(q.want)}</span>`).join('');
-  }
-  let topDrag = null;
-  $('cooksend').onclick = () => toPan();
-  $('cookscrape').onclick = () => boardClear();
-  window.addEventListener('pointermove', (e) => {
-    if (!topDrag) return;
-    if (Math.hypot(e.clientX - topDrag.x0, e.clientY - topDrag.y0) > 6) topDrag.moved = true;
-    const gh = $('cookghost'); gh.classList.toggle('hidden', !topDrag.moved); gh.style.left = `${e.clientX}px`; gh.style.top = `${e.clientY}px`;
-  });
-  window.addEventListener('pointerup', (e) => {
-    if (!topDrag) return;
-    const d = topDrag; topDrag = null; $('cookghost').classList.add('hidden');
-    if (!state.cooking) return;
-    if (!d.moved) { cookTop(d.item); return; } // a tap on the bowl is the same as its number key
-    const r = $('bread').getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-    if (x >= 0 && x <= 1 && y >= 0 && y <= 1) boardPlace(d.item, x, y); else cookSay('Drop it on the bread.');
-  });
+  const promised = (item) => state.cooking.stations.reduce((sum, st) => sum + (st.active && !st.fresh && st.top.includes(item) ? perFlip() : 0), 0);
   function drawTops() {
     const c = state.cooking;
     $('cooktops').innerHTML = !c.tops.length ? '<small>No toppings on you. Grow tomatoes, peppers or herbs in your garden, or forage mushrooms, and they show up here to put on.</small>' : c.tops.map((item, n) => { const left = have(item) - promised(item); return `<button data-top="${item}"${left > 0 ? '' : ' disabled'}><kbd>${n + 1}</kbd>${TOP_CHIP[item] || ''}<span>${FILLINGS.find((f) => f.item === item).name}</span><b>×${Math.max(0, left)}</b></button>`; }).join('');
-    $('cooktops').querySelectorAll('button').forEach((b) => { b.onpointerdown = (e) => { if (b.disabled) return; topDrag = { item: b.dataset.top, x0: e.clientX, y0: e.clientY, moved: false }; $('cookghost').innerHTML = TOP_CHIP[b.dataset.top] || ''; e.preventDefault(); }; });
+    $('cooktops').querySelectorAll('button').forEach((b) => { b.onclick = () => cookTop(b.dataset.top); });
     for (const st of c.stations) { const el = $('cookon' + st.i); if (el) el.textContent = !st.active || st.fresh ? '' : st.top.length ? st.top.map((k) => sandwichName(k).replace(' grilled cheese', '')).join(' + ') : 'plain'; }
-    const b = c.board;
-    $('bread').innerHTML = '<i class="cheese"></i>' + b.order.map((item) => b.bits[item].map((bit) => `<span class="bit" style="left:${bit.x * 100}%;top:${bit.y * 100}%">${TOP_CHIP[item] || ''}</span>`).join('')).join('');
-    $('cookboard').classList.toggle('done', c.queue < 1);
-    $('boardnote').textContent = c.queue < 1 ? 'Nothing left to build.' : !b.order.length ? (c.tops.length ? 'Plain so far' : 'Plain') : b.order.map((k) => `${ITEMS[k].name}: ${spreadWord(spreadOf(b.bits[k]))}`).join(' · ');
-    drawRail();
   }
-  // The number key, or a tap on the bowl: the rest of that topping goes on in one careless handful. Quick, but it never reaches all four corners.
-  function cookTop(item) {
+  // Put a topping on the sandwich in pan i; with no pan named, on the one furthest along that still has room for it.
+  function cookTop(item, i) {
     const c = state.cooking;
     if (!c || !c.tops.includes(item)) return;
-    const lazy = DATA.board.handful, had = (c.board.bits[item] || []).length;
-    for (let n = had; n < DATA.board.pieces; n++) if (!boardPlace(item, lazy[n % lazy.length][0], lazy[n % lazy.length][1])) break;
+    const open = (st) => st.active && !st.fresh && st.top.length < topLimit() && !st.top.includes(item);
+    const st = i !== undefined ? c.stations[i] : c.stations.filter(open).sort((x, y) => (y.side + y.x) - (x.side + x.x))[0];
+    if (!st || !open(st)) { $('cookmsg').textContent = 'Nothing in the pan has room for that.'; return; }
+    if (have(item) - promised(item) < 1) { $('cookmsg').textContent = `You are out of ${ITEMS[item].name.toLowerCase()}.`; return; }
+    st.top.push(item); sfx('pick'); if (cook.addTopping) cook.addTopping(st.i, item);
+    $('cookmsg').textContent = `${FILLINGS.find((f) => f.item === item).name} going on${c.pans > 1 ? ` the ${st.i ? 'right' : 'left'} pan` : ''}.`;
+    drawTops();
   }
   function startCooking() {
     if (!have('supplies')) { toast('You need bread and cheese. The General Store sells it.'); return; }
@@ -765,21 +701,20 @@ export function createLife(ctx) {
     else if (short === 'supplies') toast(`Bread and cheese for only ${have('supplies')} sandwiches, so this will be a short one. The General Store sells a case of 20.`);
     state.stashedAtStart = state.store.cheese.length;
     state.canMove = false;
-    state.cooking = { pans, queue: totalToCook, total: totalToCook, made: 0, short, stations: [], board: newBoard(), railT: 0, tops: FILLINGS.filter((f) => have(f.item) > 0).map((f) => f.item) };
+    state.cooking = { pans, queue: totalToCook, total: totalToCook, made: 0, short, stations: [], tops: FILLINGS.filter((f) => have(f.item) > 0).map((f) => f.item) };
     ZONES = state.gear.stove >= 5 ? WIDEST : state.gear.stove >= 3 ? WIDE : NARROW;
     const pc = ZONES.map(([edge]) => `${Math.min(edge, 1) * 100}%`);
     const paint = `linear-gradient(90deg,#f6e7c1 0 ${pc[0]},#e8a33d ${pc[0]} ${pc[1]},#ffd23f ${pc[1]} ${pc[2]},#e8a33d ${pc[2]} ${pc[3]},#3b2416 ${pc[3]} 100%)`;
     $('cookbars').innerHTML = Array.from({ length: pans }, (_, i) => `<div class="cookrow">${pans > 1 ? `<kbd>${'AD'[i]}</kbd>` : ''}<div class="cookbar" style="background:${paint}"><i id="cookmark${i}"></i></div><span class="cookon" id="cookon${i}"></span></div>`).join('');
     $('cook').classList.remove('hidden'); $('prompt').classList.add('hidden');
     document.body.classList.add('cooking');
-    const hands = state.cooking.tops.length > 0; // with toppings on you, each sandwich is built on the board first; with none, plain ones feed themselves into the pan
-    state.cooking.auto = !hands;
-    $('cookboard').classList.toggle('hidden', !hands);
-    $('cookmsg').textContent = hands ? 'Build it on the board: drag a topping onto the bread, piece by piece, into all four corners. F puts it in the pan. Space flips.' : pans > 1 ? 'Two pans. A flips the left, D flips the right. Space flips whichever is further along.' : 'Flip it when the marker hits the gold. Space or click.';
-    $('cookhint').textContent = hands ? `Drag toppings on · F into the pan · X scrape off · ${pans > 1 ? 'A / D / Space' : 'Space'} to flip · Esc to stop` : 'Space to flip · Esc to stop';
+    $('cookmsg').textContent = (pans > 1 ? 'Two pans. A flips the left, D flips the right. Space flips whichever is further along.' : 'Flip it when the marker hits the gold. Space or click.') + (state.cooking.tops.length ? ' Number keys put a topping on what is in the pan.' : '');
     cook.start(gfx.light, Math.min(4, state.gear.stove));
-    for (let i = 0; i < pans; i++) state.cooking.stations.push({ i, side: 0, x: 0, speed: 0.3, first: null, wait: 0, fresh: false, active: false, top: [], spread: {} });
-    if (!hands) for (let i = 0; i < pans; i++) if (toPan()) state.cooking.stations[i].wait = 0.42 + i * 0.9; // the second pan starts a beat later
+    for (let i = 0; i < pans; i++) {
+      const st = { i, side: 0, x: 0, speed: 0.3, first: null, wait: 0, fresh: false, active: false, top: [] };
+      state.cooking.stations.push(st);
+      if (state.cooking.queue > 0) { state.cooking.queue--; st.active = true; cook.newSandwich(i); st.wait = 0.42 + i * 0.9; } // the second pan starts a beat later
+    }
     drawCount(); drawTops();
   }
   const drawCount = () => { const c = state.cooking; $('cookcount').textContent = `${c.made} sandwich${c.made === 1 ? '' : 'es'} done`; };
@@ -814,7 +749,7 @@ export function createLife(ctx) {
         const bad = badFilling(f.item);
         spend(f.item, 1);
         if (bad) { price = 1; break; }
-        price += topBonus(f, st.spread[f.item]);
+        price += f.bonus;
       }
       if (fills.length && price > base) name = fills.length > 1 ? `${fills[0].name} with ${ITEMS[fills[1].item].name.toLowerCase()}` : fills[0].name;
       const done = { p: price, f: price > base ? fills.map((f) => f.item) : [] };
@@ -828,14 +763,12 @@ export function createLife(ctx) {
     }
     st.side = 0;
     pass(8 / 60 / c.pans);
-    const laid = Object.values(st.spread), how = price <= 1 || !laid.length ? '' : laid.every((v) => v >= 1) ? ' Laid corner to corner.' : laid.some((v) => v <= DATA.board.lopsidedAt) ? ' Lopsided: the topping was all on one side.' : '';
-    $('cookmsg').textContent = `${name}${/melt|popper/i.test(name) ? '' : ' grilled cheese'}${batch > 1 ? ', two of them' : ''}. Worth $${price}${batch > 1 ? ' each' : ''}.${how}`;
-    st.wait = 1.25; st.fresh = true; st.top = []; st.spread = {};
+    $('cookmsg').textContent = `${name}${/melt|popper/i.test(name) ? '' : ' grilled cheese'}${batch > 1 ? ', two of them' : ''}. Worth $${price}${batch > 1 ? ' each' : ''}.`;
+    st.wait = 1.25; st.fresh = true; st.top = [];
     cook.plate(st.i, name);
     drawCount(); drawTops();
   }
   function stopCooking() {
-    topDrag = null; $('cookghost').classList.add('hidden');
     const made = state.cooking.made, why = state.cooking.queue > 0 || state.cooking.stations.some((s) => s.active) ? '' : { space: ' That is all your bag and stash have room for.', supplies: ' That was the last of your bread and cheese.', '': '' }[state.cooking.short || ''];
     state.cooking = null; state.canMove = true;
     $('cook').classList.add('hidden');
@@ -853,8 +786,8 @@ export function createLife(ctx) {
         st.wait -= dt;
         if (st.wait <= 0) {
           if (st.fresh) { // the last one is plated: start another, or this pan is finished
-            st.fresh = false; st.active = false; // the pan is empty again
-            if (c.auto) toPan();
+            st.fresh = false;
+            if (c.queue > 0) { c.queue--; cook.newSandwich(st.i); st.wait = 0.42; } else st.active = false;
             drawTops();
           } else nextSide(st);
         }
@@ -865,8 +798,7 @@ export function createLife(ctx) {
       $('cookmark' + st.i).style.left = `${Math.min(st.x, 1) * 100}%`;
       if (st.x >= 1) cookPress(st.i); // left it too long
     }
-    c.railT -= dt; if (c.railT <= 0) { c.railT = 0.5; drawRail(); }
-    if (c.queue < 1 && c.stations.every((s) => !s.active)) stopCooking();
+    if (c.stations.every((s) => !s.active)) stopCooking();
   }
 
   // ---- selling and eating
@@ -2379,8 +2311,6 @@ export function createLife(ctx) {
         else if (e.code === 'KeyA' || e.code === 'ArrowLeft') cookPress(0);
         else if (e.code === 'KeyD' || e.code === 'ArrowRight') cookPress(state.cooking.pans > 1 ? 1 : 0);
         else if (e.code.startsWith('Digit')) { const item = state.cooking.tops[+e.code.slice(5) - 1]; if (item) cookTop(item); }
-        else if ((e.code === 'KeyF' || e.code === 'Enter') && !e.repeat) toPan();
-        else if (e.code === 'KeyX' || e.code === 'Backspace') boardClear();
         else if (e.code === 'Escape') stopCooking();
         return true;
       }
@@ -2411,7 +2341,7 @@ export function createLife(ctx) {
       return false;
     },
     // A click while cooking: with two pans, the left half of the screen is the left pan.
-    cookTop, boardPlace, boardClear, toPan, fillHold,
+    cookTop, fillHold,
     cookClick(xFraction) { if (state.cooking) cookPress(state.cooking.pans > 1 ? (xFraction < 0.5 ? 0 : 1) : 0); },
     update(dt) {
       if (['load', 'creator', 'intro'].includes(state.mode)) return;
