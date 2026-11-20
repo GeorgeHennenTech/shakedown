@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=68';
+import { createLife, readSave, saveLabel } from './life.js?v=69';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -741,8 +741,8 @@ function buildWorld() {
   signBoard('SHOWERS $3', 46.1, 2.65, -66.75, Math.PI, 2.4, 0.56, { bg: '#fff3d6' });
   for (let i = 0; i < 6; i++) put('potty', 34 + i * 1.45, -66, Math.PI + rand(-0.05, 0.05), 1, 0);
   for (let i = 0; i < 16; i++) { const x = rand(-20, 46), z = rand(-118, -74); if (!nearRoute(x, z, 2)) put('totem', x, z, rand(0, tau), rand(0.8, 1.1), hue()); }
-  // Moonbeam, your neighbour, always camped beside you. Until Moonbeam has a model of their own they are picked out by
-  // everything around them: the same body and colours every time, a name over their head, and a little moon camp
+  // Moonbeam, your neighbour, always camped beside you. Moonbeam has a model of his own now (see the loader below); he is also picked out by
+  // everything around him: a name over his head, and a little moon camp
   // (a crescent on a pole, stars on a string, an indigo rug, a lantern) that nobody else on the grounds has.
   {
     const mx = CAMP.tent[0] + 5.4, mz = CAMP.tent[1] + 4.6;
