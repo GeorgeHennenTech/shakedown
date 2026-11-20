@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=6';
-import { createLife, readSave, saveLabel } from './life.js?v=93';
+import { createLife, readSave, saveLabel } from './life.js?v=94';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -650,10 +650,10 @@ function updateCooler() {
   if (!c) return;
   campLook.coolerSolid.x = state.towing ? 1e6 : CAMP.cooler[0]; // nothing to bump into at camp while the cooler is with you
   if (!state.towing) {
-    if (c.userData.towed) { c.userData.towed = false; c.position.set(CAMP.cooler[0], 0, CAMP.cooler[1]); c.rotation.set(0, 0, 0); }
+    if (c.userData.towed) { c.userData.towed = false; c.position.set(CAMP.cooler[0], 0, CAMP.cooler[1]); c.rotation.set(0, 0, 0, 'XYZ'); }
     return;
   }
-  const p = player.root.position, reach = 0.95;
+  const p = player.root.position, reach = campModels.cooler ? 1.05 : 0.95;
   let dx = p.x - c.position.x, dz = p.z - c.position.z, d = Math.hypot(dx, dz);
   if (!c.userData.towed || d > 6) { // just picked up, or you were moved: drop it in behind you
     c.userData.towed = true;
@@ -661,8 +661,13 @@ function updateCooler() {
     dx = p.x - c.position.x; dz = p.z - c.position.z; d = Math.hypot(dx, dz);
   }
   if (d > reach) { c.position.x += dx * (1 - reach / d); c.position.z += dz * (1 - reach / d); }
-  if (d > 0.01) c.rotation.y = Math.atan2(-dz, dx); // the handle is on the cooler's +x side
-  c.rotation.z = 0.12; // tipped onto its wheels
+  if (campModels.cooler) { // the model: its pull handle stands up at the back, so the back faces you and it leans onto its wheels towards your hand
+    if (d > 0.01) c.rotation.set(-0.42, Math.atan2(-dx, -dz), 0, 'YXZ');
+    c.position.y = 0.06;
+  } else {
+    if (d > 0.01) c.rotation.y = Math.atan2(-dz, dx); // the painted one: the handle is on its +x side
+    c.rotation.z = 0.12; // tipped onto its wheels
+  }
 }
 // Things at camp and in the sky that follow the game state every frame: the crop, the trophies, the rain.
 function updateCamp(dt) {
@@ -1127,7 +1132,58 @@ function buildRiverBends(RIVER) {
 // ---- the corner crew: whoever is hired for the night stands at their station by the crate
 const crewModels = {};
 let seenAct = null; // the last thing life.js asked your character to act out
-const CREW_SPOT = { fill: [1.85, 0.1, -1.75], front: [-1.9, 1.1, 0.4], cash: [-0.7, -0.5, 0.1], run: [2.4, 1.35, -0.5] }; // the filler faces the tank
+const CREW_SPOT = { fill: [1.6, 0.1, -1.75], front: [-1.9, 1.1, 0.4], cash: [-0.7, -0.5, 0.1], run: [2.05, 1.05, -0.2] }; // the filler stands at the tank and faces it; the runner is one arm's reach from the filler
+const coolerGrip = new THREE.Vector3(); // the top of the cooler's pull handle, in the cooler's own space
+const crewAt = {}; // station -> the character standing there this frame
+const crewProp = { mesh: null, col: 0 }; // the balloon being passed down the line
+const cV1 = new THREE.Vector3(), cV2 = new THREE.Vector3(), cV3 = new THREE.Vector3();
+const inOut = (t, a, b, c, d) => smooth01((t - a) / (b - a)) * (1 - smooth01((t - c) / (d - c))); // ease in between a and b, hold, ease out between c and d
+// Steer one hand to a point in the world: works out where the elbow has to be, then turns the two arm bones. w is how far to go, 0 to 1.
+function reach(ch, side, target, w) {
+  const B = ch.bones, arm = B[side + 'Arm'], fore = B[side + 'ForeArm'], hand = B[side + 'Hand'];
+  if (!arm || !fore || !hand || w <= 0.001) return;
+  ch.root.updateMatrixWorld(true);
+  (B.RightShoulder || B.RightArm).getWorldPosition(bRight); (B.LeftShoulder || B.LeftArm).getWorldPosition(bA); bRight.sub(bA).setY(0).normalize();
+  arm.getWorldPosition(bS); fore.getWorldPosition(bE); hand.getWorldPosition(bHand);
+  const L1 = bS.distanceTo(bE), L2 = bE.distanceTo(bHand);
+  bDir.copy(target).sub(bS); const d = Math.max(0.05, Math.min(bDir.length(), (L1 + L2) * 0.98)); bDir.normalize();
+  const along = (L1 * L1 - L2 * L2 + d * d) / (2 * d), out = Math.sqrt(Math.max(0, L1 * L1 - along * along));
+  bPole.set(0, -1, 0).addScaledVector(bRight, side === 'Right' ? 0.7 : -0.7); bPole.addScaledVector(bDir, -bPole.dot(bDir)).normalize();
+  const elbow = cV3.copy(bS).addScaledVector(bDir, along).addScaledVector(bPole, out), tip = bMouth.copy(bS).addScaledVector(bDir, d);
+  aimBone(arm, fore, elbow, w);
+  aimBone(fore, hand, tip, w);
+}
+const TANK_TOP = () => cV1.set(CORNER[0] + 0.95, 1.5, CORNER[1] - 0.1); // the nozzle of the tank at your corner
+const spotOf = (st, y, dz = 0) => { const p = crewAt[st].root.position; return new THREE.Vector3(p.x, y, p.z + dz); };
+// One sale, acted down the line in about three seconds: the front waves them in, the filler fills one at the tank and passes it,
+// the runner takes it and holds it out to the buyer, and cash takes the money. Whoever is missing is skipped.
+function crewSaleMove(ch, st, t) {
+  if (st === 'front') { if (t < CREW_POSE.greet.secs) poseOn(ch, CREW_POSE.greet, Math.sin(Math.PI * Math.min(1, t / CREW_POSE.greet.secs * 1.15)) ** 0.6); return; }
+  const handoff = crewAt.fill && crewAt.run ? spotOf('fill', 1.28).lerp(spotOf('run', 1.28), 0.5) : crewAt.fill ? spotOf('fill', 1.25, 0.6) : null;
+  if (st === 'fill') {
+    const atTank = inOut(t, 0.15, 0.45, 1.0, 1.25), nozzle = TANK_TOP();
+    reach(ch, 'Left', cV2.copy(nozzle).setY(nozzle.y - 0.12), atTank); reach(ch, 'Right', nozzle, atTank); // one hand on the valve, one on the nozzle
+    if (handoff) reach(ch, 'Right', handoff, inOut(t, 1.1, 1.35, 1.6, 1.9));
+    const b = ch.bones.Spine01; if (b) b.rotation.x += 0.16 * atTank;
+  } else if (st === 'run') {
+    if (handoff) reach(ch, 'Right', handoff, inOut(t, 1.3, 1.55, 1.75, 1.95)); else reach(ch, 'Right', TANK_TOP(), inOut(t, 1.0, 1.3, 1.5, 1.8));
+    reach(ch, 'Right', spotOf('run', 1.3, 0.62), inOut(t, 1.9, 2.15, 2.55, 2.9)); // out to the buyer
+  } else if (st === 'cash') {
+    reach(ch, 'Right', spotOf('cash', 1.12, 0.55), inOut(t, 1.3, 1.6, 2.1, 2.45)); // palm out for the money
+    const h = ch.bones.Head; if (h) h.rotation.x += Math.sin(t * 11) * 0.12 * inOut(t, 2.0, 2.2, 2.6, 2.9); // counting it
+  }
+}
+function crewBalloon() { // the balloon itself: it swells at the nozzle, rides the filler's hand, then the runner's, and is gone with the buyer
+  const act = state.corner.act, m = crewProp.mesh || (crewProp.mesh = (() => { const x = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), new THREE.MeshLambertMaterial({ color: 0xff5d8f })); x.castShadow = true; x.visible = false; scene.add(x); return x; })());
+  const t = act && act.kind === 'sale' && (crewAt.fill || crewAt.run) ? state.t - act.at : -1;
+  if (t < 0.3 || t > 2.85) { m.visible = false; return; }
+  if (crewProp.act !== act) { crewProp.act = act; m.material.color.setHex(pick(BALLOON.colours)); }
+  const size = smooth01((t - 0.3) / 0.75) * (1 - smooth01((t - 2.6) / 0.25));
+  const carrier = t < 1.15 ? null : t < 1.65 ? crewAt.fill || crewAt.run : crewAt.run || (t < 1.9 ? crewAt.fill : null);
+  if (t >= 1.15 && !carrier) { m.visible = false; return; }
+  if (carrier) { carrier.bones.RightHand.getWorldPosition(m.position); m.position.y += 0.17; } else { m.position.copy(TANK_TOP()); m.position.y += 0.06 + 0.15 * size; }
+  m.scale.setScalar(Math.max(0.001, size)); m.visible = true;
+}
 // What the crew do with their hands. Same rig and axes as Moonbeam's (see MOON_POSE): arm x- brings a hand forward, RightArm z- lifts it out.
 const CREW_POSE = {
   greet: { secs: 1.1, bones: { RightArm: [0, 0, -1.3], RightForeArm: [0, 0, -0.7], Head: [0.1, 0, 0] }, wobble: { bone: 'RightForeArm', axis: 2, amount: 0.4, speed: 14 } }, // the front waves the next one in
@@ -1154,7 +1210,9 @@ function crewAct(ch, st) { // call after the mixer has moved the bones for this 
     if (!ch.hipsRest) { const t = ch.actions.Idle.getClip().tracks.find((x) => x.name === 'Hips.quaternion'); ch.hipsRest = t ? new THREE.Quaternion().fromArray(t.values, 0) : ch.bones.Hips.quaternion.clone(); }
     ch.bones.Hips.quaternion.slerp(ch.hipsRest, 0.85);
   }
-  const act = state.corner.act, part = act && CREW_BEAT[act.kind] && CREW_BEAT[act.kind][st], pose = part && CREW_POSE[part[0]], age = part ? state.t - act.at - part[1] : -1;
+  const act = state.corner.act;
+  if (act && act.kind === 'sale' && state.t - act.at < 3) { poseOn(ch, CREW_POSE.groove, 0.5); crewSaleMove(ch, st, state.t - act.at); return; }
+  const part = act && CREW_BEAT[act.kind] && CREW_BEAT[act.kind][st], pose = part && CREW_POSE[part[0]], age = part ? state.t - act.at - part[1] : -1;
   if (pose && age >= 0 && age < pose.secs) poseOn(ch, pose, Math.sin(Math.PI * Math.min(1, age / pose.secs * 1.15)) ** 0.6); // ease in, hold, ease out
   else poseOn(ch, CREW_POSE.groove, 1);
 } // metres from the crate, and which way they face
@@ -1164,6 +1222,9 @@ function crewStand(dt) {
   const now = (state.day || 0) * 24 + (state.hour || 0), on = {};
   const scattered = now < (c.scatterUntil || 0); // run off by Officer Dan's people: the corner stands empty until they drift back
   if (campLook.corner && campLook.corner.visible && !scattered) for (const st in CREW_SPOT) { const seat = c.crew && c.crew[st]; if (seat && now < seat.until && !(c.left && c.left[seat.id])) on[seat.id] = st; }
+  for (const k in crewAt) delete crewAt[k];
+  for (const id in on) { const who = id === 'whip' ? whip : crewModels[id]; if (who) crewAt[on[id]] = who; }
+  for (const st in crewAt) { const [dx, dz, ry] = CREW_SPOT[st]; crewAt[st].root.position.set(CORNER[0] + dx, 0, CORNER[1] + dz); crewAt[st].root.rotation.y = ry; } // everyone is in place before anyone reaches for anyone
   if (whip) { // Whip has his own model: on duty he comes over to the tank, off duty he is back behind the Costume Shop
     const st = on.whip;
     if (st) { const [dx, dz, ry] = CREW_SPOT[st]; whip.root.position.set(CORNER[0] + dx, 0, CORNER[1] + dz); whip.root.rotation.y = ry; crewAct(whip, st); }
@@ -1178,6 +1239,7 @@ function crewStand(dt) {
     ch.mixer.update(dt);
     crewAct(ch, st);
   }
+  crewBalloon();
 }
 async function loadCharacter(url) {
   const gltf = await loader.loadAsync(url);
@@ -1776,6 +1838,10 @@ function update(dt) {
     crewStand(dt);
     if (state.act && state.act !== seenAct) { seenAct = state.act; if (state.act.kind === 'balloon') startBalloon(player); }
     balloonTick(dt);
+    if (state.towing && campModels.cooler && campLook.cooler.userData.towed && state.mode !== 'creator') { // your hand is on the cooler's handle, behind you
+      campLook.cooler.updateMatrixWorld(true);
+      reach(player, 'Right', campLook.cooler.localToWorld(coolerGrip.set(0.0, 0.95, -0.27)), 1);
+    }
     tapestryShow();
     if (campLook.sluice && state.river) { const sl = state.river.sluice, b = sl && sl.bend >= 0 ? RIVER_BENDS[sl.bend] : null; campLook.sluice.visible = !!b; if (b) campLook.sluice.position.set(b.x - 0.6, 0, b.z - 1.5); }
     const d = state.dialogue;
@@ -1952,7 +2018,7 @@ async function boot() {
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, crewAt, crewProp, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });

@@ -1809,7 +1809,8 @@ export function createLife(ctx) {
     if (front && Math.random() < (front.turnaway || 0)) return;
     let pay = price() + (Math.random() < (fill.tip || 0) ? 1 : 0);
     if (seat('cash')) pay = bank(pay);
-    else { // nobody on cash: it piles up in a tin on the crate until you come for it, and a tin on a crate gets noticed
+    // nobody on cash: it piles up in a tin on the crate until you come for it, and a tin on a crate gets noticed
+    else { cornerAct('sale');
       c.pile = (c.pile || 0) + pay;
       if (Math.random() < R.pileTheft) { const gone = Math.ceil(c.pile * R.pileGrab); toast(`Word from the Street: somebody had a hand in the cash tin on your corner. $${gone} gone. Somebody on cash would stop that.`); c.stolen = (c.stolen || 0) + gone; c.pile -= gone; }
     }
