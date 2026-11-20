@@ -18,7 +18,7 @@ const LOW = {
 // The bible's model: consumables stack in a slot; the bag has a few slots, the camp stash has many.
 const ITEMS = {
   cheese: { name: 'Grilled cheese', stack: 5, use: 'Eat', desc: 'Eat it, or offer it to people around the festival.' },
-  supplies: { name: 'Bread and cheese', stack: 10, desc: 'Cook it on your camp stove. One makes one sandwich.' },
+  supplies: { name: 'Bread and cheese', stack: 20, desc: 'Cook it on your camp stove. One makes one sandwich.' },
   bottles: { name: 'Water bottle', stack: 3, use: 'Drink', desc: 'Half a bar of Hydration.' },
   wipes: { name: 'Baby wipes', stack: 5, use: 'Wipe down', desc: 'A little Hygiene, anywhere.' },
   salvage: { name: 'Salvage', stack: 4, desc: 'Tape, poles and frames. Build with it at your tent or workbench.' },
@@ -2093,7 +2093,7 @@ export function createLife(ctx) {
       { icon: 'ice', stay: true, label: 'Fill your cooler <small>$1 a bottle</small>', can: () => (state.gear.cooler >= 3 && !state.towing ? 'bring your cooler here' : state.water >= coolerRoom() ? 'cooler is full' : state.cash < coolerRoom() - state.water ? 'not enough cash' : true),
         act: () => { const amount = coolerRoom() - state.water; state.cash -= amount; state.water += amount; toast(`${amount} waters on ice${state.towing ? '' : ' back at camp'}.`); } },
       shelf('Bread and cheese <small>makes 5 sandwiches</small>', 'supplies', 5, 5, () => { state.lot.supplies = true; tick('supplies'); toast('Bread and cheese. Cook it on your camp stove.'); }),
-      shelf('A case of bread and cheese <small>makes 20 sandwiches: a full griddle session</small>', 'supplies', 20, 20, () => { state.lot.supplies = true; tick('supplies'); toast('A case of bread and cheese: enough for 20.'); }),
+      shelf('A case of bread and cheese <small>makes 20 sandwiches: a full griddle session</small>', 'supplies', 20, 20, () => { state.lot.supplies = true; tick('supplies'); toast('A case of bread and cheese: 20 in your bag, enough for 20 sandwiches.'); }),
       shelf('Trail mix <small>a snack for your bag</small>', 'trailmix', 1, 3, () => toast('Trail mix. Eat it from your bag.')),
       shelf('Electrolyte packets <small>2 packets: Energy</small>', 'electro', 2, 4, () => toast('Electrolyte packets. Drink one from your bag when you are flagging.')),
       shelf('Baby wipes <small>5 wipe-downs</small>', 'wipes', 5, 3, () => toast('Baby wipes. Use them from your bag.')),
