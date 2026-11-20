@@ -1,6 +1,17 @@
 # The corner crew
 
-A brainstorm with Seth, 19 Nov 2026. Nothing here is built. It follows the balloon corner and Whip-for-hire in `decisions.md`.
+A brainstorm with Seth, 19 Nov 2026, and the first version built the same night. It follows the balloon corner in `decisions.md`.
+
+## What is built (first version)
+
+- **Where:** your corner crate, "Your crew". Four stations, each with its list of people. People and every number are in `game/data/crew.json`; the rules are the "corner crew" block in `game/life.js`.
+- **Earning.** Nine people can be earned with things already in the game: Whip (win the showdown with him loyal), Lost Sock (a 90% set), Doc (make it right with the Elder), Brody (wave off five undercovers at your corner yourself), Tiny (pay his $150 debt, offered under the Cash station), Marge (five stage crew shifts), Deuce (twenty balloons sold at the corner), Juniper (help eight people as a healer), Sparkle (trade six kandi bracelets). Six more are listed but locked until their stories exist: the Conspiracy Circle Guy, Willow, the Fence, Buck, the "Where's My Car" guy, Cedar.
+- **Hiring.** By the night, until 4 AM, wage paid up front ($30 to $60 each). Never a share.
+- **Part of a crew, with you posted up.** A filler fills for you (no minigame; they pop a few and sometimes earn a tip). An order-taker sends undercovers away before they reach you, as often as their `spot` allows, and may turn away honest buyers. Someone on cash sends every sale to your camp stash, less what they skim. A runner makes the queue one longer and faster.
+- **All four on.** The corner runs without you from 8 PM to 4 AM at the pace of its slowest station. The filler sends for more gas when the tank runs dry: $25 from the takings, up to three times a night. An undercover the order-taker misses is a bust: ten fills gone, the crew scatters for the night, and the order-taker is in the cooler for a day. In a test, a full crew sold about ten balloons a game hour, roughly 80 a night: about $400 less $50 of gas and $195 of wages.
+- **Whip no longer works the corner alone.** He is the filler now; walking away takes all four.
+- **The Elder's walk.** The first night all four stations are filled, the Elder arrives and asks what you intend to do. It comes on top of the 12-balloon message, not in place of it (Seth has not ruled on that). Shrug him off and the member you earned through kindness leaves for good. Give it up and the crew disbands with the tank.
+- **Not built:** crew members standing at the corner, the per-member quirks beyond the numbers (Marge refusing a night, Juniper quitting when you are shunned, the car guy wandering off), the "each lands somewhere better" payoffs, and the six locked people's stories.
 
 ## What Seth has decided
 

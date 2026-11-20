@@ -1,0 +1,57 @@
+{
+  "_about": "The corner crew, as plain data. Four stations; every member is a named person you have to earn, then pay by the night. speed is how fast they work their station (1 is your own pace); the corner moves at the pace of its slowest station. pop: chance a fill is wasted. tip: chance of a perfect balloon and a $1 tip. spot: chance of catching one of Officer Dan's people. turnaway: chance of refusing an honest buyer. skim: chance a dollar goes missing from a sale. care: true halves how many buyers end up needing a healer. rule names the check in life.js (EARN) that earns them; 'later' means the quest that earns them is not in the game yet.",
+
+  "rules": { "gap": [0.05, 0.11], "refills": 3, "refillCost": 25, "narc": 0.09, "bustLoss": 10, "jail": 24, "tinyDebt": 150, "runnerQueue": 1 },
+
+  "stations": {
+    "fill":  { "name": "Filler",      "does": "fills balloons off the tank" },
+    "front": { "name": "Order-taker", "does": "takes the orders and watches for undercovers" },
+    "cash":  { "name": "Cash",        "does": "bundles the money and gets it off the corner" },
+    "run":   { "name": "Runner",      "does": "hands the balloons out and keeps the line moving" }
+  },
+
+  "members": {
+    "whip":     { "name": "Whip", "station": "fill", "wage": 50, "speed": 1.0, "pop": 0.06, "tip": 0.15, "rule": "whip",
+                  "earn": "Keep him out of trouble and win the showdown with Vinny", "blurb": "Knows tanks. Steady hands, most nights.",
+                  "hired": "\"Tank's mine. Don't touch the regulator.\"" },
+    "lostsock": { "name": "Lost Sock", "station": "fill", "wage": 45, "speed": 1.25, "pop": 0.12, "tip": 0.3, "rule": "lostsock",
+                  "earn": "Play a set at the Open Decks tent that scores 90% or better", "blurb": "Fills in time with the music. Fast, showy, pops a few.",
+                  "hired": "\"Four on the floor, one in the hand.\"" },
+
+    "doc":      { "name": "Doc", "station": "front", "wage": 60, "speed": 0.8, "spot": 0.9, "turnaway": 0.08, "care": true, "rule": "doc",
+                  "earn": "Make it right with the Village Elder", "blurb": "Reads people. Catches nearly every undercover and cuts off anyone wobbling. Slow.",
+                  "hired": "\"I say who gets one. That is the deal.\"" },
+    "brody":    { "name": "Brody", "station": "front", "wage": 55, "speed": 1.1, "spot": 0.8, "turnaway": 0, "rule": "brody",
+                  "earn": "Spot an undercover at your corner and wave them off, five times", "blurb": "Was one of Officer Dan's, and no good at it. Knows every tell they have.",
+                  "hired": "\"I, uh. I know what to look for. Trust me.\"" },
+    "ranter":   { "name": "The Conspiracy Circle Guy", "station": "front", "wage": 40, "speed": 1.0, "spot": 1, "turnaway": 0.25, "rule": "later",
+                  "earn": "Finish the Conspiracy Circle quest", "blurb": "Sees undercovers everywhere. Never sells to a real one; turns away one honest buyer in four." },
+    "willow":   { "name": "Willow", "station": "front", "wage": 35, "speed": 1.0, "spot": 0.3, "turnaway": 0, "rule": "later",
+                  "earn": "The tender-care thread of the Breakthrough quest", "blurb": "Nobody suspects her. The Elder will." },
+
+    "tiny":     { "name": "Tiny", "station": "cash", "wage": 60, "skim": 0.08, "rule": "tiny",
+                  "earn": "Clear the debt Vinny holds over him", "blurb": "Vinny's old collector. Nobody robs him. A dollar goes missing now and then.",
+                  "hired": "\"Money's safe with me. Mostly.\"" },
+    "marge":    { "name": "Marge", "station": "cash", "wage": 50, "skim": 0, "rule": "marge",
+                  "earn": "Work five shifts on the stage crew", "blurb": "The stage crew boss. Counts perfectly, every time.",
+                  "hired": "\"I have run load-outs bigger than this. Give me the tin.\"" },
+    "deuce":    { "name": "Deuce", "station": "cash", "wage": 30, "skim": 0.18, "rule": "deuce",
+                  "earn": "Sell twenty balloons at your corner", "blurb": "Your best customer. \"Two. No, one. No, two.\" Terrible with numbers.",
+                  "hired": "\"I'll count it. Twice. Maybe three times.\"" },
+    "fence":    { "name": "The Fence", "station": "cash", "wage": 70, "skim": 0, "rule": "later",
+                  "earn": "The Streetwise path", "blurb": "The cash is gone and clean by morning." },
+
+    "juniper":  { "name": "Juniper", "station": "run", "wage": 40, "speed": 1.0, "care": true, "rule": "juniper",
+                  "earn": "Help eight people who need a healer", "blurb": "Someone you sat with. Hands out gently and walks the shaky ones to the Chill-Out Tent.",
+                  "hired": "\"If anyone looks rough, I'm walking them over. No arguing.\"" },
+    "sparkle":  { "name": "Sparkle", "station": "run", "wage": 35, "speed": 1.3, "rule": "sparkle",
+                  "earn": "Trade six kandi bracelets", "blurb": "A kandi kid who knows everybody. The line never stops moving.",
+                  "hired": "\"PLUR, baby! Who's next?\"" },
+    "buck":     { "name": "Buck", "station": "run", "wage": 30, "speed": 1.1, "rule": "later",
+                  "earn": "One more favour for the Naked Guy", "blurb": "Security will not go near him to search him." },
+    "carguy":   { "name": "The \"Where's My Car\" guy", "station": "run", "wage": 25, "speed": 1.2, "rule": "later",
+                  "earn": "Find his car", "blurb": "Fast, cheerful, and wanders off whenever he remembers the car." },
+    "cedar":    { "name": "Cedar", "station": "run", "wage": 35, "speed": 0.8, "rule": "later",
+                  "earn": "The Breakthrough quest", "blurb": "Blesses every balloon. Slow. His buyers tip." }
+  }
+}

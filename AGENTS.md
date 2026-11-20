@@ -40,12 +40,13 @@ It needs `art/logo/`, which is on Seth's Mac but not in the repository (see "Wha
 | `game/gfx.js`, `portrait.js`, `sound.js`, `icons.js` | Graphics quality levels, talking-head portraits, synthesised sound, inventory icons. |
 | `game/data/garden.json` | Crops, sandwich fillings, grown and wild mushrooms. |
 | `game/data/crate.json` | DJ tracks and the scoring rules of a set. |
+| `game/data/crew.json` | The corner crew: stations, people, wages, how each is earned. |
 | `game/data/crowd.json` | Where the crowd is at each hour. |
 | `game/assets/` | Slimmed character models, props, textures, journal illustrations. |
 | `design/camp-upgrade-map.md` | **Plan of record** for everything upgradeable at camp: 14 ladders with prices and benefits, what is built, the build order. |
 | `design/decisions.md` | Numbered decisions Seth has made, plus notes on each system as built. Add to it when you build something. |
 | `design/camp-gear.md`, `camp-and-needs.md`, `map-plan.md`, `wardrobe-plan.md`, `future-ideas.md` | Older plans and history. `camp-upgrade-map.md` wins where they disagree. |
-| `design/corner-crew.md` | Brainstorm for a four-person balloon corner crew: stations, named candidates, how each is earned, and the Elder's scene. Nothing built. |
+| `design/corner-crew.md` | The four-person balloon corner crew: what is built (first version), the named candidates, how each is earned, and the Elder's scene. |
 | `design/food-truck-path.md` | The agreed path from walking vendor to food truck: six steps, wages, the van conversion, prices checked against test runs. |
 | `game/dev/bot.js` | A test player that plays the real rules at high speed and reports income. Use it to check any price or balance change. |
 | `tools/` | Blender and shell scripts for models, and `build_app.sh`. |
