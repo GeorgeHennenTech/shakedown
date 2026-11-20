@@ -31,6 +31,8 @@
     "tight": 0.05,
     "wreck": 0.17,
     "stretch": 0.08,
-    "weights": { "align": 0.4, "phrase": 0.15, "swap": 0.15, "key": 0.15, "mood": 0.15 }
+    "weights": { "align": 0.4, "phrase": 0.15, "swap": 0.15, "key": 0.15, "mood": 0.15 },
+    "scratch": { "every": 16, "at": 10, "beats": 4, "strokes": [3, 5, 7], "lift": 0.012, "tipPerPoint": 0.04, "tipCap": 0.4,
+                 "_about": "A scratch stretch is 4 beats long and comes round every 16 beats, starting on beat 10 of the phrase. 3, 5 or 7 strokes bank 1, 2 or 3 style points (3 needs half the strokes on an eighth note). Each point lifts Crowd Energy by lift and the tip jar by tipPerPoint, up to tipCap." }
   }
 }

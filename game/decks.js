@@ -137,6 +137,36 @@ export function createDecks({ $, crate, isMuted = () => false }) {
     if (m >= 0 && bar % 4 !== 0) tone(deck.hiG, rootHz * 4 * 2 ** (m / 12), at, 0.13, st.lead, 0.05);
   }
 
+  // ---- scratching: purple stretches on deck A's lane are your chance. Work the record back and forth (W and S, in turn)
+  // while one passes the playhead and you bank style points, the way a whammy bar works a held note. Outside a stretch a
+  // scratch still sounds, and earns nothing. Numbers are `scratch` in crate.json.
+  const SC = R.scratch || { every: 16, at: 10, beats: 4, strokes: [3, 5, 7], lift: 0.012 };
+  const scratchStart = (pos) => { // the start beat of the stretch this position is inside, or null
+    if (!S || !S.A) return null;
+    const start = Math.floor((pos - SC.at) / SC.every) * SC.every + SC.at;
+    return pos >= start && pos < start + SC.beats && start >= S.A.live + 4 ? start : null;
+  };
+  function scratch(dir) { // dir: 1 forward (W), -1 back (S)
+    if (!S || !S.A || S.phase === 'open') return;
+    if (S.sc.last === dir) return; // the same way twice is not a scratch
+    S.sc.last = dir; S.sc.wobble = dir;
+    if (ac && S.A.out) { const at = ac.currentTime; tone(S.A.hiG, dir > 0 ? 300 : 920, at, 0.085, 'sawtooth', 0.2, dir > 0 ? 960 : 280); hiss(S.A.hiG, at, 0.07, 2600, 0.22); }
+    const start = scratchStart(S.A.pos);
+    if (start === null) return;
+    if (S.sc.win !== start) { bankScratch(); S.sc.win = start; S.sc.strokes = 0; S.sc.tight = 0; }
+    S.sc.strokes++;
+    if (Math.abs(frac(S.A.pos * 2 + 0.5) - 0.5) < 0.17) S.sc.tight++; // on an eighth note
+  }
+  function bankScratch() { // the stretch has gone by: turn the strokes into style
+    const c = S.sc;
+    if (c.win === null) return;
+    const [one, two, three] = SC.strokes, onBeat = c.strokes ? c.tight / c.strokes : 0;
+    const pts = c.strokes >= three && onBeat >= 0.5 ? 3 : c.strokes >= two ? 2 : c.strokes >= one ? 1 : 0;
+    c.win = null;
+    if (!pts) return;
+    S.style += pts; S.energy = clamp(S.energy + SC.lift * pts); S.flash = Math.max(S.flash, 0.5);
+    say(pts === 3 ? 'Scratched it clean, right on the beat. +3 style.' : pts === 2 ? 'Nice cut. +2 style.' : 'A little scratch. +1 style.', 3);
+  }
   // ---- decks
   function makeDeck(id, pos) {
     const tr = T[id], d = { id, tr, pos, next: Math.ceil(pos * 4), bpm: tr.bpm, vol: 0, low: 1, live: pos, tune: tune(tr) };
@@ -149,7 +179,7 @@ export function createDecks({ $, crate, isMuted = () => false }) {
   function start(opts) {
     // opts: { owned: [ids], level, manual, steady, ears, startEnergy, crowd, onDone }
     audio();
-    S = { ...opts, phase: 'open', A: null, B: null, energy: opts.startEnergy, mix: 0, played: [], want: 'up', log: [], wrecks: 0, dead: 0, msg: '', msgTill: 0, t: 0, flash: 0, drift: 0, driftIn: 0, sum: 0, time: 0, bs: 0, swapped: null, phrase: 0, wrecking: false, last: null };
+    S = { ...opts, phase: 'open', A: null, B: null, energy: opts.startEnergy, mix: 0, style: 0, sc: { win: null, strokes: 0, tight: 0, last: 0, wobble: 0 }, played: [], want: 'up', log: [], wrecks: 0, dead: 0, msg: '', msgTill: 0, t: 0, flash: 0, drift: 0, driftIn: 0, sum: 0, time: 0, bs: 0, swapped: null, phrase: 0, wrecking: false, last: null };
     S.skip = true; setTimeout(() => { if (S) S.skip = false; }, 0); // the key press that chose 'Play a set' is not also a track pick
     root.classList.remove('hidden');
     fit();
@@ -209,6 +239,7 @@ export function createDecks({ $, crate, isMuted = () => false }) {
     S.log.push(S.last);
     unchain(S.A);
     S.A = S.B; S.B = null; S.A.vol = 1; S.A.low = 1; S.A.live = forced ? S.A.pos : S.bs; S.A.bpm = S.manual ? S.A.bpm : S.A.tr.bpm;
+    S.sc.win = null; S.sc.strokes = 0; // a new record under the needle
     S.played.push(S.A.id); S.mix++; S.wrecking = false;
     const words = forced ? 'Dead air, then a hard cut.' : [wreck ? 'Train wreck.' : align > 0.8 ? 'Clean blend.' : align > 0.45 ? 'A bit loose.' : 'Sloppy.', parts.key ? 'Keys sat well.' : 'Key clash: it sounded sour.', parts.mood === 1 ? 'Just what the floor wanted.' : parts.mood ? 'The floor shrugged.' : 'Wrong mood for the floor.', parts.stretched ? 'The tempo jump was a stretch.' : ''].join(' ');
     if (S.mix >= R.mixes) { S.phase = 'out'; S.outAt = S.A.pos + 16; say(`${words} Last track: ride it out.`, 7); }
@@ -223,7 +254,7 @@ export function createDecks({ $, crate, isMuted = () => false }) {
   }
 
   function end(quit) {
-    const energy = quit ? S.energy * 0.5 : S.energy, done = S.onDone, result = { energy, log: S.log, wrecks: S.wrecks, dead: S.dead, manual: S.manual, quit, mixes: S.mix };
+    const energy = quit ? S.energy * 0.5 : S.energy, done = S.onDone, result = { energy, log: S.log, wrecks: S.wrecks, dead: S.dead, manual: S.manual, quit, mixes: S.mix, style: S.style };
     unchain(S.A); unchain(S.B);
     S = null; root.classList.add('hidden');
     done(result);
@@ -244,6 +275,7 @@ export function createDecks({ $, crate, isMuted = () => false }) {
         const nudge = (held.ArrowLeft ? 1 : 0) - (held.ArrowRight ? 1 : 0); // → slides B's marks to the right on screen
         S.B.pos += nudge * 0.22 * dt;
       }
+      if (S.sc.win !== null && S.A.pos >= S.sc.win + SC.beats) bankScratch();
       for (const d of [S.A, S.B]) if (d) {
         d.pos += dt * d.bpm / 60;
         if (ac && d.out) {
@@ -289,9 +321,19 @@ export function createDecks({ $, crate, isMuted = () => false }) {
         + `<span>${tr.bpm} BPM · <i class="key">${tr.key}</i> · ${'●'.repeat(tr.energy)}${'○'.repeat(5 - tr.energy)}${cur && !used ? ` <em>${d > 0 ? '▲' : d < 0 ? '▼' : '＝'}</em>` : ''}</span></button>`;
     }).join('');
   }
-  function lane(y, h, deck, colour, label, w) {
+  function lane(y, h, deck, colour, label, w, scratchable = false) {
     const cx = w * 0.5, px = 84;
     g2.fillStyle = 'rgba(255,243,214,.07)'; g2.fillRect(0, y, w, h);
+    if (deck && scratchable) { // where you may scratch: a purple stretch that fills as you work it
+      const k0 = Math.floor((deck.pos - cx / px - SC.at) / SC.every), k1 = Math.ceil((deck.pos + cx / px - SC.at) / SC.every);
+      for (let k = k0; k <= k1; k++) {
+        const start = k * SC.every + SC.at; if (start < deck.live + 4) continue;
+        const x = cx + (start - deck.pos) * px, bw = SC.beats * px, mine = S.sc.win === start, live = deck.pos >= start && deck.pos < start + SC.beats;
+        g2.fillStyle = live ? 'rgba(213,155,255,.42)' : 'rgba(213,155,255,.2)'; g2.fillRect(x, y, bw, h);
+        if (mine) { g2.fillStyle = 'rgba(255,255,255,.35)'; g2.fillRect(x, y + h - 7, bw * Math.min(1, S.sc.strokes / SC.strokes[2]), 7); }
+        g2.fillStyle = '#e9d2ff'; g2.font = '800 11px system-ui'; g2.textAlign = 'left'; g2.fillText(live ? 'SCRATCH!  W ⇄ S' : 'SCRATCH', x + 6, y + 13);
+      }
+    }
     if (!deck) { g2.fillStyle = 'rgba(255,243,214,.45)'; g2.font = '600 14px system-ui'; g2.textAlign = 'center'; g2.fillText(label, cx, y + h / 2 + 5); return; }
     const first = Math.floor(deck.pos - cx / px) - 1, last = Math.ceil(deck.pos + cx / px) + 1;
     for (let b = first; b <= last; b++) {
@@ -319,7 +361,11 @@ export function createDecks({ $, crate, isMuted = () => false }) {
     }
     g2.globalAlpha = 1;
     const y0 = 92, lh = 58;
-    lane(y0, lh, S.A, '#ff7a59', S.A ? `A · ${S.A.tr.name} · ${S.A.bpm.toFixed(1)} BPM` : 'Deck A: pick your opener from the crate below', w);
+    lane(y0, lh, S.A, '#ff7a59', S.A ? `A · ${S.A.tr.name} · ${S.A.bpm.toFixed(1)} BPM` : 'Deck A: pick your opener from the crate below', w, true);
+    if (S.A && S.sc.wobble) { // the record jumps under your hand
+      g2.save(); g2.translate(w - 34, y0 + lh / 2); g2.rotate(S.sc.wobble * 0.55); g2.fillStyle = '#17111f'; g2.beginPath(); g2.arc(0, 0, 20, 0, 7); g2.fill(); g2.fillStyle = '#d59bff'; g2.beginPath(); g2.arc(0, 0, 7, 0, 7); g2.fill(); g2.fillStyle = '#fff3d6'; g2.fillRect(-1.5, -19, 3, 9); g2.restore();
+      S.sc.wobble *= 0.86; if (Math.abs(S.sc.wobble) < 0.03) S.sc.wobble = 0;
+    }
     lane(y0 + lh + 8, lh, S.B, '#6ec5ff', S.B ? `B · ${S.B.tr.name} · ${S.B.bpm.toFixed(1)} BPM${S.phase === 'cue' ? ' · in your headphones' : ''}` : S.A && S.phase === 'pick' ? 'Deck B: load a track from the crate' : '', w);
     // the playhead, and the marks you aim for
     const cx = w * 0.5, px = 84;
@@ -346,12 +392,12 @@ export function createDecks({ $, crate, isMuted = () => false }) {
     // the words around the picture
     $('deckenergy').style.width = `${S.energy * 100}%`;
     $('deckenergy').style.background = S.energy > 0.7 ? '#7cf29a' : S.energy > 0.35 ? '#ffc93c' : '#ff5f5f';
-    $('deckmix').textContent = S.phase === 'open' ? 'Open Decks' : S.phase === 'out' ? 'Last track' : `Mix ${Math.min(R.mixes, S.mix + 1)} of ${R.mixes}`;
+    $('deckmix').textContent = (S.phase === 'open' ? 'Open Decks' : S.phase === 'out' ? 'Last track' : `Mix ${Math.min(R.mixes, S.mix + 1)} of ${R.mixes}`) + (S.style ? ` · Style ${S.style}` : '');
     $('deckwant').textContent = S.A && S.phase !== 'out' ? WANT_TEXT[S.want] : S.phase === 'out' ? 'Soak it in.' : 'Three mixes. Keep the floor moving.';
     const left = S.A && (S.phase === 'pick' || S.phase === 'cue') ? beatsLeft() : null;
     $('deckleft').textContent = left === null ? '' : `${Math.max(0, Math.ceil(left / 4))} bars left on this track`;
     $('deckleft').classList.toggle('warn', left !== null && left < 24);
-    $('deckmsg').textContent = S.t < S.msgTill ? S.msg : S.phase === 'cue' ? `Space starts the blend. Next gold line in ${Math.ceil(Math.ceil(S.A.pos / R.phraseBeats - 0.02) * R.phraseBeats - S.A.pos)} beats.` : S.phase === 'pick' ? 'Pick the next track: number keys or click.' : '';
+    $('deckmsg').textContent = S.t < S.msgTill ? S.msg : S.phase === 'cue' ? `Space starts the blend. Next gold line in ${Math.ceil(Math.ceil(S.A.pos / R.phraseBeats - 0.02) * R.phraseBeats - S.A.pos)} beats.` : S.phase === 'pick' ? 'Pick the next track: number keys or click. Scratch with W and S on the purple stretches.' : S.phase === 'out' ? 'Scratch with W and S on the purple stretches.' : '';
   }
 
   // ---- hands
@@ -360,6 +406,8 @@ export function createDecks({ $, crate, isMuted = () => false }) {
     held[e.code] = true;
     if (e.repeat && !['ArrowUp', 'ArrowDown'].includes(e.code)) return;
     if (e.code === 'Space') press();
+    else if (e.code === 'KeyW') scratch(1);
+    else if (e.code === 'KeyS') scratch(-1);
     else if (e.code.startsWith('Digit')) pick(+e.code.slice(5) - 1);
     else if (S.manual && S.B && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) S.B.bpm = Math.round((S.B.bpm + (e.code === 'ArrowUp' ? 0.1 : -0.1)) * 10) / 10;
     else if (e.code === 'Escape') end(S.phase !== 'open');
@@ -367,5 +415,5 @@ export function createDecks({ $, crate, isMuted = () => false }) {
   window.addEventListener('keyup', (e) => { held[e.code] = false; });
   $('deckcrate').addEventListener('click', (e) => { const b = e.target.closest('button[data-i]'); if (b) pick(+b.dataset.i); });
 
-  return { start, update, get active() { return !!S; }, get set() { return S; }, press, pick };
+  return { start, update, get active() { return !!S; }, get set() { return S; }, press, pick, scratch };
 }

@@ -1842,7 +1842,8 @@ export function createLife(ctx) {
   function setOver(r) {
     state.decking = false; document.body.classList.remove('decking');
     if (!r.mixes) { state.canMove = true; return; } // walked off before playing anything
-    const e = r.energy, tips = e < 0.3 ? 0 : Math.round(floorSize() * e * e * 1.1), xp = Math.round((1 + 6 * e + r.mixes) * (r.manual ? 1.4 : 1));
+    const sc = CRATE.set.scratch || { tipPerPoint: 0, tipCap: 0 }, style = r.style || 0, flair = 1 + Math.min(sc.tipCap, style * sc.tipPerPoint); // scratching fattens the tip jar
+    const e = r.energy, tips = e < 0.3 ? 0 : Math.round(floorSize() * e * e * 1.1 * flair), xp = Math.round((1 + 6 * e + r.mixes) * (r.manual ? 1.4 : 1)) + style;
     pass(1); gfx.setTime(state.hour);
     add('energy', -0.1); add('hydration', -0.08); add('vibes', (e - 0.4) * 0.25);
     state.cash += tips; state.crate.sets++; state.crate.best = Math.max(state.crate.best, Math.round(e * 100));
@@ -1852,7 +1853,7 @@ export function createLife(ctx) {
       if (pool.length) { const id = pickOne(pool); state.crate.owned.push(id); state.crate.gift = state.day; gift = ` Lost Sock, who runs the tent, slides you a USB: “${CRATE.tracks[id].name}”${CRATE.tracks[id].rare ? ', unreleased' : ''}.`; }
     }
     const title = r.quit ? 'You walked off mid-set' : e >= 0.8 ? 'The tent went off' : e >= 0.55 ? 'A solid set' : e >= 0.3 ? 'A shaky set' : 'You cleared the floor';
-    const bits = [`Crowd Energy ${Math.round(e * 100)}%.`, r.wrecks ? `${r.wrecks} train wreck${r.wrecks > 1 ? 's' : ''}.` : '', r.dead ? `${r.dead} stretch${r.dead > 1 ? 'es' : ''} of dead air.` : '', tips ? `$${tips} in the tip jar.` : 'Nothing in the tip jar.'].filter(Boolean).join(' ');
+    const bits = [`Crowd Energy ${Math.round(e * 100)}%.`, r.wrecks ? `${r.wrecks} train wreck${r.wrecks > 1 ? 's' : ''}.` : '', r.dead ? `${r.dead} stretch${r.dead > 1 ? 'es' : ''} of dead air.` : '', style ? `${style} style from scratching.` : '', tips ? `$${tips} in the tip jar.` : 'Nothing in the tip jar.'].filter(Boolean).join(' ');
     if (tips) sfx('coin');
     card(title, bits + gift, 4200, () => { state.canMove = true; gain('decks', xp); save(); });
   }
