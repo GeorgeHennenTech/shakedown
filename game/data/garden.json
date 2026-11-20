@@ -11,10 +11,12 @@
   "serum": { "cost": 10, "perJob": 1, "_about": "Grow serum: one bottle brings one watered, growing plot to harvest at once. Bought at the General Store; one is also given for each job of the day." },
 
   "fillings": [
+    { "item": "caviar",      "bonus": 14, "name": "Caviar melt" },
     { "item": "goldflake",   "bonus": 12, "name": "Gold-leaf melt" },
     { "item": "morel",       "bonus": 5, "name": "Morel melt" },
     { "item": "chanterelle", "bonus": 4, "name": "Chanterelle melt" },
     { "item": "oyster",      "bonus": 3, "name": "Mushroom melt" },
+    { "item": "fish",        "bonus": 3, "name": "Fish melt" },
     { "item": "tomato",      "bonus": 2, "name": "Tomato melt" },
     { "item": "pepper",      "bonus": 2, "name": "Jalapeño popper" },
     { "item": "herbs",       "bonus": 1, "name": "Herbed" }

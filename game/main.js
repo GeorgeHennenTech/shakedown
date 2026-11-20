@@ -3,12 +3,13 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=4';
-import { createLife, readSave, saveLabel } from './life.js?v=86';
+import { createLife, readSave, saveLabel } from './life.js?v=87';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { createCookView } from './cook.js?v=7';
+import { createCookView } from './cook.js?v=8';
 import { createPan } from './pan.js?v=4';
+import { createFishing } from './fish.js?v=1';
 import { createDecks } from './decks.js?v=5';
 import { createCrowd } from './crowd.js?v=3';
 const BUILD = new URL(import.meta.url).searchParams.get('v') || '?';
@@ -942,6 +943,14 @@ function tapestryShow() { // called every frame: cheap unless what is hanging ha
   tapLook.cloth.visible = !!t;
   if (t) paintTapestry(t);
 }
+function buildFishPools(FISH) { // a short plank jetty and a blue-flagged post at each pool
+  for (const b of FISH.pools) {
+    mesh(new THREE.BoxGeometry(1.1, 0.08, 2.4), lambert(0x8a6a3c), b.x, 0.16, b.z - 0.9);
+    for (const [dx, dz] of [[-0.5, -0.1], [0.5, -0.1], [-0.5, -1.9], [0.5, -1.9]]) mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 6), lambert(0x6b4a2b), b.x + dx, 0.1, b.z + dz);
+    mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.5, 6), lambert(0x6b4a2b), b.x + 1.2, 0.75, b.z + 0.4);
+    mesh(new THREE.BoxGeometry(0.36, 0.2, 0.02), new THREE.MeshBasicMaterial({ color: 0x3aa0ff }), b.x + 1.38, 1.36, b.z + 0.4).castShadow = false;
+  }
+}
 function buildRiverBends(RIVER) {
   RIVER_BENDS = RIVER.bends;
   for (const b of RIVER.bends) {
@@ -1705,6 +1714,9 @@ async function boot() {
   crowd = createCrowd({ THREE, people, instanced, routeSamples, data: CROWD, rand, isFree: (x, z) => !nearRoute(x, z, 2) && !colliders.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 0.8) ** 2) });
   const RIVER = await (await fetch(`./data/river.json?v=${BUILD}`)).json(); // gold panning: the bends, the pans, the odds
   const panGame = createPan({ $, rules: RIVER, sfx: (name) => sound.play(name) });
+  const FISH = await (await fetch(`./data/fish.json?v=${BUILD}`)).json(); // fishing: the pools, the fish, the fight
+  const fishGame = createFishing({ $, rules: FISH, sfx: (name) => sound.play(name) });
+  buildFishPools(FISH);
   buildRiverBends(RIVER);
   const TAPESTRY = await (await fetch(`./data/tapestry.json?v=${BUILD}`)).json(); // tapestries: what the stall sells and where the line stands
   buildTapestryLine(TAPESTRY);
@@ -1721,10 +1733,10 @@ async function boot() {
       } catch (e) { console.warn(`Crew model ${id} not loaded`, e); }
     }
   })();
-  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
+  life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });

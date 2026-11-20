@@ -4,6 +4,11 @@ const svg = (body) => `<svg viewBox="0 0 48 48" aria-hidden="true"><g stroke="#1
 export const ICONS = {
   pietin: svg(`<ellipse cx="24" cy="28" rx="19" ry="11" fill="#b9c2c9"/><ellipse cx="24" cy="26" rx="14" ry="7" fill="#8d979f"/><path d="M12 22l3 3M34 21l-2 3" fill="none"/>`),
   goldflake: svg(`<path d="M12 20h24l-3 22H15z" fill="#8a5a2b"/><path d="M14 20c0-6 4-9 10-9s10 3 10 9" fill="#a9824f"/><path d="M19 12l5-7 5 7" fill="none"/><g fill="#ffd23f"><circle cx="20" cy="29" r="2.6"/><circle cx="27" cy="33" r="2.2"/><circle cx="24" cy="26" r="1.8"/></g>`),
+  worm: svg(`<path d="M10 34c4-10 8 6 12-4s8 6 12-6 4-8 6-10" fill="none" stroke="#c97b7b" stroke-width="6"/><path d="M10 34c4-10 8 6 12-4s8 6 12-6 4-8 6-10" fill="none" stroke="#e8a3a3" stroke-width="2"/>`),
+  fish: svg(`<path d="M6 24c8-12 22-12 30 0-8 12-22 12-30 0z" fill="#9db7c4"/><path d="M34 24l9-8v16z" fill="#7e9aa8"/><circle cx="14" cy="22" r="1.6" fill="#17111f"/><path d="M20 18c2 4 2 8 0 12" fill="none"/>`),
+  sturgeon: svg(`<path d="M3 26c10-9 26-8 34-2l8-6-2 9 2 8-8-5c-10 5-24 5-34-4z" fill="#6f7f78"/><path d="M12 21l3-3 3 3 3-3 3 3 3-3 3 3" fill="none" stroke="#d9c8a4"/><circle cx="9" cy="25" r="1.4" fill="#17111f"/>`),
+  roe: svg(`<path d="M10 22h28l-3 16H13z" fill="#bfe3ee"/><g fill="#e8743b"><circle cx="18" cy="30" r="3"/><circle cx="25" cy="28" r="3"/><circle cx="31" cy="31" r="3"/><circle cx="22" cy="34" r="3"/></g>`),
+  caviar: svg(`<ellipse cx="24" cy="30" rx="17" ry="9" fill="#c9a13a"/><ellipse cx="24" cy="27" rx="17" ry="9" fill="#e8c75a"/><ellipse cx="24" cy="26" rx="13" ry="6" fill="#17111f"/><g fill="#4a4458" stroke="none"><circle cx="19" cy="25" r="1.6"/><circle cx="25" cy="24" r="1.6"/><circle cx="29" cy="27" r="1.6"/><circle cx="22" cy="28" r="1.6"/></g>`),
   nugget: svg(`<path d="M10 30l5-12 10-5 11 6 3 11-8 9-13 1z" fill="#ffd23f"/><path d="M16 21l6-3M27 30l6 2" stroke="#fff" fill="none"/><path d="M15 18l10 8 14 4M25 26l-7 15" fill="none"/>`),
   // seed packets: each shows the plant it grows
   seeds: svg(`<path d="M9 12h30l-3 32H12z" fill="#e2b877"/><path d="M9 12l4-8h22l4 8z" fill="#c9a05c"/><path d="M13 8h22" fill="none"/><g transform="translate(11.5 16.5) scale(0.52)"><path d="M24 44V20" fill="none"/><path d="M24 22C12 22 8 14 8 6c10 0 16 6 16 16zM24 26c11 0 16-7 16-16-10 0-16 6-16 16zM24 34c-8 0-12-4-12-9 7 0 12 3 12 9z" fill="#5cb85c"/>

@@ -1,0 +1,39 @@
+{
+  "_about": "Fishing on the river, as plain data. Three pools between the gold bends. One cast is three beats (game/fish.js): cast (stop the power marker on the ripple), wait and read (ignore the nibbles, strike when the float goes under), fight (reel while the fish rests, give line while it runs). Small fish are a sandwich filling. A sturgeon lives only in the deep pool; a female carries roe, and roe cured for a day in your cooler becomes caviar. First-guess numbers, not tuned.",
+
+  "pools": [
+    { "name": "the shallows",  "x": 16, "z": -160.7, "depth": "shallow" },
+    { "name": "the long run",  "x": 40, "z": -160.7, "depth": "mid" },
+    { "name": "the deep pool", "x": -8, "z": -160.7, "depth": "deep" }
+  ],
+
+  "rods": {
+    "stick": { "name": "Salvage rod", "strain": 1.0,  "reel": 1.0 },
+    "reel":  { "name": "Reel rod",    "strain": 0.72, "reel": 1.3 }
+  },
+
+  "bait": {
+    "worm":  { "item": "worm",     "name": "a worm",        "bite": 1.3, "big": 1.5 },
+    "bread": { "item": "supplies", "name": "a bread crust", "bite": 1.0, "big": 0.6 }
+  },
+
+  "fish": [
+    { "id": "bluegill", "name": "bluegill",        "in": ["shallow", "mid"],  "odds": 10, "fight": 0.55, "runs": 1, "gives": 1, "big": false },
+    { "id": "trout",    "name": "brook trout",     "in": ["shallow", "mid"],  "odds": 6,  "fight": 0.85, "runs": 2, "gives": 1, "big": false },
+    { "id": "catfish",  "name": "channel catfish", "in": ["mid", "deep"],     "odds": 4,  "fight": 1.1,  "runs": 3, "gives": 2, "big": true },
+    { "id": "sturgeon", "name": "sturgeon",        "in": ["deep"],            "odds": 2,  "fight": 1.5,  "runs": 5, "gives": 0, "big": true }
+  ],
+
+  "time": { "dawn": [5, 8], "dusk": [18, 21], "best": 1.6, "day": 0.75, "night": 1.0, "rain": 0.3 },
+
+  "cast": { "markerSpeed": 1.15, "ring": 0.16, "missWait": 1.8 },
+  "wait": { "least": 3, "most": 8, "nibbles": [0, 2], "nibbleSeconds": 0.45, "biteSeconds": 0.9, "clearHeadBonus": 0.4 },
+  "fight": { "reelPerSecond": 0.16, "runSlip": 0.05, "strainUp": 0.3, "runStrain": 1.35, "strainDown": 0.7, "slackAt": 0.12, "slackPerSecond": 0.55, "slackFade": 0.8, "rest": [1.6, 3.0], "run": [1.0, 2.0] },
+
+  "castHours": 0.3,
+  "vibesPerCast": 0.02,
+  "worms": { "hours": 0.25, "least": 2, "most": 4, "afterRain": 2 },
+
+  "sturgeon": { "femaleChance": 0.5, "backAfterKeepDays": 14, "backAfterReleaseDays": 3, "roe": 2 },
+  "cure": { "hours": 24, "caviarPerRoe": 2 }
+}

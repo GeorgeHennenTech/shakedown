@@ -121,14 +121,14 @@ body.cooking #cook{bottom:18px;background:rgba(255,243,214,.93)}
 #cookmsg{min-height:22px;font-weight:600}
 #decks{position:fixed;inset:0;z-index:25;display:grid;place-items:center;background:rgba(23,17,31,.88);color:var(--paper);pointer-events:auto}
 #decks.hidden{display:none}
-#pan{position:fixed;inset:0;z-index:25;display:grid;place-items:center;background:rgba(23,17,31,.88);color:var(--paper);pointer-events:auto}
-#pan.hidden{display:none}
-#pan .booth{width:min(780px,calc(100vw - 24px))}
-#pan .top{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:6px}
-#pan .top b{font-size:26px;color:var(--sun)}
-#panview{display:block;width:100%;height:min(420px,56vh);border-radius:14px;border:3px solid var(--paper);cursor:crosshair;touch-action:none}
-#panmsg{min-height:44px;margin:8px 2px;font-size:15px;font-weight:600}
-#pan .foot{font-size:12px;opacity:.7}
+#pan,#fish{position:fixed;inset:0;z-index:25;display:grid;place-items:center;background:rgba(23,17,31,.88);color:var(--paper);pointer-events:auto}
+#pan.hidden,#fish.hidden{display:none}
+#pan .booth,#fish .booth{width:min(780px,calc(100vw - 24px))}
+#pan .top,#fish .top{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+#pan .top b,#fish .top b{font-size:26px;color:var(--sun)}
+#panview,#fishview{display:block;width:100%;height:min(420px,56vh);border-radius:14px;border:3px solid var(--paper);cursor:crosshair;touch-action:none}
+#panmsg,#fishmsg{min-height:44px;margin:8px 2px;font-size:15px;font-weight:600}
+#pan .foot,#fish .foot{font-size:12px;opacity:.7}
 #decks .booth{width:min(940px,calc(100vw - 24px));max-height:calc(100vh - 16px);overflow:auto}
 #decks .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:6px}
 #decks .top b{font-size:26px;color:var(--sun)}
@@ -253,6 +253,12 @@ body.tripping canvas#view{animation:trip 14s linear infinite}
   <div id="panmsg"></div>
   <div class="foot">Scoop: click a patch or <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> · Swirl: circle the mouse round the pan, or hold <kbd>Space</kbd> · Pick: click a glint, hold <kbd>Shift</kbd> to shade it, <kbd>Space</kbd> when done · <kbd>Esc</kbd> tip it out</div>
 </div></div>
+<div id="fish" class="hidden"><div class="booth">
+  <div class="top"><b class="comix" id="fishtitle">Fishing</b><span id="fishcount"></span></div>
+  <canvas id="fishview"></canvas>
+  <div id="fishmsg"></div>
+  <div class="foot">Cast: <kbd>Space</kbd> or click when the marker is on the ripples · Wait: strike with <kbd>Space</kbd> when the float goes under · Fight: hold <kbd>Space</kbd> to reel, let go when it runs · <kbd>Esc</kbd> reel in</div>
+</div></div>
 <div id="decks" class="hidden"><div class="booth">
   <div class="top"><b class="comix" id="deckmix">Open Decks</b><span>Crowd Energy</span><div class="ebar"><i id="deckenergy"></i></div><span id="deckleft"></span></div>
   <div id="deckwant"></div>
@@ -283,6 +289,6 @@ body.tripping canvas#view{animation:trip 14s linear infinite}
 <div id="card" class="hidden"><div><h1 class="comix" id="cardh"></h1><p id="cardp"></p></div></div>
 <div id="done" class="panel hidden"><h2 class="comix">Quest complete: Bare Witness</h2><p>You chased a screaming naked man into a sunset and got the whole tour.</p><ul id="tour"></ul><p style="font-size:13px;color:#6b5d78">That is the end of the opening. The Healing Village is open, north of the main stage.</p><button id="explore" class="big comix" style="background:var(--teal)">Keep exploring</button><button id="again" class="big comix" style="background:var(--sun)">Play again</button></div>
 
-<script type="module" src="./main.js?v=131"></script>
+<script type="module" src="./main.js?v=133"></script>
 </body>
 </html>

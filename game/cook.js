@@ -114,6 +114,7 @@ export function createCookView({ renderer }) {
   // ---- toppings: little cut vegetables that drop in and tuck into the filling, poking out all round the edge
   const TOP_MAT = {
     goldleaf: new THREE.MeshStandardMaterial({ color: 0xffd23f, roughness: 0.22, metalness: 0.85, emissive: 0x6b4a00, emissiveIntensity: 0.5 }),
+    pearl: std(0x15121c, 0.18, 0.3), fillet: std(0xf3e6d8, 0.6), skin: std(0x9db7c4, 0.3, 0.6),
     red: std(0xe0392b, 0.45), pink: std(0xf58a78, 0.5), seed: std(0xf7e6a6, 0.5),
     green: std(0x3f9d4a, 0.5), pale: std(0xd4ecb0, 0.55), leaf: std(0x4caf50, 0.6), stalk: std(0x2f7d3a, 0.6),
     cream: std(0xeadfc8, 0.7), gill: std(0xcdbfa3, 0.8), gold: std(0xe8a33d, 0.6), goldDark: std(0xc9822b, 0.7), brown: std(0x7a5a3a, 0.85), tan: std(0xd9c8a4, 0.8),
@@ -128,6 +129,10 @@ export function createCookView({ renderer }) {
     const g = new THREE.Group();
     if (kind === 'goldflake') { // torn scraps of gold leaf: thin, bright, each at its own angle
       for (let j = 0; j < 4; j++) { const f = add(new THREE.BoxGeometry(0.012 + (j % 2) * 0.006, 0.0012, 0.009 + (j % 3) * 0.004), TOP_MAT.goldleaf, (j % 2 ? 1 : -1) * 0.006 * j, 0.002 * j, (j - 1.5) * 0.006, g); f.rotation.set(j * 0.5, j * 1.3, j * 0.4); }
+    } else if (kind === 'caviar') { // a little heap of black pearls
+      for (let j = 0; j < 7; j++) { const a = j / 7 * 6.28, r = j === 6 ? 0 : 0.006; add(TOP_GEO.seed, TOP_MAT.pearl, Math.cos(a) * r, j === 6 ? 0.004 : 0.001, Math.sin(a) * r, g).scale.setScalar(1.7); }
+    } else if (kind === 'fish') { // a flake of pale fillet with a strip of silver skin
+      add(new THREE.BoxGeometry(0.03, 0.006, 0.014), TOP_MAT.fillet, 0, 0, 0, g); add(new THREE.BoxGeometry(0.03, 0.0015, 0.014), TOP_MAT.skin, 0, 0.0038, 0, g);
     } else if (kind === 'tomato') { // a round slice: red skin, pink flesh, pale seeds
       add(TOP_GEO.disc, TOP_MAT.red, 0, 0, 0, g); add(TOP_GEO.inner, TOP_MAT.pink, 0, 0, 0, g);
       for (let j = 0; j < 5; j++) { const a = j / 5 * 6.28; add(TOP_GEO.seed, TOP_MAT.seed, Math.cos(a) * 0.0075, 0.0034, Math.sin(a) * 0.0075, g); add(TOP_GEO.seed, TOP_MAT.seed, Math.cos(a) * 0.0075, -0.0034, Math.sin(a) * 0.0075, g); }

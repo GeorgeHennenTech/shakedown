@@ -2,7 +2,7 @@
 // buying and eating, the grilled cheese and cold water hustles, and saving the game.
 // Kept apart from the opening quest in main.js.
 
-import { ICONS } from './icons.js?v=12';
+import { ICONS } from './icons.js?v=13';
 
 const HOUR = 50; // real seconds per game hour, so a full day is 20 minutes
 const DAYS = ['Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday']; // the festival never ends: the week just comes round again
@@ -33,6 +33,11 @@ const ITEMS = {
   pietin: { name: 'Pie tin', stack: 1, desc: 'Dented, but it holds gravel. Pan the slow bends of the river with it, or turn it into a proper gold pan at your workbench.' },
   goldflake: { name: 'Gold flakes', stack: 10, desc: 'Panned from the river. One goes on a sandwich: a gold-leaf melt, worth $12 more to somebody with money to show off. Shade them to be sure they are gold.' },
   nugget: { name: 'Gold nugget', stack: 3, desc: 'Too good to eat. The shops will pay well for it.' },
+  worm: { name: 'Worms', stack: 10, desc: 'Dug from the river bank. Better bait than bread: big fish want them.' },
+  fish: { name: 'River fish', stack: 6, desc: 'Caught and cleaned. One goes on a sandwich: a fish melt, worth $3 more.' },
+  sturgeon: { name: 'Sturgeon', stack: 1, desc: 'The oldest fish in the river. The shops pay well for one. The deep pool will be empty for a long time.' },
+  roe: { name: 'Sturgeon roe', stack: 4, desc: 'Not caviar yet. Cure it on ice in your cooler for a day.' },
+  caviar: { name: 'Caviar', stack: 6, desc: 'Roe you caught and cured yourself. One goes on a sandwich: a caviar melt, worth $14 more to somebody with money.' },
   serum: { name: 'Grow serum', stack: 3, desc: 'Pour a bottle on a plot that is growing and it is ready to harvest at once. Use it at your garden.' },
   tomato: { name: 'Tomatoes', stack: 6, desc: 'One goes into a sandwich: a tomato melt, worth $2 more.' },
   pepper: { name: 'Peppers', stack: 6, desc: 'One goes into a sandwich: a jalapeño popper, worth $2 more.' },
@@ -57,6 +62,8 @@ const ITEMS = {
 const STASH_BASE = 12;
 // What you can make at the workbench. Each thing is made once and then worn or set up at camp.
 const RECIPES = [
+  { id: 'rod', name: 'Salvage fishing rod', level: 2, xp: 8, needs: { salvage: 2, fabric: 1 }, does: 'Fish the pools of the river. Bait is bread and cheese, or worms you dig at the bank' },
+  { id: 'reelrod', name: 'Reel rod', level: 4, xp: 14, needs: { salvage: 4, fabric: 1 }, does: 'A proper reel: the line takes more strain and comes in faster. For the big ones' },
   { id: 'goldpan', name: 'Ridged gold pan', level: 2, xp: 10, needs: { salvage: 2, pietin: 1 }, does: 'Pan the river properly: riffles catch more gold and it sloshes less than a pie tin' },
   { id: 'sluice', name: 'Sluice box', level: 4, xp: 16, needs: { salvage: 4, fabric: 2 }, does: 'Leave it in a bend of the river and it catches a few flakes of gold by itself' },
   { id: 'sling', name: 'Cup-holder sling', level: 1, xp: 6, needs: { salvage: 2, fabric: 1 }, does: 'One more bag slot, and you get thirsty a little slower' },
@@ -85,7 +92,7 @@ export function saveLabel(s) {
 for (const k of ['oyster', 'chanterelle', 'morel', 'lionsmane', 'reishi', 'cordyceps', 'foxfire', 'goldcap', 'chicken', 'puffball', 'turkeytail', 'ghostcap']) ICONS[k] = `<img src="./assets/journal/${k}.jpg" alt="">`;
 
 export function createLife(ctx) {
-  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER, CORNER, CREW = { rules: {}, stations: {}, members: {} }, RIVER = null, PAN = null, TAPESTRY = { list: [], line: { x: 0, z: 0 } } } = ctx;
+  const { $, state, people, interactables, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, PILE, SHOWERS, PERMIT, WHIP, say, getPlayer, cook, onGear, look, litter = [], marks = [], groves = [], wildMeshes = [], DATA, CRATE, decks, BOOTH, crowd, COUNTER, CORNER, CREW = { rules: {}, stations: {}, members: {} }, RIVER = null, PAN = null, TAPESTRY = { list: [], line: { x: 0, z: 0 } }, FISH = null, FISHING = null } = ctx;
   const sfx = ctx.sfx || (() => {});
   Object.assign(state, {
     hour: 16 + 20 / 60, day: 0, cash: 40, stash: 0, cheese: [], sold: 0, noSprint: false, menu: null, cooking: null, panel: false,
@@ -107,6 +114,7 @@ export function createLife(ctx) {
     garden: { on: false, wet: false, start: 0, ready: 0 }, permitDay: -1, heal: { next: 0, ids: [], count: 0 },
     weather: { rain: false, until: 0, next: 31 + Math.random() * 8 }, // the first shower comes on Friday
     river: { day: -1, panned: [], sluice: { bend: -1, at: 0 } }, panning: false,
+    fishing: { sturgeonBack: 0, cure: [], caught: {}, kept: 0 }, angling: false, // the river's fish; see data/fish.json
     tapestry: { owned: {}, up: '' }, // bought at the tapestry stall; one hangs on the line at camp
     plots: [], recipes: {}, pantry: {}, pantryCheese: [], shrooms: [], cultures: {}, journal: {}, prints: {}, wild: [], wildDone: -99, rainedAt: -99, fakes: {}, sets: {},
     fx: { clear: 0, soul: 0, zombie: 0, broth: 0, smoke: 0, trip: 0, tripDay: -1 }, glow: 0, vision: false, visionUsed: false,
@@ -302,7 +310,7 @@ export function createLife(ctx) {
     } else { (from === 'bag' ? state.bag : state.store)[k] -= amount; (to === 'bag' ? state.bag : state.store)[k] += amount; }
   }
   // What the shops give for spare things, each. Not herbs or sage (those would pay for their own seeds), and never cooked food.
-  const SELL = { salvage: 1, fabric: 1, lights: 2, kandi: 1, bottles: 1, tomato: 1, pepper: 1, oyster: 1, chanterelle: 2, morel: 3, goldflake: 6, nugget: 60 };
+  const SELL = { salvage: 1, fabric: 1, lights: 2, kandi: 1, bottles: 1, tomato: 1, pepper: 1, oyster: 1, chanterelle: 2, morel: 3, goldflake: 6, nugget: 60, fish: 2, sturgeon: 45, roe: 6, caviar: 10 };
   const atShop = () => { const p = getPlayer().root.position; return [STALLS.water, STALLS.gear].some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 5); };
   // Drop one stack from your bag for good; with a price, a shop takes it off you.
   function dropStack(k, price = 0) {
@@ -663,6 +671,8 @@ export function createLife(ctx) {
   const chip = (body) => `<svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#17111f" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${body}</g></svg>`;
   const shroom = (cap, stem) => chip(`<path d="M10 13h4l1 8H9z" fill="${stem}"/><path d="M3 13c0-6 4-10 9-10s9 4 9 10z" fill="${cap}"/>`);
   const TOP_CHIP = {
+    caviar: chip('<ellipse cx="12" cy="15" rx="9" ry="5" fill="#d9c8a4"/><g fill="#17111f"><circle cx="8" cy="12" r="2.6"/><circle cx="12.5" cy="10" r="2.6"/><circle cx="16" cy="12.5" r="2.6"/><circle cx="11" cy="14" r="2.6"/></g>'),
+    fish: chip('<path d="M3 12c4-6 11-6 15 0-4 6-11 6-15 0z" fill="#9db7c4"/><path d="M17 12l5-4v8z" fill="#7e9aa8"/><circle cx="7.5" cy="11" r="1" fill="#17111f" stroke="none"/>'),
     goldflake: chip('<path d="M12 2l2.6 6.4L21 11l-6.4 2.6L12 20l-2.6-6.4L3 11l6.4-2.6z" fill="#ffd23f"/><path d="M18 15l1 2.4 2.4 1-2.4 1-1 2.4-1-2.4-2.4-1 2.4-1z" fill="#ffe9a8"/>'),
     tomato: chip('<circle cx="12" cy="12" r="9.5" fill="#e0392b"/><circle cx="12" cy="12" r="6" fill="#f58a78"/><g fill="#f7e6a6" stroke="none"><circle cx="12" cy="8.5" r="1.2"/><circle cx="15.2" cy="13.6" r="1.2"/><circle cx="8.8" cy="13.6" r="1.2"/></g>'),
     pepper: chip('<circle cx="12" cy="12" r="9.5" fill="#3f9d4a"/><circle cx="12" cy="12" r="5.5" fill="#d4ecb0"/><g fill="#f7e6a6" stroke="none"><circle cx="10.5" cy="11" r="1"/><circle cx="13.6" cy="12.6" r="1"/></g>'),
@@ -871,7 +881,7 @@ export function createLife(ctx) {
       + (state.vibes > 0.7 ? 0.1 : state.vibes < 0.3 ? -0.15 : 0)
       - (n.hygiene < 0.5 ? 0.1 : 0) + (made('tray') ? 0.08 : 0) + hustleEdge(level('hustle'));
     if (n.hygiene < 0.3) chance *= 0.35;
-    const gilded = state.cheese[0].f.includes('goldflake'); // gold leaf is for showing off: most people will not pay for it, and a few will pay anything
+    const lux = ['goldflake', 'caviar'].find((k) => state.cheese[0].f.includes(k)), gilded = !!lux; // gold leaf and caviar are for showing off: most people will not pay for them, and a few will pay anything
     if (gilded) { if (f.flush === undefined) f.flush = Math.random() < 0.12; chance = f.flush ? 0.92 : chance * 0.3; }
     chance = Math.min(gilded && f.flush ? 0.95 : 0.9, Math.max(0.05, chance));
     if (Math.random() > chance) {
@@ -879,6 +889,7 @@ export function createLife(ctx) {
       const no = n.hygiene < 0.3 ? ['"Uh, no thanks." You reek.', 'They take one step back. "I’m good."']
         : price === 1 ? ['"That one is burnt, friend."', '"Is that… charcoal?"']
         : f.appetite < 0.4 || !mealtime ? ['"Just ate, sorry."', '"I’m good, thanks."', '"Maybe later, family."', '"No cash on me."', 'They did not even hear you.']
+        : lux === 'caviar' ? ['"Fish eggs? On grilled cheese? Hard pass."', '"I just want lunch, man."', '"Fifteen extra for that? No."']
         : gilded ? ['"Gold? On a sandwich? I just want lunch."', '"Twenty bucks for cheese on toast. No."', '"That is… glitter. I am not eating glitter."']
         : ['"Three bucks? Nah."', '"I’m good, thanks."', '"Got my own, thanks."'];
       // with the cooler behind you there is a second thing to offer
@@ -1845,6 +1856,58 @@ export function createLife(ctx) {
     state.corner.left[id] = true;
     toast(`${CREW.members[id].name} looks at you, then at him, and walks back up the Street beside the Elder. They will not work your corner again.`);
   }
+  // ---- fishing: three pools on the river, a rod from the workbench, bait you dig or bring. The minigame is fish.js;
+  // what bites, what you keep and what becomes of the roe is here. Numbers are data/fish.json.
+  const rodKind = () => (made('reelrod') ? 'reel' : made('rod') ? 'stick' : '');
+  const baitKind = () => (have('worm') > 0 ? 'worm' : have('supplies') > 0 ? 'bread' : '');
+  const nearPool = (p) => (FISH ? FISH.pools.findIndex((b) => Math.hypot(p.x - b.x, p.z - b.z) < 2.6) : -1);
+  const sturgeonAway = () => total() < state.fishing.sturgeonBack;
+  function startFishing(i) {
+    const pool = FISH.pools[i], bk = baitKind(), B = FISH.bait[bk];
+    const fish = FISHING.pick(pool.depth, B.big, sturgeonAway()), bite = FISHING.biteNow(state.hour, state.weather.rain) * B.bite;
+    state.canMove = false; state.angling = true; document.body.classList.add('decking'); $('prompt').classList.add('hidden');
+    FISHING.start({ rod: rodKind(), fish, bite, where: pool.name, bait: B.name, clearHead: fx('clear'), onDone: (r) => {
+      state.angling = false; document.body.classList.remove('decking'); state.canMove = true;
+      if (r.baitLost) spend(B.item, 1);
+      if (r.quit && !r.baitLost) { toast('You reel in.'); return; }
+      pass(FISH.castHours); gfx.setTime(state.hour); add('vibes', FISH.vibesPerCast); add('energy', -0.02);
+      if (!r.caught) { toast(r.why); save(); return; }
+      state.fishing.caught[fish.id] = (state.fishing.caught[fish.id] || 0) + 1;
+      if (fish.id === 'sturgeon') { sturgeonMenu(); return; }
+      const lost = give('fish', fish.gives, undefined, false); state.recipes.fish = true;
+      toast(`A ${fish.name}. ${fish.gives > 1 ? `${fish.gives} fish` : 'One fish'} for the pan${lost ? ', though your bag had no room for all of it' : ''}.`); save();
+    } });
+  }
+  function sturgeonMenu() { // the choice worth having: she is the only one, and she is slow to come back
+    const S = FISH.sturgeon, female = Math.random() < S.femaleChance, it = female ? 'her' : 'him';
+    const away = (days) => { state.fishing.sturgeonBack = total() + days * 24; };
+    const roe = () => { const lost = give('roe', S.roe, undefined, false); return lost ? ' Your bag had no room for all the roe.' : ''; };
+    menu(`A sturgeon, as long as your arm${female ? ', and heavy with roe' : ''}. The oldest thing in this river.`, [
+      ...(female ? [{ label: `Take the roe and put her back <small>${S.roe} roe to cure into caviar. She is in the deep pool again in ${S.backAfterReleaseDays} days</small>`, act: () => { const note = roe(); away(S.backAfterReleaseDays); toast(`She slides back into the deep water. ${S.roe} roe: cure it on ice in your cooler.${note}`); save(); } }] : []),
+      { label: `Keep ${it} <small>${female ? `the roe, and a fish the shops pay $${SELL.sturgeon} for` : `the shops pay $${SELL.sturgeon} for one`}. The deep pool is empty for ${S.backAfterKeepDays} days</small>`, act: () => { const full = give('sturgeon', 1, undefined, false); const note = female ? roe() : ''; away(S.backAfterKeepDays); state.fishing.kept++; toast(`${full ? 'No room to carry it, so it went back anyway.' : 'One sturgeon.'}${female ? ` And ${S.roe} roe.` : ''}${note} The pool goes very still.`); save(); } },
+      { label: `Let ${it} go <small>back in the deep pool in ${S.backAfterReleaseDays} days</small>`, act: () => { away(S.backAfterReleaseDays); add('vibes', 0.03); toast('Gone, with one slow push of the tail. That felt right.'); save(); } },
+    ]);
+  }
+  function poolMenu(i) {
+    const pool = FISH.pools[i], rod = rodKind(), bk = baitKind(), W = FISH.worms, now = FISHING.biteNow(state.hour, state.weather.rain);
+    const look = now > 1.4 ? 'Fish are rising everywhere.' : now < 0.9 ? 'Quiet water in the middle of the day. Dawn and dusk are better.' : 'A few rings on the water.';
+    menu(`${pool.name[0].toUpperCase()}${pool.name.slice(1)}. ${look}${pool.depth === 'deep' ? (sturgeonAway() ? ' Nothing big moves down there.' : ' Something very big turns over, far down.') : ''}`, [
+      { label: `Cast a line <small>${rod ? `with your ${FISH.rods[rod].name.toLowerCase()}${bk ? `, ${FISH.bait[bk].name} on the hook` : ''}. About ${Math.round(FISH.castHours * 60)} minutes` : 'cast, wait for the bite, fight it in'}</small>`,
+        can: () => (!rod ? 'you need a rod: your workbench makes one from salvage and fabric' : !bk ? 'no bait: dig for worms here, or bring bread and cheese' : true), act: () => startFishing(i) },
+      { label: `Dig for worms <small>${Math.round(W.hours * 60)} minutes at the bank. Big fish want worms; bread only tempts the small ones</small>`, stay: true, can: () => (room('bag', 'worm') < 1 ? 'no room in your bag' : true), act: () => {
+        const n = W.least + Math.floor(Math.random() * (W.most - W.least + 1)) + (total() - state.rainedAt < 14 ? W.afterRain : 0);
+        give('worm', n, undefined, false); pass(W.hours); gfx.setTime(state.hour); add('hygiene', 0.05); sfx('pick'); toast(`${n} worms.${total() - state.rainedAt < 14 ? ' They are up near the top after the rain.' : ''}`); poolMenu(i); } },
+    ]);
+  }
+  function cureOptions() { // in the cooler menu: roe goes in a jar on the ice and is caviar a day later. No salt to buy.
+    if (!FISH) return [];
+    const F = state.fishing, C = FISH.cure, opts = [], ready = F.cure.filter((c) => total() - c.at >= C.hours), waiting = F.cure.filter((c) => total() - c.at < C.hours);
+    if (have('roe') > 0) opts.push({ label: `Cure your roe on ice <small>${have('roe')} roe makes ${have('roe') * C.caviarPerRoe} caviar, a day from now</small>`, act: () => { const n = have('roe'); spend('roe', n); F.cure.push({ at: total(), n }); sfx('build'); toast('The roe is in a jar on the ice. Caviar by this time tomorrow.'); save(); } });
+    if (ready.length) { const n = ready.reduce((s, c) => s + c.n, 0) * C.caviarPerRoe; opts.push({ label: `Take out the caviar <small>${n} tins, cured and ready</small>`, can: () => (room('bag', 'caviar') < 1 ? 'no room in your bag' : true), act: () => { const lost = give('caviar', n, undefined, false); F.cure = waiting; state.recipes.caviar = true; sfx('level'); toast(`${n - lost} caviar. New sandwich: the caviar melt.${lost ? ' No room for the rest, and it will not keep out of the ice.' : ''}`); save(); } }); }
+    else if (waiting.length) opts.push({ label: `Roe curing in a jar <small>${Math.ceil(C.hours - (total() - waiting[0].at))} hours to go</small>`, can: () => 'not ready yet', act() {} });
+    return opts;
+  }
+
   // ---- tapestries: bought on the Street, hung on the line at camp, one at a time. Rules in data/tapestry.json.
   const TAP_STALL = [-5.9, -22];
   const tapOf = (id) => TAPESTRY.list.find((t) => t.id === id);
@@ -2118,6 +2181,7 @@ export function createLife(ctx) {
   // ---- places you can use
   interactables.push(
     { test: (p) => (state.gear.pantry >= 2 || Object.values(state.pantry).some((v) => v > 0)) && Math.hypot(p.x - CAMP.pantry[0], p.z - CAMP.pantry[1]) < 1.6, label: () => `Your ${GEAR.pantry[1][state.gear.pantry - 1].name.toLowerCase().replace('no cabinet', 'old pantry shelf')}: ${pantryLine()}${state.pantryCheese.length ? `, ${state.pantryCheese.length} grilled cheese` : ''}`, use: pantryMenu },
+    { test: (p) => nearPool(p) >= 0, label: () => { const b = FISH.pools[nearPool(getPlayer().root.position)]; return `${b.name[0].toUpperCase()}${b.name.slice(1)}: fish`; }, use: () => poolMenu(nearPool(getPlayer().root.position)) },
     { test: (p) => nearBend(p) >= 0, label: () => { const i = nearBend(getPlayer().root.position); return `${RIVER.bends[i].name[0].toUpperCase()}${RIVER.bends[i].name.slice(1)}: ${state.river.sluice.bend === i ? `your sluice box, ${sluiceCount()} flakes` : 'pan for gold'}`; }, use: () => bendMenu(nearBend(getPlayer().root.position)) },
     { test: (p) => cornerBuyer(p) !== undefined, label: () => cornerPitch(cornerBuyer(getPlayer().root.position)), use: () => { const q = cornerBuyer(getPlayer().root.position); if (seat('fill')) crewFillSale(q); else startFill(q); } },
     { test: (p) => atCorner(p) && state.corner.open && (state.corner.queue.length > 0 || state.t - cornerT < 1.5), label: () => (state.corner.queue.length ? 'Somebody is heading for your corner · C for your corner menu' : 'Your corner (open) · C for your corner menu'), use() {} },
@@ -2128,6 +2192,7 @@ export function createLife(ctx) {
     { test: (p) => !week().musicDay && Math.hypot(p.x + 62.5, p.z + 121) < 3.4, label: 'Stage crew: work a shift', use: crewShift },
     { at: BOOTH, r: 3.4, label: 'Open Decks: play a set', use: openDecks },
     { at: CAMP.cooler, r: 2.1, label: () => (state.towing ? 'Park your cooler' : 'Your cooler'), use: () => menu(`${GEAR.cooler[1][state.gear.cooler - 1].name} (${state.water} of ${coolerRoom()} waters)`, [
+      ...cureOptions(),
       { label: 'Drink a cold water', stay: true, can: () => (state.water > 0 ? true : 'empty: fill it at the General Store'), act: () => { state.water--; add('hydration', sip()); toast('Ahh.'); } },
       ...(state.nos.rig && state.nos.tank ? [{ label: `Fill five balloons <small>${state.nos.fills} fills in the tank under the ice</small>`, stay: true, act: fillFive }] : []),
       ...(state.gear.cooler < 3 ? [] : state.towing
@@ -2237,7 +2302,7 @@ export function createLife(ctx) {
   interactables.unshift(interactables.splice(interactables.findIndex((i) => i.label === 'Your tank'), 1)[0]);
 
   // ---- saving. The game saves itself once you are free to roam; the opening is short enough to replay.
-  const KEEP = ['tapestry', 'hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry', 'pantryCheese', 'corner', 'reckon', 'crewShifts', 'river'];
+  const KEEP = ['tapestry', 'fishing', 'hour', 'day', 'cash', 'stash', 'cheese', 'sold', 'needs', 'vibes', 'lot', 'gear', 'water', 'pileNext', 'bag', 'store', 'village', 'craft', 'skills', 'points', 'litter', 'picked', 'towing', 'raid', 'raidNext', 'chain', 'trophies', 'garden', 'weather', 'permitDay', 'heal', 'tree', 'dayLog', 'pal', 'danced', 'over', 'daily', 'fizzUntil', 'poncho', 'nos', 'body', 'offer', 'plots', 'recipes', 'shrooms', 'cultures', 'journal', 'prints', 'wild', 'wildDone', 'rainedAt', 'fakes', 'sets', 'fx', 'glow', 'vision', 'visionUsed', 'crate', 'kitchen', 'crewDay', 'pantry', 'pantryCheese', 'corner', 'reckon', 'crewShifts', 'river'];
   let saveClock = 0;
   function save() {
     if (state.mode !== 'free') return;
@@ -2327,6 +2392,7 @@ export function createLife(ctx) {
     key(e) {
       if (decks.active) return true; // the Decks have their own hands
       if (PAN && PAN.active) return true; // so has the gold pan
+      if (FISHING && FISHING.active) return true; // and the fishing rod
       if (state.filling) { if (e.code === 'Space' && !e.repeat) fillHold(true); else if (e.code === 'Escape' && !state.filling.started) closeFill(true); return true; }
       if (state.cooking) {
         if (e.code === 'Space') cookPress();
@@ -2369,6 +2435,7 @@ export function createLife(ctx) {
       if (['load', 'creator', 'intro'].includes(state.mode)) return;
       if (decks.active) { decks.update(dt); return; } // the world waits while you play
       if (PAN && PAN.active) { PAN.update(dt); return; } // and while you pan
+      if (FISHING && FISHING.active) { FISHING.update(dt); return; } // and while you fish
       if (state.cooking) updateCooking(dt);
       if (state.filling) updateFilling(dt);
       const free = state.mode === 'free', hours = dt / HOUR;

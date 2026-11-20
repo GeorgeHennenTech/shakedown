@@ -37,12 +37,14 @@ It needs `art/logo/`, which is on Seth's Mac but not in the repository (see "Wha
 | `game/cook.js` | First-person grilled cheese view (drawing only; rules are in `life.js`). |
 | `game/decks.js` | The DJ mixing minigame. Top half is rules, bottom half is drawing and sound. |
 | `game/pan.js` | The gold panning minigame (scoop, swirl, tilt and pick). Rules come from `game/data/river.json`. |
+| `game/fish.js` | The fishing minigame (cast, wait for the bite, fight). Rules come from `game/data/fish.json`. |
 | `game/crowd.js` | The crowd's daily routine and walking. |
 | `game/gfx.js`, `portrait.js`, `sound.js`, `icons.js` | Graphics quality levels, talking-head portraits, synthesised sound, inventory icons. |
 | `game/data/garden.json` | Crops, sandwich fillings, grown and wild mushrooms. |
 | `game/data/crate.json` | DJ tracks and the scoring rules of a set. |
 | `game/data/crew.json` | The corner crew: stations, people, wages, how each is earned. |
 | `game/data/river.json` | The river bends, pans, swirl and sluice numbers for gold panning. |
+| `game/data/fish.json` | Fishing: pools, fish, bait, rods, the fight, sturgeon and curing roe into caviar. |
 | `game/data/tapestry.json` | Tapestries sold on the Street and where the line stands at camp. |
 | `game/data/crowd.json` | Where the crowd is at each hour. |
 | `game/assets/` | Slimmed character models, props, textures, journal illustrations. |
@@ -119,3 +121,4 @@ Good jobs to hand to a second model, because they are already specified: any lad
 Seth is the designer and plays every build. Explain in plain words what changed and how to see it in the game; say plainly what you tested and what you did not. Ask before anything that costs money or leaves the machine. When a decision is his, give a recommendation and ask once.
 - Never put a `//` comment in the middle of a one-line block: it swallows the rest of the line, and `node --check` on a `.js` file only catches it if the file is checked as a module (copy to `.mjs`). `pan.js` broke the whole page this way once.
 - The cook panel lives inside `#hud`, which is hidden in the character creator. When testing cooking from a cleared save, un-hide `#hud` and hide `#creator` or nothing measures.
+- The Browser pane often runs the game at a few frames a second when it is in the background. For minigame tests, call the game's own `update(1/60)` (for example `__game.fishing.update`) or `__game.step` in a loop instead of waiting on real time.
