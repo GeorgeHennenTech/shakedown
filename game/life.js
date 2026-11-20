@@ -1039,6 +1039,7 @@ export function createLife(ctx) {
   // One for yourself: a big lift, gone fast. Chaining them is what hurts: each one is worth less and costs more Body.
   function balloon() {
     const v = state.nos;
+    state.act = { kind: 'balloon', at: state.t }; // main.js plays it: hand to mouth, the balloon goes down, the wobble
     v.chain = total() - v.last < 1 ? v.chain + 1 : 0; v.last = total();
     const c = Math.min(3, v.chain);
     add('vibes', [0.22, 0.1, 0.04, 0][c]);

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=6';
-import { createLife, readSave, saveLabel } from './life.js?v=92';
+import { createLife, readSave, saveLabel } from './life.js?v=93';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -984,6 +984,67 @@ async function loadCampModels() {
   await each('totem', (m) => swapIn(campLook.totem, m));
   await each('flag', (m) => swapIn(campLook.trophy.flag, m));
 }
+// ---- taking a balloon. Any character with a two-armed skeleton can do it: startBalloon(character).
+// The hand is steered to the mouth by working out where the elbow has to be, so it lands right whatever the body's proportions.
+// The balloon shrinks as it goes in, the chest fills, then the arm drops and they wobble as what is left gets away.
+const BALLOON = { secs: 3.7, up: 0.5, breath: 1.9, down: 2.5, colours: [0xff5d8f, 0xffd23f, 0x3aa0ff, 0x7cf29a, 0xff7b54] };
+const balloonActs = new Map();
+const smooth01 = (u) => { const k = Math.min(1, Math.max(0, u)); return k * k * (3 - 2 * k); };
+const V = () => new THREE.Vector3(), Q = () => new THREE.Quaternion();
+const bA = V(), bB = V(), bT = V(), bS = V(), bE = V(), bRight = V(), bFwd = V(), bDir = V(), bPole = V(), bMouth = V(), bHand = V(), bQ1 = Q(), bQ2 = Q(), bQ3 = Q();
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+function aimBone(bone, tip, target, w) { // turn `bone` so the joint at its far end (`tip`) points at the world point `target`
+  bone.getWorldPosition(bA); tip.getWorldPosition(bB);
+  bB.sub(bA).normalize(); bT.copy(target).sub(bA).normalize();
+  bQ1.setFromUnitVectors(bB, bT).multiply(bone.getWorldQuaternion(bQ2));
+  bone.parent.getWorldQuaternion(bQ3).invert().multiply(bQ1);
+  bone.quaternion.slerp(bQ3, w);
+  bone.updateMatrixWorld(true);
+}
+function startBalloon(ch) {
+  const B = ch && ch.bones;
+  if (!B || !B.RightArm || !B.RightForeArm || !B.RightHand || !B.Head) return false;
+  let a = balloonActs.get(ch);
+  if (!a) { a = { prop: new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 10), new THREE.MeshLambertMaterial({ color: 0xff5d8f })) }; a.prop.castShadow = true; scene.add(a.prop); balloonActs.set(ch, a); }
+  a.t = 0; a.prop.material.color.setHex(pick(BALLOON.colours)); a.prop.visible = true;
+  return true;
+}
+function balloonTick(dt) { // run after the animation mixers, so this sits on top of whatever the character is doing
+  for (const [ch, a] of balloonActs) {
+    if (a.t === undefined || a.t > BALLOON.secs || !ch.root.visible) { a.prop.visible = false; a.t = undefined; continue; }
+    a.t += dt;
+    const t = a.t, B = ch.bones;
+    const up = smooth01(t / BALLOON.up) * (1 - smooth01((t - BALLOON.down) / 0.6)); // arm up, hold, down
+    const breath = smooth01((t - BALLOON.up) / BALLOON.breath), out = smooth01((t - BALLOON.down) / 1.1), settle = 1 - smooth01((t - 3.2) / 0.5);
+    const turn = (name, x, y, z) => { const b = B[name]; if (b) { b.rotation.x += x; b.rotation.y += y; b.rotation.z += z; } };
+    turn('Spine01', -0.12 * breath * (1 - out), 0, Math.sin(t * 5) * 0.07 * out * settle); // the chest fills, then the sway
+    turn('Head', -0.16 * breath * (1 - out) + 0.2 * out * settle, Math.sin(t * 3.3) * 0.14 * out * settle, 0); // head back to take it in, then it lolls
+    ch.root.updateMatrixWorld(true);
+    // which way they face, read off the shoulders
+    (B.RightShoulder || B.RightArm).getWorldPosition(bRight); (B.LeftShoulder || B.LeftArm || B.Head).getWorldPosition(bA); bRight.sub(bA).setY(0).normalize();
+    bFwd.crossVectors(WORLD_UP, bRight).normalize();
+    (B.headfront || B.Head).getWorldPosition(bMouth); B.Head.getWorldPosition(bA);
+    const headSize = Math.max(0.12, bMouth.distanceTo(bA)); // scales the reach to the character
+    if (!B.headfront) bMouth.addScaledVector(bFwd, 0.1).y += 0.06;
+    bMouth.y -= headSize * 0.35; // lips, not nose
+    bT.copy(bMouth).addScaledVector(bFwd, 0.09).addScaledVector(bRight, 0.03); // where the hand goes: just in front of the lips
+    // the elbow: on the circle both arm bones can reach, hanging down and out
+    B.RightArm.getWorldPosition(bS); B.RightForeArm.getWorldPosition(bE); B.RightHand.getWorldPosition(bHand);
+    const L1 = bS.distanceTo(bE), L2 = bE.distanceTo(bHand), want = bT.clone();
+    bDir.copy(want).sub(bS); const d = Math.min(bDir.length(), (L1 + L2) * 0.98); bDir.normalize();
+    const along = (L1 * L1 - L2 * L2 + d * d) / (2 * d), side = Math.sqrt(Math.max(0, L1 * L1 - along * along));
+    bPole.set(0, -1, 0).addScaledVector(bRight, 0.75); bPole.addScaledVector(bDir, -bPole.dot(bDir)).normalize();
+    const elbow = bS.clone().addScaledVector(bDir, along).addScaledVector(bPole, side);
+    aimBone(B.RightArm, B.RightForeArm, elbow, up);
+    aimBone(B.RightForeArm, B.RightHand, want, up);
+    // the balloon rides in front of the hand, shrinking as it empties, and what is left gets away
+    B.RightHand.getWorldPosition(bHand);
+    const size = (1 - 0.72 * breath) * (1 - out);
+    a.prop.position.copy(bHand).addScaledVector(bFwd, 0.07 + 0.13 * size); a.prop.position.y += 0.03 + out * 0.9; a.prop.position.x += Math.sin(t * 9) * 0.05 * out;
+    a.prop.scale.setScalar(Math.max(0.001, size));
+    a.prop.visible = size > 0.02;
+  }
+}
 // ---- the tapestry line at camp: two poles and a rope; whichever tapestry is up hangs from it. Patterns are painted here from data/tapestry.json.
 const tapLook = { group: null, cloth: null, canvas: null, tex: null, shown: null, list: [] };
 function paintTapestry(t) {
@@ -1065,6 +1126,7 @@ function buildRiverBends(RIVER) {
 }
 // ---- the corner crew: whoever is hired for the night stands at their station by the crate
 const crewModels = {};
+let seenAct = null; // the last thing life.js asked your character to act out
 const CREW_SPOT = { fill: [1.85, 0.1, -1.75], front: [-1.9, 1.1, 0.4], cash: [-0.7, -0.5, 0.1], run: [2.4, 1.35, -0.5] }; // the filler faces the tank
 // What the crew do with their hands. Same rig and axes as Moonbeam's (see MOON_POSE): arm x- brings a hand forward, RightArm z- lifts it out.
 const CREW_POSE = {
@@ -1712,6 +1774,8 @@ function update(dt) {
     for (const ch of [player, patches, buck, vinny, elder, whip, moonbeam, ...goons]) if (ch && ch.root.visible) ch.mixer.update(dt);
     if (moonbeam) moonbeamShift(dt);
     crewStand(dt);
+    if (state.act && state.act !== seenAct) { seenAct = state.act; if (state.act.kind === 'balloon') startBalloon(player); }
+    balloonTick(dt);
     tapestryShow();
     if (campLook.sluice && state.river) { const sl = state.river.sluice, b = sl && sl.bend >= 0 ? RIVER_BENDS[sl.bend] : null; campLook.sluice.visible = !!b; if (b) campLook.sluice.position.set(b.x - 0.6, 0, b.z - 1.5); }
     const d = state.dialogue;
@@ -1888,7 +1952,7 @@ async function boot() {
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, crewModels, tapLook, showGear, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });
