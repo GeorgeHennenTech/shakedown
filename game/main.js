@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGraphics } from './gfx.js?v=6';
-import { createLife, readSave, saveLabel } from './life.js?v=97';
+import { createLife, readSave, saveLabel } from './life.js?v=99';
 import { createPortrait } from './portrait.js?v=2';
 import { createSound } from './sound.js?v=1';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -989,7 +989,7 @@ async function loadCampModels() {
   await each('tank', (m) => { swapIn(campLook.tank, m); swapIn(campLook.cornerTank, m.clone()); });
   await each('totem', (m) => swapIn(campLook.totem, m));
   await each('flag', (m) => swapIn(campLook.trophy.flag, m));
-  if (carQuestData) await each('wagon', (m) => { const c = carQuestData.car; m.position.set(c.x, 0, c.z); m.rotation.y = c.turn; scene.add(m); carLook.model = m; });
+  if (carQuestData) await each('wagon', (m) => { scene.add(m); carLook.model = m; carPose(); });
 }
 // ---- taking a balloon. Any character with a two-armed skeleton can do it: startBalloon(character).
 // The hand is steered to the mouth by working out where the elbow has to be, so it lands right whatever the body's proportions.
@@ -1073,17 +1073,77 @@ function buildCarQuest(Q) {
   });
   // your car, out past the last proper row, with a card game on the hood
   const c = Q.car;
-  solid(c.x, c.z, 1.5); /* your own car is the pink wagon model, loaded with the camp models (loadCampModels) */
+  solid(c.x, c.z, 1.5); carLook.solid = colliders[colliders.length - 1]; /* your own car is the pink wagon model, loaded with the camp models (loadCampModels) */
+  // things left in the lanes between your car and the gate: a couch, and a drum circle that is not going anywhere
+  { const couch = new THREE.Group(); couch.position.set(13.5, 0, 15.5); couch.rotation.y = 0.5; scene.add(couch);
+    mesh(new THREE.BoxGeometry(2.0, 0.42, 0.85), funk('velvet', 2, 1), 0, 0.3, 0, couch); mesh(new THREE.BoxGeometry(2.0, 0.6, 0.22), funk('velvet', 2, 1), 0, 0.75, -0.32, couch);
+    for (const s of [-1, 1]) mesh(new THREE.BoxGeometry(0.22, 0.55, 0.85), funk('leopard', 1, 1), s * 1.0, 0.5, 0, couch);
+    solid(13.5, 15.5, 1.1);
+    for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.4, x = 6.5 + Math.cos(a) * 1.3, z = 3.5 + Math.sin(a) * 1.3; mesh(new THREE.CylinderGeometry(0.2, 0.14, 0.6, 10), lambert(0x8a5a2b), x, 0.3, z); mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.03, 10), lambert(0xf2e6c8), x, 0.61, z); }
+    solid(6.5, 3.5, 1.6);
+  }
+  // the spot to park in beside your camp: a painted box on the ground and a sign, there while the car still has to be brought home
+  { const P = Q.park, g = new THREE.Group(); g.position.set(P.x, 0, P.z); scene.add(g); carLook.park = g;
+    const box = mesh(new THREE.PlaneGeometry(3.2, 4.8), new THREE.MeshBasicMaterial({ color: 0xffc93c, transparent: true, opacity: 0.35, depthWrite: false }), 0, 0.04, 0, g); box.rotation.x = -Math.PI / 2; box.castShadow = false; box.receiveShadow = false;
+    g.add(signBoard('YOUR CAR GOES HERE', 0, 2.3, -2.6, 0, 2.6, 0.5, { bg: '#ff5db1' })); g.visible = false;
+    mesh(new THREE.CylinderGeometry(0.04, 0.05, 2.3, 6), lambert(0x6b4a2b), 0, 1.15, -2.6, g);
+  }
   const fx = Math.sin(c.turn), fz = Math.cos(c.turn);
-  mesh(new THREE.BoxGeometry(0.5, 0.02, 0.36), lambert(0xf2efe6), c.x + fx * 1.25, 1.07, c.z + fz * 1.25).rotation.y = c.turn + 0.3; // cards on the hood
+  carLook.cards = mesh(new THREE.BoxGeometry(0.5, 0.02, 0.36), lambert(0xf2efe6), c.x + fx * 1.25, 1.07, c.z + fz * 1.25); carLook.cards.rotation.y = c.turn + 0.3; // cards on the hood
   for (const side of [-1, 1]) {
     const lamp = mesh(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshBasicMaterial({ color: 0x3a3320, toneMapped: false }), c.x + fx * 1.8 + fz * side * 0.74, 0.8, c.z + fz * 1.8 - fx * side * 0.74);
     lamp.castShadow = false; carLook.lamps.push(lamp);
   }
   carLook.light = new THREE.PointLight(0xffe2a8, 0, 16, 1.6); carLook.light.position.set(c.x + fx * 2.4, 1.1, c.z + fz * 2.4); scene.add(carLook.light);
 }
+// ---- driving your car, in the world. W goes, S brakes and reverses, A and D steer. It pulls left, and a hard knock stalls it.
+const drive = { on: false, v: 0, stall: 0, camDist: 8 };
+function carPose() { // where the car stands while nobody is driving it
+  const m = carLook.model, c = carQuestData && carQuestData.car;
+  if (!m || !c || !state.car) return;
+  const at = state.car.at || [c.x, c.z, c.turn];
+  m.position.set(at[0], 0, at[1]); m.rotation.set(0, at[2], 0);
+  if (carLook.solid) { carLook.solid.x = at[0]; carLook.solid.z = at[1]; }
+  if (carLook.cards) carLook.cards.visible = !state.car.at; /* the card game packs up once the car has moved */
+  if (carLook.park) carLook.park.visible = state.car.stage === 3;
+}
+function driveTick(dt) {
+  const m = carLook.model;
+  if (!m) { state.driving = false; return; }
+  if (!drive.on) { drive.on = true; drive.v = 0; drive.stall = 0; drive.camDist = cam.dist; cam.dist = 8.5; if (carLook.solid) carLook.solid.x = 1e6; if (carLook.cards) carLook.cards.visible = false; }
+  player.root.visible = false;
+  const free = state.canMove && !state.dialogue;
+  const thr = free ? (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) : 0, steer = free ? (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0) : 0;
+  if (drive.stall > 0) drive.stall -= dt;
+  const go = drive.stall > 0 ? 0 : thr;
+  drive.v += (go > 0 ? 4.4 : go < 0 ? -5.6 : 0) * dt;
+  drive.v -= drive.v * (go ? 0.5 : 1.5) * dt;
+  drive.v = clamp(drive.v, -2.6, 8.2);
+  const rot = m.rotation.y + (steer * 0.6 + 0.045) * drive.v * 0.36 * dt; /* the 0.045 is the pull to the left */
+  const sn = Math.sin(rot), cs = Math.cos(rot), nx = clamp(m.position.x + sn * drive.v * dt, -71, 71), nz = clamp(m.position.z + cs * drive.v * dt, -163, 35);
+  let hit = null;
+  for (const c of colliders) { if (c === carLook.solid) continue; for (const o of [1.0, -0.9]) if (Math.hypot(nx + sn * o - c.x, nz + cs * o - c.z) < c.r + 0.95) { hit = c; break; } if (hit) break; }
+  const fence = Math.abs(nx) > 3.5 && (m.position.z + 13) * (nz + 13) <= 0; /* only the gate is wide enough */
+  if (hit || fence) {
+    const hard = Math.abs(drive.v) > 2.6, person = !!hit && people.some((f) => f.col === hit);
+    if (life) life.carBump(person, hard);
+    if (hard) drive.stall = 1.3;
+    drive.v *= -0.3;
+    if (hit) { const ox = m.position.x - hit.x, oz = m.position.z - hit.z, d = Math.hypot(ox, oz) || 1; m.position.x += ox / d * 0.04; m.position.z += oz / d * 0.04; } /* ease off whatever it is, so the car never stays wedged */
+  } else { m.position.x = nx; m.position.z = nz; m.rotation.set(-drive.v * 0.004, rot, -steer * drive.v * 0.012, 'YXZ'); }
+  m.position.y = Math.abs(Math.sin(state.t * 9)) * 0.012 * Math.abs(drive.v) / 8 + (drive.stall > 0 ? Math.sin(state.t * 40) * 0.006 : 0);
+  player.root.position.set(m.position.x, 0, m.position.z);
+  state.car.at = [m.position.x, m.position.z, m.rotation.y]; state.driveSpeed = Math.abs(drive.v);
+  if (Math.abs(drive.v) > 0.4) { const want = m.rotation.y + Math.PI, d = Math.atan2(Math.sin(want - cam.yaw), Math.cos(want - cam.yaw)); cam.yaw += d * Math.min(1, dt * 2.2); } /* the camera swings round behind the car */
+}
+function driveEnd() { // you got out: stand beside the driver's door
+  drive.on = false; drive.v = 0; state.driveSpeed = 0; cam.dist = drive.camDist; player.root.visible = true;
+  const m = carLook.model; if (m) { const r = m.rotation.y; player.root.position.set(m.position.x + Math.cos(r) * 1.75, 0, m.position.z - Math.sin(r) * 1.75); m.position.y = 0; }
+  carPose();
+}
 function carLights() { // two quick flashes each time the fob is pressed
   const c = state.car;
+  if (!drive.on) carPose();
   if (!c || !carLook.light) return;
   const age = state.t - (c.beepAt ?? -99), on = age >= 0 && age < 1.1 && (age % 0.55) < 0.28;
   for (const l of carLook.lamps) { l.visible = on; l.material.color.setHex(0xfff0b0).multiplyScalar(3); } /* the wagon has its own headlights; these only show while they flash */
@@ -1301,9 +1361,22 @@ function crewSaleMove(ch, st, t) {
     if (handoff) reach(ch, 'Right', handoff, inOut(t, 1.3, 1.55, 1.75, 1.95)); else reach(ch, 'Right', TANK_TOP(), inOut(t, 1.0, 1.3, 1.5, 1.8));
     reach(ch, 'Right', spotOf('run', 1.3, 0.62), inOut(t, 1.9, 2.15, 2.55, 2.9)); // out to the buyer
   } else if (st === 'cash') {
-    reach(ch, 'Right', spotOf('cash', 1.12, 0.55), inOut(t, 1.3, 1.6, 2.1, 2.45)); // palm out for the money
-    const h = ch.bones.Head; if (h) h.rotation.x += Math.sin(t * 11) * 0.12 * inOut(t, 2.0, 2.2, 2.6, 2.9); // counting it
+    // takes the bills, counts them at the chest with both hands, wads them up and puts the wad away
+    const count = inOut(t, 2.2, 2.4, 3.0, 3.15), chest = spotOf('cash', 1.2, 0.3);
+    reach(ch, 'Right', spotOf('cash', 1.12, 0.58), inOut(t, 1.7, 1.95, 2.15, 2.35)); // hand out for the money
+    reach(ch, 'Right', cV2.copy(chest).setY(chest.y + Math.sin(t * 16) * 0.035 * (t < 2.95 ? 1 : 0)), count); // thumbing through the bills
+    reach(ch, 'Left', cV2.copy(chest).setY(chest.y - 0.04), count);
+    reach(ch, 'Right', spotOf('cash', 0.86, 0.12), inOut(t, 3.1, 3.25, 3.38, 3.5)); // into the pocket
+    const h = ch.bones.Head; if (h) h.rotation.x += 0.3 * count;
   }
+}
+function crewCash() { // the money in the cash hand: bills while it is counted, then squeezed into a wad and gone
+  const act = state.corner.act, t = act && act.kind === 'sale' && crewAt.cash ? state.t - act.at : -1;
+  const m = crewProp.cash || (crewProp.cash = (() => { const x = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.075, 0.012), new THREE.MeshLambertMaterial({ color: 0x5fae6a })); x.visible = false; scene.add(x); return x; })());
+  if (t < 2.05 || t > 3.42) { m.visible = false; return; }
+  crewAt.cash.bones.RightHand.getWorldPosition(m.position); m.position.y += 0.05;
+  const wad = smooth01((t - 2.95) / 0.2); /* flat bills, then a ball in the fist */
+  m.scale.set(1 - 0.6 * wad, 1 + 0.5 * wad, 1 + 5 * wad); m.rotation.set(0.3, crewAt.cash.root.rotation.y + Math.sin(t * 16) * 0.25 * (1 - wad), 0.2); m.visible = true;
 }
 function crewBalloon() { // the balloon itself: it swells at the nozzle, rides the filler's hand, then the runner's, and is gone with the buyer
   const act = state.corner.act, m = crewProp.mesh || (crewProp.mesh = (() => { const x = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), new THREE.MeshLambertMaterial({ color: 0xff5d8f })); x.castShadow = true; x.visible = false; scene.add(x); return x; })());
@@ -1343,25 +1416,65 @@ function crewAct(ch, st) { // call after the mixer has moved the bones for this 
     ch.bones.Hips.quaternion.slerp(ch.hipsRest, 0.85);
   }
   const act = state.corner.act;
-  if (act && act.kind === 'sale' && state.t - act.at < 3) { poseOn(ch, CREW_POSE.groove, 0.5); crewSaleMove(ch, st, state.t - act.at); return; }
+  if (act && act.kind === 'sale' && state.t - act.at < 3.5) { poseOn(ch, CREW_POSE.groove, 0.5); crewSaleMove(ch, st, state.t - act.at); return; }
   const part = act && CREW_BEAT[act.kind] && CREW_BEAT[act.kind][st], pose = part && CREW_POSE[part[0]], age = part ? state.t - act.at - part[1] : -1;
   if (pose && age >= 0 && age < pose.secs) poseOn(ch, pose, Math.sin(Math.PI * Math.min(1, age / pose.secs * 1.15)) ** 0.6); // ease in, hold, ease out
   else poseOn(ch, CREW_POSE.groove, 1);
 } // metres from the crate, and which way they face
 // ---- Fern, the gardener you hire by the day: she is at your garden while she is on, working her way along the plots.
 let fern = null;
+const fernJob = { i: 0, kind: '', at: -99, can: null };
+const FERN_SECS = { water: 3.4, pick: 3.6, plant: 3.4, look: 1.3 };
 function fernStand(dt) {
   if (!fern) return;
   const on = (state.day || 0) * 24 + (state.hour || 0) < ((state.gardener && state.gardener.until) || 0) && state.mode !== 'creator';
   fern.root.visible = on;
-  if (!on) return;
-  const n = Math.max(1, Math.min(3, (state.plots || []).length || 1)), i = Math.floor(state.t / 9) % n; /* a few seconds at each plot in the front row */
-  const tx = CAMP.garden[0] - i * 1.6, tz = CAMP.garden[1] + 0.95, p = fern.root.position, dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
-  if (d > 6) p.set(tx, 0, tz); /* just hired, or the garden was moved */
-  else if (d > 0.05) { const step = Math.min(d, dt * 1.1); p.x += dx / d * step; p.z += dz / d * step; }
-  const want = d > 0.15 ? Math.atan2(dx, dz) : Math.PI; /* walking: face where she is going; at a plot: face it */
-  let turn = want - fern.root.rotation.y; turn = Math.atan2(Math.sin(turn), Math.cos(turn)); fern.root.rotation.y += turn * Math.min(1, dt * 6);
+  if (!fernJob.can) { // her watering can: a body, a spout and the water coming out of it
+    const can = new THREE.Group(), tin = new THREE.MeshLambertMaterial({ color: 0xb08d3c });
+    mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.17, 10), tin, 0, 0, 0, can);
+    const spout = mesh(new THREE.CylinderGeometry(0.014, 0.022, 0.22, 6), tin, 0, 0.05, 0.15, can); spout.rotation.x = 1.0;
+    const water = mesh(new THREE.ConeGeometry(0.05, 0.5, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide }), 0, -0.16, 0.27, can); water.castShadow = false;
+    can.visible = false; scene.add(can); fernJob.can = can; fernJob.water = water;
+  }
+  fernJob.can.visible = false;
+  if (!on) { fernJob.kind = ''; return; }
+  const n = Math.max(1, Math.min(6, (state.plots || []).length || 1));
+  if (fernJob.i >= n) fernJob.i = 0;
+  const planter = campLook.plots[fernJob.i].planter.position, back = fernJob.i >= 3; /* she works the back row from behind it */
+  const tx = planter.x, tz = planter.z + (back ? -0.68 : 0.68), p = fern.root.position, dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
+  const working = fernJob.kind && state.t - fernJob.at < FERN_SECS[fernJob.kind];
+  if (d > 9) p.set(tx, 0, tz); /* just hired, or the garden was moved */
+  else if (!working && d > 0.05) { const step = Math.min(d, dt * 1.25); p.x += dx / d * step; p.z += dz / d * step; }
+  const walking = !working && d > 0.12;
+  if (!working && !walking) {
+    if (fernJob.kind) { fernJob.kind = ''; fernJob.i = (fernJob.i + 1) % n; } /* done here: on to the next plot */
+    else { fernJob.kind = (life && life.fernTend(fernJob.i)) || 'look'; fernJob.at = state.t; } /* arrived: do whatever this plot needs */
+  }
+  const want = walking ? Math.atan2(dx, dz) : back ? 0 : Math.PI;
+  let turn = want - fern.root.rotation.y; turn = Math.atan2(Math.sin(turn), Math.cos(turn)); fern.root.rotation.y += turn * Math.min(1, dt * 7);
+  play(fern, walking && fern.actions.Walk ? 'Walk' : 'Idle');
   fern.mixer.update(dt);
+  if (!working) return;
+  // the job itself, laid over her idle stance: she bends to the plot and her hands go where the work is
+  const t = state.t - fernJob.at, T = FERN_SECS[fernJob.kind], w = inOut(t, 0, 0.45, T - 0.45, T), B = fern.bones, soil = cV1.set(planter.x, 0.5, planter.z);
+  const bend = (amount) => { for (const nme of ['Spine', 'Spine01', 'Spine02']) if (B[nme]) B[nme].rotation.x += amount / 3; };
+  if (fernJob.kind === 'look') { if (B.Head) B.Head.rotation.x += 0.35 * w; return; }
+  if (fernJob.kind === 'water') {
+    bend(0.3 * w);
+    reach(fern, 'Right', cV2.copy(soil).setY(1.05).lerp(cV3.set(p.x, 1.05, p.z), 0.45), w); // the can held out over the plot
+    B.RightHand.getWorldPosition(fernJob.can.position); fernJob.can.position.y -= 0.02;
+    const pour = inOut(t, 0.7, 1.0, T - 0.9, T - 0.6);
+    fernJob.can.rotation.set(0.75 * pour, fern.root.rotation.y, 0, 'YXZ'); fernJob.can.visible = w > 0.3; fernJob.water.visible = pour > 0.5;
+  } else if (fernJob.kind === 'pick') {
+    const dip = 0.5 + 0.5 * Math.cos((t / T) * Math.PI * 4); /* down to the plant and back up to the basket, twice */
+    bend((0.35 + 0.5 * (1 - dip)) * w);
+    reach(fern, 'Right', cV2.copy(soil).setY(0.62 + 0.5 * dip).lerp(cV3.set(p.x, 1.1, p.z), 0.25 + 0.3 * dip), w);
+    reach(fern, 'Left', cV2.copy(soil).setY(0.7 + 0.35 * dip).lerp(cV3.set(p.x, 1.1, p.z), 0.35), w * 0.8);
+  } else if (fernJob.kind === 'plant') {
+    bend(0.85 * w);
+    reach(fern, 'Right', cV2.copy(soil).setY(0.5 + Math.abs(Math.sin(t * 7)) * 0.07 * inOut(t, 1.2, 1.5, T - 0.7, T - 0.5)).lerp(cV3.set(p.x, 0.8, p.z), 0.2), w); // pushes the seed in, then pats the soil down
+    reach(fern, 'Left', cV2.copy(soil).setY(0.58).lerp(cV3.set(p.x, 0.8, p.z), 0.3), w * inOut(t, 1.1, 1.5, T - 0.7, T - 0.4));
+  }
 }
 function crewStand(dt) {
   const c = state.corner;
@@ -1387,6 +1500,7 @@ function crewStand(dt) {
     crewAct(ch, st);
   }
   crewBalloon();
+  crewCash();
 }
 async function loadCharacter(url) {
   const gltf = await loader.loadAsync(url);
@@ -1965,7 +2079,7 @@ function draw() { if (state.cooking && cookView) cookView.render(); else { if (s
 function update(dt) {
   state.t += dt;
   if (state.mode !== 'load') {
-    if (state.mode !== 'creator' && state.mode !== 'intro') movePlayer(dt);
+    if (state.mode !== 'creator' && state.mode !== 'intro') { if (state.driving) driveTick(dt); else { if (drive.on) driveEnd(); movePlayer(dt); } }
     const p = player.root.position;
     if (state.mode === 'arrive' && Math.hypot(p.x - patches.root.position.x, p.z - patches.root.position.z) < 4.6) beginWelcome();
     if (['streak', 'patches2', 'chase', 'riverwait', 'ending', 'done'].includes(state.mode)) {
@@ -2184,12 +2298,12 @@ async function boot() {
       } catch (e) { console.warn(`Crew model ${id} not loaded`, e); }
     }
   })();
-  (async () => { try { const ch = await loadCharacter('./assets/fern.glb'); addAction(ch, 'Idle', prepClip(idle, 'Idle', true)); play(ch, 'Idle'); ch.root.visible = false; scene.add(ch.root); fern = ch; } catch (e) { console.warn('Fern not loaded', e); } })();
+  (async () => { try { const ch = await loadCharacter('./assets/fern.glb'); addAction(ch, 'Idle', prepClip(idle, 'Idle', true)); addAction(ch, 'Walk', prepClip(player.clips[0], 'Walk', true), 1.05); play(ch, 'Idle'); ch.root.visible = false; scene.add(ch.root); fern = ch; if (life) life.fernBody = true; } catch (e) { console.warn('Fern not loaded', e); } })();
   loadCampModels(); // in the background too
   life = createLife({ DATA, CRATE, decks, BOOTH, crowd, COUNTER: CAMP.counter, CORNER, CREW, RIVER, TAPESTRY, FISH, FISHING: fishGame, CARQ, CAMP_PLOT, PAN: panGame, groves, wildMeshes, cook: cookView, onGear: showGear, litter, marks: healMarks, WHIP, say, sfx: (name) => sound.play(name), PERMIT, PILE, SHOWERS, look, $, state, keys, people, interactables, banner, card, quest, tick, zoneAt, gfx, CAMP, VILLAGE, STALLS, getPlayer: () => player });
   buildCreatorUI(); sync();
   startCreator();
-  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, get fern() { return fern; }, crewModels, tapLook, showGear, CAMP, canopyLook, windCloths, crewAt, crewProp, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
+  window.__game = { state, look, player, buck, patches, cam, keys, sync, startGame, advance, sound, decks, crowd, people, interactables, get moonbeam() { return moonbeam; }, get fern() { return fern; }, fernJob, colliders, drive, carLook, crewModels, tapLook, showGear, CAMP, canopyLook, windCloths, crewAt, crewProp, startBalloon, BALLOON, balloonActs, campModels, CAMP_MODEL, campLook, CREW_POSE, CREW_BEAT, get whip() { return whip; }, fishing: fishGame, MOON_POSE, pan: panGame, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) update(dt); draw(); }, gfx, life };
   frame();
 }
 boot().catch((e) => { console.error(e); $('loadmsg').textContent = 'Could not load: ' + e.message; });

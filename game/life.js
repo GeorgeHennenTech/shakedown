@@ -451,7 +451,8 @@ export function createLife(ctx) {
     dot(...STALLS.gear, '#ffc93c', 'Leather & Burner (camp gear)');
     dot(...TAP_STALL, '#ff3d9a', 'Tie-Dye & Tapestry');
     if (CARQ && state.car.stage === 1) for (const m of CARQ.memories) if (!state.car.checked[m.id]) dot(m.x, m.z, '#8f6aff', `A memory: ${m.name.toLowerCase()}`);
-    if (CARQ && state.car.stage === 3) dot(CARQ.car.x, CARQ.car.z, '#ffc93c', 'Your car');
+    if (CARQ && state.car.stage >= 3) dot(...carAt(), '#ff5db1', 'Your car');
+    if (CARQ && state.car.stage === 3) dot(CARQ.park.x, CARQ.park.z, '#ffc93c', 'Park your car here');
     dot(...STALLS.cheese, '#e8a33d', 'Grilled Cheese', -1);
     dot(...PERMIT, '#fff', 'Lot office (permits)');
     dot(...PILE, '#b9c2c9', 'Free Pile', -1);
@@ -1342,7 +1343,7 @@ export function createLife(ctx) {
       can: () => (canAgain.length ? true : 'no seeds for them: the General Store sells seeds'),
       act: () => { let n = 0; for (const p of again) { const c = CROPS[p.last]; if (have(c.seed) < 1) continue; spend(c.seed, 1); p.crop = p.last; p.wet = false; if (state.weather.rain) wetPlot(p); n++; } sfx('pick'); toast(`${n} plot${n === 1 ? '' : 's'} replanted${n < again.length ? `; no seeds for the other ${again.length - n}` : ''}. ${state.weather.rain ? 'The rain is watering them.' : 'They need water.'}`); gardenMenu(); } });
     opts.push(fernOn() ? { label: `${GARDENER.name} is tending your garden <small>until 2 AM: waters, picks into your stash and replants from your seeds</small>`, can: () => 'on the job', act() {} }
-      : { label: `Hire ${GARDENER.name} for the day <small>${GARDENER.blurb} Waters, picks into your stash and replants from your seeds, until 2 AM</small>`, cost: GARDENER.wage, can: () => (hired('garden') ? 'Moonbeam is doing the garden today' : true),
+      : { label: `Hire ${GARDENER.name} for the day <small>${GARDENER.blurb} Waters, picks into your stash and plants every empty plot, from your seeds or with seed she buys out of your pocket. Until 2 AM</small>`, cost: GARDENER.wage, can: () => (hired('garden') ? 'Moonbeam is doing the garden today' : true),
         act: () => { state.gardener.until = state.hour < 2 ? state.day * 24 + 2 : (state.day + 1) * 24 + 2; state.kitchen.gardenNext = 0; toast(`${GARDENER.name}: ${GARDENER.hired}`); } });
     menu(`Your garden (${ps.length} plot${ps.length > 1 ? 's' : ''})`, opts);
   }
@@ -1590,30 +1591,44 @@ export function createLife(ctx) {
     return waiting.find((q) => Math.hypot(people[q.i].x - p.x, people[q.i].z - p.z) < 2.3);
   };
   let servedT = -9; // E serves and E opens the counter menu, so the menu stays shut while anyone is queueing and for a moment after a sale
-  function tendGarden(who = 'Moonbeam') {
-    let did = 0;
-    for (const p of plots()) {
-      const s = plotState(p);
-      if (s === 'dry') { wetPlot(p); did++; }
-      else if (s === 'ready') {
-        const crop = p.crop, c = CROPS[crop];
-        const due = p.left || c.yield, shelf = pantryKinds().includes(c.item) ? Math.min(due, pantryRoom(c.item)) : 0; // fillings go in the produce cabinet; the rest, and the overflow, into your camp stash
-        const stashed = Math.max(0, Math.min(due - shelf, room('store', c.item)));
-        if (shelf) state.pantry[c.item] = (state.pantry[c.item] || 0) + shelf;
-        state.store[c.item] += stashed;
-        if (shelf + stashed < due) { p.left = due - shelf - stashed; if (shelf + stashed) did++; continue; } // no room for all of it: the rest stays on the plant, and nothing is replanted over it
-        p.left = 0;
-        if (FILLINGS.find((x) => x.item === c.item)) state.recipes[c.item] = true;
-        p.crop = null; p.wet = false; p.last = crop;
-        if (have(c.seed) > 0) { spend(c.seed, 1); p.crop = crop; wetPlot(p); } // replants from your own seeds
-        did++;
-      }
+  // One plot, one job. Returns what was done: 'water', 'pick', 'plant', or '' for nothing to do.
+  // Fern plants every empty plot, and buys the seed out of your pocket when you have none; Moonbeam only uses seeds you own.
+  function tendPlot(p, who) {
+    const s = plotState(p);
+    if (s === 'dry') { wetPlot(p); return 'water'; }
+    if (s === 'ready') {
+      const crop = p.crop, c = CROPS[crop];
+      const due = p.left || c.yield, shelf = pantryKinds().includes(c.item) ? Math.min(due, pantryRoom(c.item)) : 0; // fillings go in the produce cabinet; the rest, and the overflow, into your camp stash
+      const stashed = Math.max(0, Math.min(due - shelf, room('store', c.item)));
+      if (shelf) state.pantry[c.item] = (state.pantry[c.item] || 0) + shelf;
+      state.store[c.item] += stashed;
+      if (shelf + stashed < due) { p.left = due - shelf - stashed; return shelf + stashed ? 'pick' : ''; } // no room for all of it: the rest stays on the plant
+      p.left = 0;
+      if (FILLINGS.find((x) => x.item === c.item)) state.recipes[c.item] = true;
+      p.crop = null; p.wet = false; p.last = crop;
+      return 'pick';
     }
+    if (s === 'empty') {
+      const fern = who === GARDENER.name;
+      const crop = (p.last && CROPS[p.last] && (fern || have(CROPS[p.last].seed) > 0)) ? p.last : Object.keys(CROPS).find((k) => have(CROPS[k].seed) > 0) || (fern ? Object.keys(CROPS)[0] : null);
+      if (!crop) return '';
+      const c = CROPS[crop];
+      if (have(c.seed) > 0) spend(c.seed, 1);
+      else if (fern && state.cash >= c.seedCost) { state.cash -= c.seedCost; state.gardener.spent = (state.gardener.spent || 0) + c.seedCost; if (!state.gardener.toldSeed) { state.gardener.toldSeed = true; toast(`${GARDENER.name} bought ${c.seedName.toLowerCase()} with $${c.seedCost} of yours: you had none. She will keep doing that for empty plots.`); } }
+      else return '';
+      p.crop = crop; p.wet = false; p.last = crop;
+      return 'plant';
+    }
+    return '';
+  }
+  function tendGarden(who = 'Moonbeam') { // the whole garden in one go (Moonbeam, and Fern if her model did not load)
+    let did = 0;
+    for (const p of plots()) for (let n = 0; n < 3; n++) { if (!tendPlot(p, who)) break; did++; }
     if (did && atCamp()) toast(`${who} has been at the garden: watered, picked and replanted.`);
   }
   function kitchenTick() {
     const k = state.kitchen, now = total(), h = state.hour;
-    if ((hired('garden') || fernOn()) && now >= k.gardenNext) { k.gardenNext = now + 0.5; tendGarden(hired('garden') ? 'Moonbeam' : GARDENER.name); }
+    if ((hired('garden') || (fernOn() && !life.fernBody)) && now >= k.gardenNext) { /* with her model in the world, Fern does it plot by plot as she walks (fernTend) */ k.gardenNext = now + 0.5; tendGarden(hired('garden') ? 'Moonbeam' : GARDENER.name); }
     if (!state.pal.told && (state.pal.held || 0) > 0 && !hired('front')) { state.pal.told = true; toast(`Moonbeam's shift is over. He is holding $${state.pal.held} for you: go and collect it from him.`); }
     if (!k.open) return;
     if ((h >= 8 || h < 2) && now >= k.next && k.queue.length < KITCHEN.queue && (atCamp() || hired('front'))) {
@@ -1772,7 +1787,7 @@ export function createLife(ctx) {
   // Where a sale's money goes: with somebody on cash they hold it for you until the night is over (less whatever sticks to their fingers).
   const holder = () => (CREW.members[state.corner.heldBy] || { name: 'Your crew' }).name;
   const cashOnShift = () => !!seatId('cash') && seatId('cash') === state.corner.heldBy;
-  const cornerAct = (kind) => { state.corner.act = { kind, at: state.t }; }; // 'sale', 'wave', 'pop': main.js plays each station's part
+  const cornerAct = (kind) => { if (kind === 'sale' && state.corner.mute) return; state.corner.act = { kind, at: state.t }; }; // 'sale', 'wave', 'pop': main.js plays each station's part
   function bank(pay) {
     const cash = seat('cash'), c = state.corner;
     cornerAct('sale');
@@ -1994,6 +2009,37 @@ export function createLife(ctx) {
     { test: (p) => !state.placing && canopyAt(p) >= 0, label: () => { const c = state.canopies[canopyAt(getPlayer().root.position)]; return `Your canopy: ${c.tap ? tapOf(c.tap).name : 'bare'}`; }, use: () => canopyMenu(canopyAt(getPlayer().root.position)) },
   );
 
+  // ---- driving your car. main.js moves it (driveTick); this is getting in and out, what a bump costs, and parking it at camp.
+  const carAt = () => (state.car.at ? [state.car.at[0], state.car.at[1]] : [CARQ.car.x, CARQ.car.z]);
+  const atPark = () => Math.hypot(carAt()[0] - CARQ.park.x, carAt()[1] - CARQ.park.z) < 3.4;
+  function carEnter() {
+    state.driving = true; state.car.bumps = state.car.bumps || 0;
+    toast(`${CARQ.driveHelp}${state.car.stage === 3 ? ' The spot beside your camp is on your map (M).' : ''}`);
+  }
+  function carExit() {
+    if ((state.driveSpeed || 0) > 0.7) { toast('Stop first.'); return; }
+    state.driving = false;
+    const c = state.car;
+    if (c.stage === 3 && atPark()) {
+      c.stage = 4; add('vibes', CARQ.parked.vibes); sfx('level');
+      const n = c.bumps || 0;
+      card('Parked', n ? CARQ.parked.dinged.replace('%N%', n).replace('%S%', n === 1 ? '' : 's') : CARQ.parked.clean, 6500);
+    } else if (c.stage === 3) toast('You leave it here for now. The spot beside your camp is on your map (M).');
+    save();
+  }
+  let carYell = -99;
+  function carBump(person, hard) { // called by main.js when the car hits something
+    if (hard) state.car.bumps = (state.car.bumps || 0) + 1;
+    if (state.t - carYell < 2.2) return;
+    carYell = state.t;
+    if (person) { add('vibes', -0.04); toast(`${pickOne(CARQ.yells)} Vibes down.`); }
+    else if (hard) toast(pickOne(CARQ.bumps));
+  }
+  interactables.unshift(
+    { test: () => !!CARQ && !!state.driving, label: () => ((state.driveSpeed || 0) > 0.7 ? 'Stop to get out' : state.car.stage === 3 && atPark() ? 'Park it here and get out' : 'Get out of the car'), use: carExit },
+    { test: (p) => !!CARQ && !state.driving && state.car.stage >= 3 && Math.hypot(p.x - carAt()[0], p.z - carAt()[1]) < 3.3, label: () => (state.car.stage === 3 ? 'Your car: get in and drive it to your camp' : 'Your car: get in'), use: carEnter },
+  );
+
   // ---- Where's My Car: three memories of where you parked, all a little wrong, and a key fob you had all along. Text and spots are data/car.json.
   const nearXZ = (p, spot, r) => Math.hypot(p.x - spot.x, p.z - spot.z) < r;
   const carMemoryAt = (p) => CARQ.memories.find((m) => !state.car.checked[m.id] && nearXZ(p, m, 3.2));
@@ -2002,7 +2048,7 @@ export function createLife(ctx) {
     const c = state.car;
     if (c.stage === 0 && state.day < CARQ.startsOnDay) { toast('Locked, and nothing in it you need tonight. You know exactly where it is.'); return; }
     if (c.stage === 0) {
-      talk(CARQ.opening, () => { c.stage = 1; sfx('level'); toast(`Where's My Car. Three memories to check, marked on your map (M): ${CARQ.memories.map((m) => m.name.toLowerCase()).join(', ')}.`); save(); });
+      talk(CARQ.opening, () => { c.stage = 2; sfx('level'); toast("Where's My Car. Press E anywhere in the Parking Lot to try your key fob, and walk toward the chirp."); save(); });
       return;
     }
     const left = carLeft();
@@ -2022,14 +2068,15 @@ export function createLife(ctx) {
   function carFob() {
     const c = state.car;
     c.beepAt = state.t; c.beeps++; sfx('coin');
-    toast(CARQ.fobLines[Math.min(c.beeps - 1, CARQ.fobLines.length - 1)]);
+    const p = getPlayer().root.position, d = Math.hypot(p.x - CARQ.car.x, p.z - CARQ.car.z), was = c.lastD; c.lastD = d; // warmer or colder than the last press
+    toast(d < 9 ? CARQ.fobNear : was === undefined || Math.abs(d - was) < 1.5 ? CARQ.fobLines[Math.min(c.beeps - 1, CARQ.fobLines.length - 1)] : d < was ? CARQ.fobWarmer : CARQ.fobColder);
   }
   function carFound() {
     const c = state.car, R = CARQ.reward;
-    if (c.stage === 3) { toast(state.hour >= 1 && state.hour < 6 ? 'Your car. You are wearing the hoodie; it is doing its job.' : 'Your car. It looks happy here. The card game has moved to the roof.'); return; }
+    if (c.stage >= 3) { toast(state.hour >= 1 && state.hour < 6 ? 'Your car. You are wearing the hoodie; it is doing its job.' : 'Your car. It looks happy here. The card game has moved to the roof.'); return; }
     talk(CARQ.found, () => {
       c.stage = 3; c.hoodie = true; state.cash += R.cash; add('vibes', R.vibes); sfx('level');
-      card('Found it', `Your car, a long way from where you parked it. $${R.cash} from the cup holder, mostly in coins, and your hoodie off the back seat: the small hours will not chill you any more.`, 6500);
+      card('Found it', CARQ.foundCard.replace('%CASH%', R.cash), 7500);
       save();
     });
   }
@@ -2204,16 +2251,38 @@ export function createLife(ctx) {
     toast(narc ? 'They walk off muttering into a sleeve. Good call.' : '"Whatever, man." They drift off. That one was just thirsty.');
     return true;
   }
+  function crewLine(now) { // while your crew has the corner, buyers walk up and stand in line; each one is there for a sale the crew act out
+    const c = state.corner;
+    for (const q of [...c.queue]) {
+      if (!people[q.i] || !people[q.i].called) { c.queue = c.queue.filter((x) => x !== q); continue; }
+      if (q.served) { if (state.t - q.served > 3.2) { people[q.i].next = now + 1.5; leaveCorner(q); } } // they have their balloon: off they go
+      else if (now - q.born > 3) leaveCorner(q);
+    }
+    if (c.queue.length >= 4 || now < (c.lineNext || 0)) return;
+    c.lineNext = now + 0.012;
+    const near = people.filter((f) => !f.away && !f.fixed && !f.called && f.next <= now && Math.hypot(f.x - CORNER[0], f.z - CORNER[1]) < 50).sort((a, b) => Math.hypot(a.x - CORNER[0], a.z - CORNER[1]) - Math.hypot(b.x - CORNER[0], b.z - CORNER[1]));
+    const f = near[Math.floor(Math.random() * Math.min(5, near.length))], slot = [0, 1, 2, 3].find((s) => !c.queue.some((q) => q.slot === s));
+    if (!f || slot === undefined) return;
+    const [x, z] = cornerSpot(slot);
+    if (crowd.call(f.i, x, z, Math.atan2(CORNER[0] - x, CORNER[1] - z))) c.queue.push({ i: f.i, slot, at: 0, born: now });
+  }
   function cornerTick() {
     const c = state.corner, v = state.nos, now = total(), R = CORNER_RULES;
     crewEarnTick();
     if (c.nightWage && c.nightUntil && now >= c.nightUntil) nightSummary(); // 4 AM: say what the night came to
     if (!c.heldTold && (c.held || 0) > 0 && !cashOnShift()) { c.heldTold = true; toast(`The night is over on your corner. ${holder()} is holding $${c.held} for you: collect it at your crate.`); }
-    if (seat('fill') && !c.open && late() && now >= c.crewNext) { // somebody is on the tank and you are not posted up: the crew sells without you
+    const crewSells = !!seat('fill') && !c.open && late();
+    if (crewSells) crewLine(now); else if (!c.open && c.queue.length) for (const q of [...c.queue]) leaveCorner(q);
+    if (crewSells && now >= c.crewNext) { // somebody is on the tank and you are not posted up: the crew sells without you
       const speeds = ['fill', 'front', 'run'].map((st) => seat(st)).filter(Boolean).map((m) => m.speed || 1);
       const pace = Math.min(...speeds) * (seat('run') ? 1 : CREW.rules.noRunner); // as fast as its slowest station; with nobody handing out, half that
       c.crewNext = now + (CREW.rules.gap[0] + Math.random() * (CREW.rules.gap[1] - CREW.rules.gap[0])) / pace * (shunned() ? RECKON.warnedGap : 1);
+      // The money comes in at the same rate as before, but the crew only act a sale out when a buyer is standing at the crate and the last hand-off is finished.
+      const free = !(c.act && c.act.kind === 'sale' && state.t - c.act.at < 3.5), q = free ? c.queue.find((x) => !x.served && people[x.i] && crowd.waiting(x.i)) : null;
+      c.mute = !q; const was = c.act;
       crewSale();
+      c.mute = false;
+      if (q && c.act !== was && c.act.kind === 'sale') q.served = state.t;
     }
     if (!c.open) return;
     const p = getPlayer().root.position;
@@ -2503,6 +2572,9 @@ export function createLife(ctx) {
     card(`Quest complete: ${q.title}`, `+$${q.cash}, a skill point, and ${q.reward}`, 4600, () => { life.showQuest(); save(); });
   }
   const life = {
+    carBump,
+    fernBody: false, // main.js sets this once Fern's model is in the world
+    fernTend(i) { const p = plots()[i]; return p && fernOn() ? tendPlot(p, GARDENER.name) : ''; },
     startQuest() { state.lot.on = true; life.showQuest(); },
     showQuest() {
       if (!state.lot.on || state.mode !== 'free') return;
